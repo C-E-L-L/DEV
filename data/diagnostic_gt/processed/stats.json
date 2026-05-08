@@ -1,0 +1,19 @@
+{
+  "imagesTotal": 326,
+  "labelsTotal": 326,
+  "cellsTotal": 5623,
+  "cellsByLabel": {
+    "Segment": 3153,
+    "Lymphocyte": 246,
+    "Monocyte": 698,
+    "Band": 1312,
+    "NucleatedRBC": 153,
+    "Eosinophil": 61
+  },
+  "excludedByClassId": {
+    "0": 1
+  },
+  "unknownClassId": {},
+  "missingLabelFiles": [],
+  "missingImageFiles": []
+}

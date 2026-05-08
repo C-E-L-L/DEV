@@ -1,0 +1,97 @@
+{
+  "Band": {
+    "count": 1312,
+    "sheetFiles": [
+      "Band_page_01.jpg",
+      "Band_page_02.jpg",
+      "Band_page_03.jpg",
+      "Band_page_04.jpg",
+      "Band_page_05.jpg",
+      "Band_page_06.jpg",
+      "Band_page_07.jpg",
+      "Band_page_08.jpg",
+      "Band_page_09.jpg",
+      "Band_page_10.jpg",
+      "Band_page_11.jpg",
+      "Band_page_12.jpg",
+      "Band_page_13.jpg",
+      "Band_page_14.jpg"
+    ],
+    "classDir": "C:\\CELL2\\CELL\\data\\diagnostic_gt\\processed\\review\\by_class\\Band"
+  },
+  "Eosinophil": {
+    "count": 61,
+    "sheetFiles": [
+      "Eosinophil_page_01.jpg"
+    ],
+    "classDir": "C:\\CELL2\\CELL\\data\\diagnostic_gt\\processed\\review\\by_class\\Eosinophil"
+  },
+  "Lymphocyte": {
+    "count": 246,
+    "sheetFiles": [
+      "Lymphocyte_page_01.jpg",
+      "Lymphocyte_page_02.jpg",
+      "Lymphocyte_page_03.jpg"
+    ],
+    "classDir": "C:\\CELL2\\CELL\\data\\diagnostic_gt\\processed\\review\\by_class\\Lymphocyte"
+  },
+  "Monocyte": {
+    "count": 698,
+    "sheetFiles": [
+      "Monocyte_page_01.jpg",
+      "Monocyte_page_02.jpg",
+      "Monocyte_page_03.jpg",
+      "Monocyte_page_04.jpg",
+      "Monocyte_page_05.jpg",
+      "Monocyte_page_06.jpg",
+      "Monocyte_page_07.jpg"
+    ],
+    "classDir": "C:\\CELL2\\CELL\\data\\diagnostic_gt\\processed\\review\\by_class\\Monocyte"
+  },
+  "NucleatedRBC": {
+    "count": 153,
+    "sheetFiles": [
+      "NucleatedRBC_page_01.jpg",
+      "NucleatedRBC_page_02.jpg"
+    ],
+    "classDir": "C:\\CELL2\\CELL\\data\\diagnostic_gt\\processed\\review\\by_class\\NucleatedRBC"
+  },
+  "Segment": {
+    "count": 3153,
+    "sheetFiles": [
+      "Segment_page_01.jpg",
+      "Segment_page_02.jpg",
+      "Segment_page_03.jpg",
+      "Segment_page_04.jpg",
+      "Segment_page_05.jpg",
+      "Segment_page_06.jpg",
+      "Segment_page_07.jpg",
+      "Segment_page_08.jpg",
+      "Segment_page_09.jpg",
+      "Segment_page_10.jpg",
+      "Segment_page_11.jpg",
+      "Segment_page_12.jpg",
+      "Segment_page_13.jpg",
+      "Segment_page_14.jpg",
+      "Segment_page_15.jpg",
+      "Segment_page_16.jpg",
+      "Segment_page_17.jpg",
+      "Segment_page_18.jpg",
+      "Segment_page_19.jpg",
+      "Segment_page_20.jpg",
+      "Segment_page_21.jpg",
+      "Segment_page_22.jpg",
+      "Segment_page_23.jpg",
+      "Segment_page_24.jpg",
+      "Segment_page_25.jpg",
+      "Segment_page_26.jpg",
+      "Segment_page_27.jpg",
+      "Segment_page_28.jpg",
+      "Segment_page_29.jpg",
+      "Segment_page_30.jpg",
+      "Segment_page_31.jpg",
+      "Segment_page_32.jpg"
+    ],
+    "classDir": "C:\\CELL2\\CELL\\data\\diagnostic_gt\\processed\\review\\by_class\\Segment"
+  }
+}

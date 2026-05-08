@@ -1,0 +1,45 @@
+# --- Security & Secrets ---
+*.env
+*.env.local
+.env.*
+
+# --- Backend (Spring Boot / Gradle) ---
+backend/.gradle/
+backend/build/
+backend/out/
+backend/bin/
+backend/.settings/
+backend/.project
+backend/.classpath
+backend/data/
+backend/*.db
+backend/*.log
+
+# --- AI Server (FastAPI / Python) ---
+ai-server/venv/
+ai-server/.venv/
+ai-server/__pycache__/
+ai-server/data/
+ai-server/weights/
+ai-server/*.pyc
+ai-server/*.log
+
+# --- Frontend (React / Vite) ---
+frontend/node_modules/
+frontend/dist/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# --- IDE & Tools ---
+.idea/
+*.iml
+.vscode/
+*.swp
+.classpath
+.project
+.settings/
+
+# --- OS ---
+.DS_Store
+Thumbs.db

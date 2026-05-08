@@ -1,0 +1,428 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { taskApi, cropApi, submissionApi } from '../api';
+import { CELL_TYPES, imageUrl } from '../constants';
+
+function isDiagnosticTask(task) {
+  return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
+}
+
+/* ──────────────── Task Card (과제 목록용) ──────────────── */
+function TaskCardItem({ task, username, onClick, diagnostic = false }) {
+  const [total, setTotal] = useState(0);
+  const [solved, setSolved] = useState(0);
+  const [accuracy, setAccuracy] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const cropsRes = await cropApi.getByTaskId(task.id);
+        setTotal(cropsRes.data.length);
+        const solvedRes = await submissionApi.getSolvedCrops(task.id, username);
+        setSolved(solvedRes.data.length);
+        if (cropsRes.data.length > 0 && solvedRes.data.length === cropsRes.data.length) {
+          const statsRes = await submissionApi.getMyResults(task.id, username);
+          if (statsRes.data?.accuracy !== undefined) setAccuracy(statsRes.data.accuracy);
+        }
+      } catch (err) { console.error(err); }
+    };
+    fetchData();
+  }, [task.id, username]);
+
+  const percent = total === 0 ? 0 : Math.round((solved / total) * 100);
+  const isCompleted = total > 0 && solved === total;
+
+  return (
+    <div style={taskCardStyle} onClick={onClick}>
+      {task.originalFilename ? (
+        <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
+      ) : (
+        <div style={noImageStyle}>No Image</div>
+      )}
+      <div style={{ padding: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontWeight: '700', fontSize: '18px', color: '#343a40' }}>Task #{task.id}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {diagnostic && (
+              <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', background: '#fff3cd', color: '#856404' }}>
+                DIAGNOSTIC
+              </span>
+            )}
+            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isCompleted ? '#d4edda' : '#e9ecef', color: isCompleted ? '#155724' : '#495057' }}>
+              {isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
+            </span>
+          </div>
+        </div>
+        <div style={{ color: '#6c757d', fontSize: '13px', marginBottom: '15px' }}>
+          {task.uploadedFilename && <div style={{ fontSize: '11px', wordBreak: 'break-all' }}>{task.uploadedFilename}</div>}
+        </div>
+        <div style={{ background: '#e9ecef', borderRadius: '4px', height: '8px', width: '100%', overflow: 'hidden', marginBottom: '6px' }}>
+          <div style={{ background: isCompleted ? '#28a745' : '#0056b3', height: '100%', width: `${percent}%`, transition: 'width 0.5s ease-in-out' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6c757d', fontWeight: '600' }}>
+          <span>{solved} / {total}</span>
+          <span style={{ color: isCompleted ? '#28a745' : '#0056b3' }}>{percent}%</span>
+        </div>
+        {isCompleted && accuracy !== null && (
+          <div style={{ marginTop: '12px', padding: '10px', background: '#f8f9fa', borderRadius: '4px', textAlign: 'center', fontSize: '14px', border: '1px solid #dee2e6' }}>
+            <span>🎯 정답률: </span>
+            <span style={{ color: accuracy >= 80 ? '#28a745' : accuracy >= 50 ? '#ffc107' : '#dc3545', fontWeight: 'bold' }}>{accuracy}%</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────── Main StudentPage ──────────────── */
+export default function StudentPage() {
+  const { user } = useAuth();
+  const username = user?.username;
+  const navigate = useNavigate();
+
+  const [tasks, setTasks] = useState([]);
+  const [taskTab, setTaskTab] = useState('practice');
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [crops, setCrops] = useState([]);
+  const [currentCropIndex, setCurrentCropIndex] = useState(0);
+  const [solvedCrops, setSolvedCrops] = useState(new Set());
+  const [solvedLabels, setSolvedLabels] = useState({});
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+  const [showResult, setShowResult] = useState(false);
+  const [resultData, setResultData] = useState(null);
+
+  useEffect(() => {
+    taskApi.getAll().then(({ data }) => setTasks(data)).catch(console.error);
+  }, []);
+
+  // 브라우저 뒤로가기 방지
+  useEffect(() => {
+    const handlePopState = (e) => {
+      e.preventDefault();
+      navigate('/student', { replace: true });
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [navigate]);
+
+  const handleSelectTask = async (task) => {
+    setSelectedTask(task);
+    setCurrentCropIndex(0);
+    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    setSolvedLabels({});
+    setShowResult(false);
+    setResultData(null);
+    const cropsRes = await cropApi.getByTaskId(task.id);
+    setCrops(cropsRes.data);
+    const solvedRes = await submissionApi.getSolvedCrops(task.id, username);
+    setSolvedCrops(new Set(solvedRes.data));
+  };
+
+  const handleImageLoad = (e) => {
+    setImageSize({ width: e.target.clientWidth, height: e.target.clientHeight, naturalWidth: e.target.naturalWidth, naturalHeight: e.target.naturalHeight });
+  };
+
+  const parseBbox = (bboxStr) => {
+    try { return JSON.parse(bboxStr.replace(/'/g, '"')); } catch { return [0, 0, 0, 0]; }
+  };
+
+  const getScaledBbox = (bboxStr) => {
+    const [x1, y1, x2, y2] = parseBbox(bboxStr);
+    if (!imageSize.naturalWidth) return { left: 0, top: 0, width: 0, height: 0 };
+    const scaleX = imageSize.width / imageSize.naturalWidth;
+    const scaleY = imageSize.height / imageSize.naturalHeight;
+    return { left: x1 * scaleX, top: y1 * scaleY, width: (x2 - x1) * scaleX, height: (y2 - y1) * scaleY };
+  };
+
+  const handleStudentSubmit = async (label) => {
+    const currentCrop = crops[currentCropIndex];
+    if (!currentCrop) return;
+    try {
+      await submissionApi.submit(currentCrop.id, username, label);
+      setSolvedCrops(prev => new Set(prev).add(currentCrop.id));
+      setSolvedLabels(prev => ({ ...prev, [currentCrop.id]: label }));
+      const nextIdx = crops.findIndex((c, i) => i > currentCropIndex && !solvedCrops.has(c.id) && c.id !== currentCrop.id);
+      if (nextIdx !== -1) setCurrentCropIndex(nextIdx);
+    } catch { alert("제출에 실패했습니다."); }
+  };
+
+  const handleFinalSubmit = async () => {
+    try {
+      const { data } = await submissionApi.getMyResults(selectedTask.id, username);
+      setResultData(data);
+      setShowResult(true);
+    } catch { alert("결과를 불러오는데 실패했습니다."); }
+  };
+
+  const currentCrop = crops[currentCropIndex];
+  const allCompleted = crops.length > 0 && solvedCrops.size >= crops.length;
+  const isDiagnosticMode = isDiagnosticTask(selectedTask);
+  const practiceTasks = tasks.filter((task) => !isDiagnosticTask(task));
+  const diagnosticTasks = tasks.filter((task) => isDiagnosticTask(task));
+  const visibleTasks = taskTab === 'diagnostic' ? diagnosticTasks : practiceTasks;
+
+  /* ====== 화면 1: 과제 목록 ====== */
+  if (!selectedTask) {
+    return (
+      <div style={containerStyle}>
+        <div style={{ borderBottom: '2px solid #dee2e6', paddingBottom: '15px', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0 }}>Task Dashboard (Student)</h2>
+          <span style={{ color: '#6c757d' }}>
+            {taskTab === 'diagnostic'
+              ? '진단평가 과제를 선택해 GT 기반으로 채점받으세요.'
+              : '일반 과제를 선택해 분류 연습을 진행하세요.'}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <button onClick={() => setTaskTab('practice')} style={taskTab === 'practice' ? tabActive : tabInactive}>일반 과제</button>
+          <button onClick={() => setTaskTab('diagnostic')} style={taskTab === 'diagnostic' ? tabActive : tabInactive}>진단평가</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+          {visibleTasks.map(task => (
+            <TaskCardItem
+              key={task.id}
+              task={task}
+              username={username}
+              diagnostic={isDiagnosticTask(task)}
+              onClick={() => handleSelectTask(task)}
+            />
+          ))}
+        </div>
+        {visibleTasks.length === 0 && (
+          <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>
+            {taskTab === 'diagnostic' ? 'No diagnostic tasks available.' : 'No practice tasks available.'}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  /* ====== 화면 3: 채점 결과 ====== */
+  if (showResult && resultData) {
+    return (
+      <div style={containerStyle}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #dee2e6' }}>
+          <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>📊 AI 채점 결과</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-around', padding: '30px 0', background: '#f8f9fa', borderRadius: '8px', marginBottom: '20px' }}>
+            <div style={resultStatStyle}>
+              <span style={{ fontSize: '48px', fontWeight: 'bold', color: resultData.accuracy >= 80 ? '#28a745' : resultData.accuracy >= 50 ? '#ffc107' : '#dc3545' }}>{resultData.accuracy}%</span>
+              <span style={{ color: '#6c757d', marginTop: '10px' }}>정답률</span>
+            </div>
+            <div style={resultStatStyle}>
+              <span style={{ fontSize: '36px', fontWeight: 'bold', color: '#28a745' }}>{resultData.correct}</span>
+              <span style={{ color: '#6c757d', marginTop: '10px' }}>정답</span>
+            </div>
+            <div style={resultStatStyle}>
+              <span style={{ fontSize: '36px', fontWeight: 'bold', color: '#dc3545' }}>{resultData.wrong}</span>
+              <span style={{ color: '#6c757d', marginTop: '10px' }}>오답</span>
+            </div>
+            <div style={resultStatStyle}>
+              <span style={{ fontSize: '36px', fontWeight: 'bold', color: '#495057' }}>{resultData.total}</span>
+              <span style={{ color: '#6c757d', marginTop: '10px' }}>전체</span>
+            </div>
+          </div>
+          {resultData.details?.length > 0 && (
+            <div style={{ marginTop: '30px' }}>
+              <h3 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>상세 결과</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px', marginTop: '15px' }}>
+                {resultData.details.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', padding: '10px', border: `2px solid ${item.isCorrect ? '#28a745' : '#dc3545'}`, borderRadius: '8px', background: '#fff' }}>
+                    <img src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
+                    <div style={{ flex: 1, marginLeft: '10px' }}>
+                      <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{item.studentLabel}</strong></div>
+                      <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>정답: </span><strong style={{ color: item.isCorrect ? '#28a745' : '#dc3545' }}>{item.aiLabel}</strong></div>
+                    </div>
+                    <span style={{ fontSize: '24px' }}>{item.isCorrect ? '✅' : '❌'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {isDiagnosticMode && resultData.confusionMatrix && resultData.labels?.length > 0 && (
+            <div style={{ marginTop: '30px' }}>
+              <h3 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>학생 혼동행렬 (GT x 예측)</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px', background: '#fff' }}>
+                  <thead>
+                    <tr>
+                      <th style={cmHeadStyle}>GT \ Pred</th>
+                      {resultData.labels.map((label) => (
+                        <th key={label} style={cmHeadStyle}>{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultData.labels.map((actual) => (
+                      <tr key={actual}>
+                        <td style={cmRowHeaderStyle}>{actual}</td>
+                        {resultData.labels.map((pred) => {
+                          const value = resultData.confusionMatrix?.[actual]?.[pred] ?? 0;
+                          return <td key={`${actual}_${pred}`} style={cmCellStyle}>{value}</td>;
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          <button onClick={() => { setSelectedTask(null); setShowResult(false); }} style={{ display: 'block', width: '300px', margin: '30px auto 0', padding: '15px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>
+            목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ====== 화면 2: 세포 분류 ====== */
+  return (
+    <div style={containerStyle}>
+      {/* 상단 바 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #dee2e6', paddingBottom: '15px' }}>
+        <h2 style={{ margin: 0 }}>
+          Task #{selectedTask.id} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
+          {isDiagnosticMode && <span style={{ marginLeft: '10px', fontSize: '14px', color: '#856404', background: '#fff3cd', padding: '3px 8px', borderRadius: '5px' }}>GT Scoring</span>}
+        </h2>
+        <button onClick={() => setSelectedTask(null)} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>← 목록으로 돌아가기</button>
+      </div>
+
+      {/* 메인 레이아웃 */}
+      <div style={{ display: 'flex', gap: '20px', minHeight: '70vh', flexWrap: 'wrap' }}>
+        {/* 왼쪽: 혈액 도말 이미지 + 바운딩 박스 */}
+        {!isDiagnosticMode && (
+        <div style={{ flex: '2 1 720px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
+          <div style={sectionHeaderStyle}>🔬 혈액 도말 이미지</div>
+          <div style={{ padding: '15px', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', background: '#f8f9fa' }}>
+            <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
+              <span style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(220,53,69,0.9)', color: '#fff', padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', zIndex: 10 }}>x40</span>
+              {selectedTask.originalFilename && (
+                <img
+                  src={imageUrl.original(selectedTask.originalFilename)}
+                  alt="Blood Smear"
+                  onLoad={handleImageLoad}
+                  style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 300px)', height: 'auto', objectFit: 'contain', display: 'block' }}
+                />
+              )}
+              {/* 바운딩 박스 오버레이 */}
+              {crops.map((crop, idx) => {
+                const bbox = getScaledBbox(crop.bbox);
+                const isSelected = idx === currentCropIndex;
+                const isSolved = solvedCrops.has(crop.id);
+                return (
+                  <div key={crop.id} onClick={() => setCurrentCropIndex(idx)} style={{
+                    position: 'absolute', left: bbox.left, top: bbox.top, width: bbox.width, height: bbox.height,
+                    border: isSelected ? '3px solid #ffc107' : isSolved ? '2px solid #28a745' : '2px solid #00ff00',
+                    background: isSelected ? 'rgba(255,193,7,0.2)' : 'transparent', cursor: 'pointer', boxSizing: 'border-box',
+                  }}>
+                    <span style={{
+                      position: 'absolute', top: '-18px', left: '0',
+                      background: isSelected ? '#ffc107' : isSolved ? '#28a745' : '#333',
+                      color: isSelected ? '#000' : '#fff', fontSize: '10px', padding: '1px 4px', borderRadius: '2px', fontWeight: 'bold',
+                    }}>#{idx + 1}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* 오른쪽: 세포 목록 + 분류 패널 */}
+        <div style={{ flex: isDiagnosticMode ? '1 1 100%' : '1 1 360px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '320px' }}>
+          {/* 감지된 세포 목록 */}
+          <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden', flex: '1', maxHeight: '300px' }}>
+            <div style={sectionHeaderStyle}>🔍 감지된 세포 목록</div>
+            <div style={{ padding: '10px', overflowY: 'auto', maxHeight: '250px' }}>
+              {crops.map((crop, idx) => {
+                const isSolved = solvedCrops.has(crop.id);
+                const isSelected = idx === currentCropIndex;
+                const label = solvedLabels[crop.id];
+                return (
+                  <div key={crop.id} onClick={() => setCurrentCropIndex(idx)} style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', borderRadius: '4px', cursor: 'pointer',
+                    marginBottom: '5px', border: '1px solid #eee', background: isSelected ? '#f0f4f8' : '#fff',
+                    borderLeft: isSelected ? '4px solid #495057' : '4px solid transparent',
+                  }}>
+                    <img src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '600', fontSize: '14px' }}>#{idx + 1}</div>
+                      <div style={{ fontSize: '12px', color: isSolved ? '#28a745' : '#6c757d' }}>{isSolved ? (label || '분류완료') : '미분류'}</div>
+                    </div>
+                    {isSolved && <span style={{ color: '#28a745', fontSize: '18px' }}>●</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 세포 분류 패널 */}
+          <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
+            <div style={sectionHeaderStyle}>🏷️ 세포 분류</div>
+            {currentCrop && (
+              <div style={{ padding: '15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '10px' }}>
+                  <button onClick={() => currentCropIndex > 0 && setCurrentCropIndex(currentCropIndex - 1)} disabled={currentCropIndex === 0} style={{ ...navBtnStyle, opacity: currentCropIndex === 0 ? 0.3 : 1 }}>◀</button>
+                  <div style={{ width: '180px', height: '180px', border: '2px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#f8f9fa' }}>
+                    <img src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
+                  <button onClick={() => currentCropIndex < crops.length - 1 && setCurrentCropIndex(currentCropIndex + 1)} disabled={currentCropIndex === crops.length - 1} style={{ ...navBtnStyle, opacity: currentCropIndex === crops.length - 1 ? 0.3 : 1 }}>▶</button>
+                </div>
+                <div style={{ textAlign: 'center', marginBottom: '15px', color: '#6c757d', fontSize: '13px' }}>
+                  세포 #{currentCropIndex + 1} / {crops.length}
+                  {solvedCrops.has(currentCrop.id) && <span style={{ color: '#28a745', marginLeft: '10px' }}>✓ 분류완료</span>}
+                </div>
+                <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: '600' }}>👆 클래스를 선택하세요</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                  {CELL_TYPES.map((cls) => (
+                    <button key={cls.key} onClick={() => handleStudentSubmit(cls.key)} disabled={solvedCrops.has(currentCrop.id)} style={{
+                      padding: '12px 8px', background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '6px', fontSize: '13px',
+                      fontWeight: '600', cursor: solvedCrops.has(currentCrop.id) ? 'not-allowed' : 'pointer',
+                      opacity: solvedCrops.has(currentCrop.id) ? 0.5 : 1,
+                    }}>
+                      {cls.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 하단 진행률 + 제출 */}
+      <div style={{ marginTop: '20px', padding: '15px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div>
+            <span style={{ fontWeight: '600' }}>진행률: </span>
+            <span>{solvedCrops.size} / {crops.length} 완료 ({crops.length > 0 ? Math.round((solvedCrops.size / crops.length) * 100) : 0}%)</span>
+          </div>
+          <button onClick={handleFinalSubmit} disabled={!allCompleted} style={{
+            padding: '10px 24px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '600',
+            opacity: allCompleted ? 1 : 0.5, cursor: allCompleted ? 'pointer' : 'not-allowed',
+          }}>
+            {allCompleted ? '🎯 제출하고 채점 받기' : `⏳ ${crops.length - solvedCrops.size}개 남음`}
+          </button>
+        </div>
+        <div style={{ background: '#e9ecef', height: '10px', borderRadius: '5px', overflow: 'hidden' }}>
+          <div style={{ background: '#28a745', height: '100%', width: `${crops.length > 0 ? (solvedCrops.size / crops.length) * 100 : 0}%`, transition: 'width 0.3s' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const containerStyle = { maxWidth: '1800px', width: '98%', margin: '0 auto', padding: '20px', fontFamily: 'Inter, sans-serif', color: '#343a40' };
+const sectionHeaderStyle = { background: '#495057', color: '#fff', padding: '12px 20px', fontSize: '15px', fontWeight: '600' };
+const navBtnStyle = { width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const resultStatStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center' };
+const taskCardStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'transform 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' };
+const thumbnailStyle = { width: '100%', height: '180px', objectFit: 'cover', borderBottom: '1px solid #dee2e6' };
+const noImageStyle = { width: '100%', height: '180px', background: '#e9ecef', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#adb5bd', fontWeight: 'bold', borderBottom: '1px solid #dee2e6' };
+const tabActive = { padding: '8px 14px', background: '#343a40', color: '#fff', border: '1px solid #343a40', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' };
+const tabInactive = { padding: '8px 14px', background: '#fff', color: '#495057', border: '1px solid #ced4da', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' };
+const cmHeadStyle = { border: '1px solid #dee2e6', padding: '8px', background: '#f8f9fa', fontSize: '12px', whiteSpace: 'nowrap' };
+const cmRowHeaderStyle = { border: '1px solid #dee2e6', padding: '8px', background: '#f8f9fa', fontWeight: '700', fontSize: '12px' };
+const cmCellStyle = { border: '1px solid #dee2e6', padding: '8px', textAlign: 'center', fontSize: '12px' };
