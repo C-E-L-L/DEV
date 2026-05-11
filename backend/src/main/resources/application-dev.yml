@@ -1,9 +1,14 @@
 spring:
   datasource:
-    url: ${DB_URL}
+    url: jdbc:mysql://localhost:3306/celldb?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: root
+    password: root
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
 
   jpa:
     hibernate:
@@ -24,14 +29,13 @@ server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET}
-  expiration-hours: ${JWT_EXPIRATION_HOURS}
+  secret: ${JWT_SECRET:cell-dev-jwt-secret-key-change-me-please-32bytes}
+  expiration-hours: ${JWT_EXPIRATION_HOURS:24}
 
 ai-server:
-  base-url: ${AI_SERVER_URL}
+  base-url: ${AI_SERVER_URL:http://localhost:8001}
 
 file:
-  upload-dir: ${FILE_UPLOAD_DIR}
-  crop-dir: ${FILE_CROP_DIR}
-
+  upload-dir: ${FILE_UPLOAD_DIR:../data/originals}
+  crop-dir: ${FILE_CROP_DIR:../data/crops}
 
