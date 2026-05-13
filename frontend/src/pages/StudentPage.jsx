@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { taskApi, cropApi, submissionApi } from '../api';
+import { taskApi, cropApi, submissionApi, reportApi } from '../api';
 import { CELL_TYPES, imageUrl } from '../constants';
 
 function isDiagnosticTask(task) {
@@ -43,8 +43,8 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
         <div style={noImageStyle}>No Image</div>
       )}
       <div style={{ padding: '15px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={{ fontWeight: '700', fontSize: '18px', color: '#343a40' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', columnGap: '10px', rowGap: '6px' }}>
+          <span style={{ fontWeight: '700', fontSize: '16px', lineHeight: 1.2, color: '#343a40', marginRight: '8px' }}>
             {diagnostic ? `Diagnostic #${displayNumber || task.id}` : `Task #${task.id}`}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -159,12 +159,46 @@ export default function StudentPage() {
     } catch { alert("결과를 불러오는데 실패했습니다."); }
   };
 
+  const [reportReason, setReportReason] = useState('화질 문제');
+  const [reportOtherReason, setReportOtherReason] = useState('');
+  const [showReportForm, setShowReportForm] = useState(false);
+
+  const handleReportCrop = () => {
+    if (!currentCrop || !selectedTask) return;
+    const reason = reportReason === '기타'
+      ? reportOtherReason.trim()
+      : reportReason;
+    if (!reason) {
+      alert('기타 사유를 입력해주세요.');
+      return;
+    }
+
+    reportApi.create({
+      taskId: selectedTask.id,
+      cropId: currentCrop.id,
+      studentId: username,
+      reason,
+    })
+      .then(() => {
+        alert('신고가 접수되었습니다.');
+        setReportOtherReason('');
+        setShowReportForm(false);
+      })
+      .catch(() => alert('신고 접수에 실패했습니다.'));
+  };
+
   const currentCrop = crops[currentCropIndex];
   const allCompleted = crops.length > 0 && solvedCrops.size >= crops.length;
   const isDiagnosticMode = isDiagnosticTask(selectedTask);
   const practiceTasks = tasks.filter((task) => !isDiagnosticTask(task));
   const diagnosticTasks = tasks.filter((task) => isDiagnosticTask(task));
-  const visibleTasks = taskTab === 'diagnostic' ? diagnosticTasks : practiceTasks;
+  const diagnosticTasksOrdered = [...diagnosticTasks].sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (aTime !== bTime) return aTime - bTime;
+    return (a.id || 0) - (b.id || 0);
+  });
+  const visibleTasks = taskTab === 'diagnostic' ? diagnosticTasksOrdered : practiceTasks;
 
   /* ====== 화면 1: 과제 목록 ====== */
   if (!selectedTask) {
@@ -184,7 +218,7 @@ export default function StudentPage() {
           <button onClick={() => setTaskTab('diagnostic')} style={taskTab === 'diagnostic' ? tabActive : tabInactive}>진단평가</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
           {visibleTasks.map((task, index) => (
             <TaskCardItem
               key={task.id}
@@ -286,6 +320,7 @@ export default function StudentPage() {
 
   /* ====== 화면 2: 세포 분류 ====== */
   return (
+    <>
     <div style={containerStyle}>
       {/* 상단 바 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #dee2e6', paddingBottom: '15px' }}>
@@ -393,6 +428,11 @@ export default function StudentPage() {
                     </button>
                   ))}
                 </div>
+                <div style={{ marginTop: '12px' }}>
+                  <button onClick={() => setShowReportForm(true)} style={reportBtnStyle}>
+                    잘 모르겠어요
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -418,6 +458,51 @@ export default function StudentPage() {
         </div>
       </div>
     </div>
+
+    {showReportForm && (
+      <div style={reportModalOverlayStyle}>
+        <div style={reportModalStyle}>
+          <div style={{ fontSize: '15px', fontWeight: '700', marginBottom: '10px', color: '#343a40' }}>
+            신고 사유 선택
+          </div>
+          <select
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            style={reportSelectStyle}
+          >
+            {/*
+            <option value="화질 문제">화질 문제</option>
+            <option value="잘림/바운딩 오류">잘림/바운딩 오류</option>
+            <option value="오탐">오탐</option>
+            <option value="헷갈림">헷갈림</option>
+            <option value="기타">기타</option>
+            */}
+            <option value="이미지 문제">이미지 문제</option>
+            <option value="라벨/정답 오류">라벨/정답 오류</option>
+            <option value="중복">중복</option>
+            <option value="헷갈림">헷갈림</option>
+            <option value="기타">기타</option>
+          </select>
+          {reportReason === '기타' && (
+            <input
+              value={reportOtherReason}
+              onChange={(e) => setReportOtherReason(e.target.value)}
+              placeholder="기타 사유 입력"
+              style={reportInputStyle}
+            />
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button onClick={handleReportCrop} style={reportBtnStyle}>
+              신고하기
+            </button>
+            <button onClick={() => setShowReportForm(false)} style={reportCancelBtnStyle}>
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -433,3 +518,9 @@ const tabInactive = { padding: '8px 14px', background: '#fff', color: '#495057',
 const cmHeadStyle = { border: '1px solid #dee2e6', padding: '8px', background: '#f8f9fa', fontSize: '12px', whiteSpace: 'nowrap' };
 const cmRowHeaderStyle = { border: '1px solid #dee2e6', padding: '8px', background: '#f8f9fa', fontWeight: '700', fontSize: '12px' };
 const cmCellStyle = { border: '1px solid #dee2e6', padding: '8px', textAlign: 'center', fontSize: '12px' };
+const reportBtnStyle = { width: '100%', padding: '10px 12px', background: '#fff3cd', border: '1px solid #ffecb5', borderRadius: '6px', color: '#856404', fontSize: '13px', fontWeight: '600', cursor: 'pointer' };
+const reportSelectStyle = { width: '100%', padding: '8px 10px', border: '1px solid #dee2e6', borderRadius: '6px', background: '#fff', fontSize: '13px', color: '#495057' };
+const reportInputStyle = { width: '100%', padding: '8px 10px', border: '1px solid #dee2e6', borderRadius: '6px', background: '#fff', fontSize: '13px', color: '#495057' };
+const reportCancelBtnStyle = { width: '100%', padding: '10px 12px', background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '6px', color: '#6c757d', fontSize: '13px', fontWeight: '600', cursor: 'pointer' };
+const reportModalOverlayStyle = { position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 };
+const reportModalStyle = { width: '320px', background: '#fff', borderRadius: '10px', padding: '16px', border: '1px solid #dee2e6', display: 'grid', gap: '10px' };

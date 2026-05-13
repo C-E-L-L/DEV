@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { taskApi, statsApi, cropApi, diagnosticApi } from '../api';
+import { taskApi, statsApi, cropApi, diagnosticApi, reportApi } from '../api';
 import { CELL_KEYS, imageUrl } from '../constants';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
@@ -69,6 +69,34 @@ function autoDistributeByTotal(total, availableByClass) {
   return result;
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getMatrixCellStyle(count, rowTotal, isCorrect) {
+  if (!rowTotal || count === 0) {
+    return { background: '#fff', color: '#adb5bd', fontWeight: 'normal' };
+  }
+
+  const pct = count / rowTotal;
+  const alpha = clamp(0.15 + pct * 0.85, 0.15, 0.95);
+  const base = isCorrect ? '40, 167, 69' : '220, 53, 69';
+  const textColor = isCorrect ? '#155724' : '#721c24';
+
+  return {
+    background: `rgba(${base}, ${alpha})`,
+    color: textColor,
+    fontWeight: '600',
+  };
+}
+
+function getReportCategory(reason) {
+  const normalized = (reason || '').trim();
+  const known = ['화질 문제', '잘림/바운딩 오류', '오탐', '헷갈림'];
+  if (known.includes(normalized)) return normalized;
+  return '기타';
+}
+
 /* ──────────────── Main ExpertPage ──────────────── */
 export default function ExpertPage() {
   const { user } = useAuth();
@@ -89,6 +117,15 @@ export default function ExpertPage() {
   const [stats, setStats] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [allCellStats, setAllCellStats] = useState([]);
+  const [reportItems, setReportItems] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportFilters, setReportFilters] = useState({
+    '화질 문제': true,
+    '잘림/바운딩 오류': true,
+    '오탐': true,
+    '헷갈림': true,
+    '기타': true,
+  });
 
   /* ── Tab 3: Diagnostic Evaluation ── */
   const [poolStats, setPoolStats] = useState(null);
@@ -108,8 +145,14 @@ export default function ExpertPage() {
   const [studentMatrices, setStudentMatrices] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  const diagnosticTaskOrder = tasks
+  const diagnosticTaskOrder = [...tasks]
     .filter(isDiagnosticTask)
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (aTime !== bTime) return aTime - bTime;
+      return (a.id || 0) - (b.id || 0);
+    })
     .reduce((acc, task, index) => {
       acc.set(task.id, index + 1);
       return acc;
@@ -141,6 +184,15 @@ export default function ExpertPage() {
     if (activeTab !== 2 || analyticsSubTab !== 'students') return;
     fetchStudentMatrices();
   }, [activeTab, analyticsSubTab, fetchStudentMatrices]);
+
+  useEffect(() => {
+    if (activeTab !== 2 || analyticsSubTab !== 'reports') return;
+    setReportLoading(true);
+    reportApi.getAll()
+      .then(({ data }) => setReportItems(data || []))
+      .catch(() => setReportItems([]))
+      .finally(() => setReportLoading(false));
+  }, [activeTab, analyticsSubTab]);
 
   useEffect(() => {
     if (activeTab !== 3) return;
@@ -353,6 +405,7 @@ export default function ExpertPage() {
             <button onClick={() => setAnalyticsSubTab('tasks')} style={analyticsSubTab === 'tasks' ? subTabActive : subTabInactive}>📋 Tasks</button>
             <button onClick={() => setAnalyticsSubTab('cells')} style={analyticsSubTab === 'cells' ? subTabActive : subTabInactive}>🔬 Cells</button>
             <button onClick={() => setAnalyticsSubTab('students')} style={analyticsSubTab === 'students' ? subTabActive : subTabInactive}>🧑‍🎓 Student Matrices</button>
+            <button onClick={() => setAnalyticsSubTab('reports')} style={analyticsSubTab === 'reports' ? subTabActive : subTabInactive}>Reports</button>
           </div>
 
           {/* ───── Tasks 서브탭 ───── */}
@@ -597,7 +650,7 @@ export default function ExpertPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
                           <thead>
                             <tr>
-                              <th style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', width: '120px' }}>GT \ 예측</th>
+                              <th style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', width: '120px' }}>GT \ 응답</th>
                               {CELL_KEYS.map(key => (
                                 <th key={key} style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', color: '#495057' }}>
                                   {key.substring(0, 3)}
@@ -611,24 +664,36 @@ export default function ExpertPage() {
                                 <td style={{ border: '1px solid #dee2e6', padding: '10px', fontWeight: 'bold', background: '#f8f9fa', color: '#495057' }}>
                                   {actual}
                                 </td>
-                                {CELL_KEYS.map(predicted => {
-                                  const count = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
-                                  const isCorrect = actual === predicted;
-                                  const bgColor = count > 0 ? (isCorrect ? '#d4edda' : '#f8d7da') : '#fff';
-                                  const fontColor = count > 0 ? (isCorrect ? '#155724' : '#721c24') : '#adb5bd';
-                                  
-                                  return (
-                                    <td key={predicted} style={{
-                                      border: '1px solid #dee2e6',
-                                      padding: '10px',
-                                      background: bgColor,
-                                      color: fontColor,
-                                      fontWeight: count > 0 ? 'bold' : 'normal'
-                                    }}>
-                                      {count}
-                                    </td>
-                                  );
-                                })}
+                                {(() => {
+                                  const rowTotal = CELL_KEYS.reduce((sum, predicted) => {
+                                    const value = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
+                                    return sum + value;
+                                  }, 0);
+
+                                  return CELL_KEYS.map(predicted => {
+                                    const count = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
+                                    const isCorrect = actual === predicted;
+                                    const cellStyle = getMatrixCellStyle(count, rowTotal, isCorrect);
+                                    const pct = rowTotal > 0 ? Math.round((count / rowTotal) * 100) : 0;
+                                    const title = rowTotal > 0
+                                      ? `${count} (${pct}%)`
+                                      : '0 (0%)';
+
+                                    return (
+                                      <td
+                                        key={predicted}
+                                        title={title}
+                                        style={{
+                                          border: '1px solid #dee2e6',
+                                          padding: '10px',
+                                          ...cellStyle,
+                                        }}
+                                      >
+                                        {count}
+                                      </td>
+                                    );
+                                  });
+                                })()}
                               </tr>
                             ))}
                           </tbody>
@@ -643,6 +708,83 @@ export default function ExpertPage() {
                 </div>
 
               </div>
+            </div>
+          )}
+          {analyticsSubTab === 'reports' && (
+            <div>
+              <h3 style={sectionHeader}>Crop Issue Reports</h3>
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ fontSize: '13px', color: '#6c757d', marginBottom: '8px' }}>사유 필터</div>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {Object.keys(reportFilters).map((key) => (
+                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#495057' }}>
+                      <input
+                        type="checkbox"
+                        checked={reportFilters[key]}
+                        onChange={(e) => setReportFilters(prev => ({ ...prev, [key]: e.target.checked }))}
+                      />
+                      {key}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {reportLoading ? (
+                <div style={{ color: '#6c757d' }}>불러오는 중...</div>
+              ) : reportItems.length === 0 ? (
+                <div style={{ color: '#adb5bd' }}>신고된 항목이 없습니다.</div>
+              ) : (
+                (() => {
+                  const activeFilters = Object.entries(reportFilters)
+                    .filter(([, enabled]) => enabled)
+                    .map(([key]) => key);
+                  const filteredItems = activeFilters.length === 0
+                    ? []
+                    : reportItems.filter(item => activeFilters.includes(getReportCategory(item.reason)));
+
+                  if (filteredItems.length === 0) {
+                    return <div style={{ color: '#adb5bd' }}>해당 사유의 신고가 없습니다.</div>;
+                  }
+
+                  return (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                    <thead>
+                      <tr>
+                        <th style={reportHeadStyle}>이미지</th>
+                        <th style={reportHeadStyle}>시간</th>
+                        <th style={reportHeadStyle}>학생</th>
+                        <th style={reportHeadStyle}>Task</th>
+                        <th style={reportHeadStyle}>Crop</th>
+                        <th style={reportHeadStyle}>사유</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredItems.map((item) => (
+                        <tr key={item.id}>
+                          <td style={reportCellStyle}>
+                            {item.cropFilename ? (
+                              <img
+                                src={imageUrl.crop(item.cropFilename)}
+                                alt={`Crop ${item.cropId}`}
+                                style={reportThumbStyle}
+                              />
+                            ) : (
+                              <div style={{ color: '#adb5bd' }}>N/A</div>
+                            )}
+                          </td>
+                          <td style={reportCellStyle}>{item.createdAt || '-'}</td>
+                          <td style={reportCellStyle}>{item.studentId}</td>
+                          <td style={reportCellStyle}>#{item.taskId}</td>
+                          <td style={reportCellStyle}>#{item.cropId}</td>
+                          <td style={reportCellStyle}>{item.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                  );
+                })()
+              )}
             </div>
           )}
           {/* ==================================================== */}
@@ -755,5 +897,9 @@ const taskBtnStyle = { padding: '12px 18px', background: '#fff', border: '2px so
 const cellPanelStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' };
 const infoBadge = { background: '#e7f3ff', padding: '12px 15px', borderRadius: '8px', fontSize: '14px' };
 const confirmBtn = { background: '#495057', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' };
+
+const reportHeadStyle = { borderBottom: '2px solid #dee2e6', padding: '10px', background: '#f8f9fa', fontWeight: '600', color: '#495057' };
+const reportCellStyle = { borderBottom: '1px solid #dee2e6', padding: '10px', color: '#495057' };
+const reportThumbStyle = { width: '48px', height: '48px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' };
 
 const dropZoneStyle = { border: '3px dashed #ced4da', borderRadius: '12px', padding: '40px 20px', cursor: 'pointer', transition: 'all 0.3s ease', marginTop: '20px' };

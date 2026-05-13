@@ -37,6 +37,8 @@ public class SecurityConfig {
                 .requestMatchers("/data/**").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/all-stats").hasRole("EXPERT")
+                .requestMatchers(HttpMethod.GET, "/api/reports").hasRole("EXPERT")
+                .requestMatchers(HttpMethod.POST, "/api/reports").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/tasks/diagnostic/**").hasRole("EXPERT")
                 .requestMatchers(HttpMethod.GET, "/api/tasks/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/tasks/diagnostic/**").hasRole("EXPERT")
