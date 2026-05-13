@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { taskApi, statsApi, cropApi, diagnosticApi, reportApi } from '../api';
-import { CELL_KEYS, imageUrl } from '../constants';
+import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -92,8 +92,7 @@ function getMatrixCellStyle(count, rowTotal, isCorrect) {
 
 function getReportCategory(reason) {
   const normalized = (reason || '').trim();
-  const known = ['화질 문제', '잘림/바운딩 오류', '오탐', '헷갈림'];
-  if (known.includes(normalized)) return normalized;
+  if (REPORT_REASONS.includes(normalized)) return normalized;
   return '기타';
 }
 
@@ -119,13 +118,9 @@ export default function ExpertPage() {
   const [allCellStats, setAllCellStats] = useState([]);
   const [reportItems, setReportItems] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
-  const [reportFilters, setReportFilters] = useState({
-    '화질 문제': true,
-    '잘림/바운딩 오류': true,
-    '오탐': true,
-    '헷갈림': true,
-    '기타': true,
-  });
+  const [reportFilters, setReportFilters] = useState(
+    () => Object.fromEntries(REPORT_REASONS.map((reason) => [reason, true]))
+  );
 
   /* ── Tab 3: Diagnostic Evaluation ── */
   const [poolStats, setPoolStats] = useState(null);

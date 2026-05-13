@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { taskApi, cropApi, submissionApi, reportApi } from '../api';
-import { CELL_TYPES, imageUrl } from '../constants';
+import { CELL_TYPES, REPORT_REASONS, imageUrl } from '../constants';
 
 function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
@@ -159,7 +159,7 @@ export default function StudentPage() {
     } catch { alert("결과를 불러오는데 실패했습니다."); }
   };
 
-  const [reportReason, setReportReason] = useState('화질 문제');
+  const [reportReason, setReportReason] = useState('이미지 잘림');
   const [reportOtherReason, setReportOtherReason] = useState('');
   const [showReportForm, setShowReportForm] = useState(false);
 
@@ -470,18 +470,9 @@ export default function StudentPage() {
             onChange={(e) => setReportReason(e.target.value)}
             style={reportSelectStyle}
           >
-            {/*
-            <option value="화질 문제">화질 문제</option>
-            <option value="잘림/바운딩 오류">잘림/바운딩 오류</option>
-            <option value="오탐">오탐</option>
-            <option value="헷갈림">헷갈림</option>
-            <option value="기타">기타</option>
-            */}
-            <option value="이미지 문제">이미지 문제</option>
-            <option value="라벨/정답 오류">라벨/정답 오류</option>
-            <option value="중복">중복</option>
-            <option value="헷갈림">헷갈림</option>
-            <option value="기타">기타</option>
+            {REPORT_REASONS.map((reason) => (
+              <option key={reason} value={reason}>{reason}</option>
+            ))}
           </select>
           {reportReason === '기타' && (
             <input
