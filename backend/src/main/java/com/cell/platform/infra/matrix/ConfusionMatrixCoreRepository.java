@@ -27,6 +27,11 @@ public class ConfusionMatrixCoreRepository implements ConfusionMatrixRepository 
     }
 
     @Override
+    public List<StudentConfusionMatrixEntity> findAllByTaskIdIn(List<Long> taskIds) {
+        return jpaRepository.findAllByTaskIdIn(taskIds);
+    }
+
+    @Override
     public StudentConfusionMatrixEntity save(StudentConfusionMatrixEntity entity) {
         return jpaRepository.save(entity);
     }

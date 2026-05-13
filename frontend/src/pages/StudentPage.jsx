@@ -9,7 +9,7 @@ function isDiagnosticTask(task) {
 }
 
 /* ──────────────── Task Card (과제 목록용) ──────────────── */
-function TaskCardItem({ task, username, onClick, diagnostic = false }) {
+function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumber = null }) {
   const [total, setTotal] = useState(0);
   const [solved, setSolved] = useState(0);
   const [accuracy, setAccuracy] = useState(null);
@@ -37,12 +37,16 @@ function TaskCardItem({ task, username, onClick, diagnostic = false }) {
     <div style={taskCardStyle} onClick={onClick}>
       {task.originalFilename ? (
         <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
+      ) : diagnostic ? (
+        <div style={noImageStyle}>Diagnostic Task</div>
       ) : (
         <div style={noImageStyle}>No Image</div>
       )}
       <div style={{ padding: '15px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={{ fontWeight: '700', fontSize: '18px', color: '#343a40' }}>Task #{task.id}</span>
+          <span style={{ fontWeight: '700', fontSize: '18px', color: '#343a40' }}>
+            {diagnostic ? `Diagnostic #${displayNumber || task.id}` : `Task #${task.id}`}
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {diagnostic && (
               <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', background: '#fff3cd', color: '#856404' }}>
@@ -181,12 +185,13 @@ export default function StudentPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-          {visibleTasks.map(task => (
+          {visibleTasks.map((task, index) => (
             <TaskCardItem
               key={task.id}
               task={task}
               username={username}
               diagnostic={isDiagnosticTask(task)}
+              displayNumber={taskTab === 'diagnostic' ? index + 1 : null}
               onClick={() => handleSelectTask(task)}
             />
           ))}

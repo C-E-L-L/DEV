@@ -43,6 +43,10 @@ function emptyDistribution() {
   return CELL_KEYS.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
 }
 
+function isDiagnosticTask(task) {
+  return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
+}
+
 function autoDistributeByTotal(total, availableByClass) {
   const target = Math.max(0, Number(total) || 0);
   const result = emptyDistribution();
@@ -101,24 +105,29 @@ export default function ExpertPage() {
   const [imageLoaded, setImageLoaded] = useState(false);
   // ========================================================
   // ⭐ [여기에 아래 상태 변수와 함수를 꼭 추가해 주세요!] ⭐
-  const [selectedDiagTaskId, setSelectedDiagTaskId] = useState(null);
   const [studentMatrices, setStudentMatrices] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  const fetchStudentMatrices = async (taskId) => {
-    setSelectedDiagTaskId(taskId);
+  const diagnosticTaskOrder = tasks
+    .filter(isDiagnosticTask)
+    .reduce((acc, task, index) => {
+      acc.set(task.id, index + 1);
+      return acc;
+    }, new Map());
+
+  const fetchStudentMatrices = useCallback(async () => {
     setSelectedStudent(null);
     try {
-      const { data } = await diagnosticApi.getStudentMatrices(taskId);
+      const { data } = await diagnosticApi.getStudentMatrices();
       setStudentMatrices(data.studentMatrices || []);
       if (data.studentMatrices && data.studentMatrices.length > 0) {
-        setSelectedStudent(data.studentMatrices[0]); // 첫 번째 학생 자동 선택
+        setSelectedStudent(data.studentMatrices[0]);
       }
     } catch (error) {
-      console.error("학생 혼동행렬 조회 실패:", error);
+      console.error("학생 누적 혼동행렬 조회 실패:", error);
       alert("혼동행렬 데이터를 불러오는데 실패했습니다.");
     }
-  };
+  }, []);
   // ========================================================
 
   /* ── Analytics 탭 열릴 때 데이터 로드 ── */
@@ -127,6 +136,11 @@ export default function ExpertPage() {
     taskApi.getAll().then(({ data }) => setTasks(data)).catch(console.error);
     statsApi.getAll().then(({ data }) => setAllCellStats(data)).catch(console.error);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 2 || analyticsSubTab !== 'students') return;
+    fetchStudentMatrices();
+  }, [activeTab, analyticsSubTab, fetchStudentMatrices]);
 
   useEffect(() => {
     if (activeTab !== 3) return;
@@ -347,17 +361,29 @@ export default function ExpertPage() {
               <h3 style={sectionHeader}>Select a Task</h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '25px' }}>
                 {tasks.map(task => (
+                  (() => {
+                    const diagnostic = isDiagnosticTask(task);
+                    const diagnosticNumber = diagnosticTaskOrder.get(task.id);
+                    return (
                   <button key={task.id} onClick={() => fetchTaskStats(task.id)} style={{
                     ...taskBtnStyle,
                     ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
                     display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
                   }}>
-                    <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
-                    <div style={{ fontWeight: '600', fontSize: '14px' }}>Task #{task.id}</div>
+                    {diagnostic ? (
+                      <div style={{ width: '160px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6', fontSize: '12px', color: '#6c757d', fontWeight: '700' }}>
+                        Diagnostic Task
+                      </div>
+                    ) : (
+                      <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                    )}
+                    <div style={{ fontWeight: '600', fontSize: '14px' }}>{diagnostic ? `Diagnostic #${diagnosticNumber || task.id}` : `Task #${task.id}`}</div>
                     <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                       {task.uploadedFilename || task.originalFilename}
                     </div>
                   </button>
+                    );
+                  })()
                 ))}
               </div>
 
@@ -527,111 +553,96 @@ export default function ExpertPage() {
           {/* ───── Students 서브탭 (혼동행렬) ───── */}
           {analyticsSubTab === 'students' && (
             <div>
-              <h3 style={sectionHeader}>Select a Task to view Student Matrices</h3>
-              {/* 과제 선택 버튼 목록 */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '25px' }}>
-                {tasks.map(task => (
-                  <button key={task.id} onClick={() => fetchStudentMatrices(task.id)} style={{
-                    ...taskBtnStyle,
-                    ...(selectedDiagTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
-                    padding: '10px 15px', minWidth: '120px'
-                  }}>
-                    <div style={{ fontWeight: '600' }}>Task #{task.id}</div>
-                  </button>
-                ))}
-              </div>
-
+              <h3 style={sectionHeader}>Cumulative Student Matrices</h3>
               {/* 하단: 학생 리스트 & 혼동행렬 테이블 */}
-              {selectedDiagTaskId && (
-                <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
-                  
-                  {/* 왼쪽: 학생 리스트 */}
-                  <div style={{ flex: '0 0 250px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '15px' }}>
-                    <h4 style={{ fontWeight: '600', marginBottom: '15px', color: '#495057' }}>학생 목록</h4>
-                    {studentMatrices.length === 0 ? (
-                      <div style={{ color: '#adb5bd', fontSize: '14px' }}>제출한 학생이 없습니다.</div>
-                    ) : (
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {studentMatrices.map((student, idx) => (
-                          <li 
-                            key={idx} 
-                            style={{
-                              padding: '10px', marginBottom: '8px', borderRadius: '6px', cursor: 'pointer',
-                              background: selectedStudent?.studentId === student.studentId ? '#e7f3ff' : '#f8f9fa',
-                              border: selectedStudent?.studentId === student.studentId ? '1px solid #74c0fc' : '1px solid #e9ecef',
-                            }}
-                            onClick={() => setSelectedStudent(student)}
-                          >
-                            <div style={{ fontWeight: '600', color: selectedStudent?.studentId === student.studentId ? '#0056b3' : '#495057' }}>
-                              {student.studentDisplayName || student.studentId}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
-                              정확도: {student.accuracy}% ({student.totalSolved}문제)
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                  {/* 오른쪽: 선택된 학생의 혼동행렬 테이블 */}
-                  <div style={{ flex: 1, background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' }}>
-                    {selectedStudent ? (
-                      <div>
-                        <h4 style={{ fontWeight: '600', marginBottom: '15px', fontSize: '18px', color: '#495057' }}>
-                          [{selectedStudent.studentDisplayName || selectedStudent.studentId}] 학생의 혼동행렬
-                        </h4>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
-                            <thead>
-                              <tr>
-                                <th style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', width: '120px' }}>GT \ 예측</th>
-                                {CELL_KEYS.map(key => (
-                                  <th key={key} style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', color: '#495057' }}>
-                                    {key.substring(0, 3)}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {CELL_KEYS.map(actual => (
-                                <tr key={actual}>
-                                  <td style={{ border: '1px solid #dee2e6', padding: '10px', fontWeight: 'bold', background: '#f8f9fa', color: '#495057' }}>
-                                    {actual}
-                                  </td>
-                                  {CELL_KEYS.map(predicted => {
-                                    const count = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
-                                    const isCorrect = actual === predicted;
-                                    const bgColor = count > 0 ? (isCorrect ? '#d4edda' : '#f8d7da') : '#fff';
-                                    const fontColor = count > 0 ? (isCorrect ? '#155724' : '#721c24') : '#adb5bd';
-                                    
-                                    return (
-                                      <td key={predicted} style={{
-                                        border: '1px solid #dee2e6',
-                                        padding: '10px',
-                                        background: bgColor,
-                                        color: fontColor,
-                                        fontWeight: count > 0 ? 'bold' : 'normal'
-                                      }}>
-                                        {count}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
-                        왼쪽에서 학생을 선택하면 혼동행렬이 표시됩니다.
-                      </div>
-                    )}
-                  </div>
-
+              <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
+                
+                {/* 왼쪽: 학생 리스트 */}
+                <div style={{ flex: '0 0 250px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '15px' }}>
+                  <h4 style={{ fontWeight: '600', marginBottom: '15px', color: '#495057' }}>학생 목록</h4>
+                  {studentMatrices.length === 0 ? (
+                    <div style={{ color: '#adb5bd', fontSize: '14px' }}>학생 데이터가 없습니다.</div>
+                  ) : (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {studentMatrices.map((student, idx) => (
+                        <li 
+                          key={idx} 
+                          style={{
+                            padding: '10px', marginBottom: '8px', borderRadius: '6px', cursor: 'pointer',
+                            background: selectedStudent?.studentId === student.studentId ? '#e7f3ff' : '#f8f9fa',
+                            border: selectedStudent?.studentId === student.studentId ? '1px solid #74c0fc' : '1px solid #e9ecef',
+                          }}
+                          onClick={() => setSelectedStudent(student)}
+                        >
+                          <div style={{ fontWeight: '600', color: selectedStudent?.studentId === student.studentId ? '#0056b3' : '#495057' }}>
+                            {student.studentDisplayName || student.studentId}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
+                            정확도: {student.accuracy}% ({student.totalSolved}문제)
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-              )}
+
+                {/* 오른쪽: 선택된 학생의 혼동행렬 테이블 */}
+                <div style={{ flex: 1, background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' }}>
+                  {selectedStudent ? (
+                    <div>
+                      <h4 style={{ fontWeight: '600', marginBottom: '15px', fontSize: '18px', color: '#495057' }}>
+                        [{selectedStudent.studentDisplayName || selectedStudent.studentId}] 학생의 혼동행렬
+                      </h4>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', width: '120px' }}>GT \ 예측</th>
+                              {CELL_KEYS.map(key => (
+                                <th key={key} style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', color: '#495057' }}>
+                                  {key.substring(0, 3)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {CELL_KEYS.map(actual => (
+                              <tr key={actual}>
+                                <td style={{ border: '1px solid #dee2e6', padding: '10px', fontWeight: 'bold', background: '#f8f9fa', color: '#495057' }}>
+                                  {actual}
+                                </td>
+                                {CELL_KEYS.map(predicted => {
+                                  const count = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
+                                  const isCorrect = actual === predicted;
+                                  const bgColor = count > 0 ? (isCorrect ? '#d4edda' : '#f8d7da') : '#fff';
+                                  const fontColor = count > 0 ? (isCorrect ? '#155724' : '#721c24') : '#adb5bd';
+                                  
+                                  return (
+                                    <td key={predicted} style={{
+                                      border: '1px solid #dee2e6',
+                                      padding: '10px',
+                                      background: bgColor,
+                                      color: fontColor,
+                                      fontWeight: count > 0 ? 'bold' : 'normal'
+                                    }}>
+                                      {count}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+                      왼쪽에서 학생을 선택하면 혼동행렬이 표시됩니다.
+                    </div>
+                  )}
+                </div>
+
+              </div>
             </div>
           )}
           {/* ==================================================== */}

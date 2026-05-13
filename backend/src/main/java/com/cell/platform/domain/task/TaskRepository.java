@@ -10,4 +10,6 @@ public interface TaskRepository {
     Optional<Task> findById(Long id);
 
     List<Task> findAllByOrderByIdDesc();
+
+    List<Long> findIdsByUploadedFilenameStartingWith(String prefix);
 }
