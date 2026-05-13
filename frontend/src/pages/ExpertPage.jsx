@@ -563,7 +563,7 @@ export default function ExpertPage() {
                             onClick={() => setSelectedStudent(student)}
                           >
                             <div style={{ fontWeight: '600', color: selectedStudent?.studentId === student.studentId ? '#0056b3' : '#495057' }}>
-                              {student.studentId}
+                              {student.studentDisplayName || student.studentId}
                             </div>
                             <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
                               정확도: {student.accuracy}% ({student.totalSolved}문제)
@@ -579,7 +579,7 @@ export default function ExpertPage() {
                     {selectedStudent ? (
                       <div>
                         <h4 style={{ fontWeight: '600', marginBottom: '15px', fontSize: '18px', color: '#495057' }}>
-                          [{selectedStudent.studentId}] 학생의 혼동행렬
+                          [{selectedStudent.studentDisplayName || selectedStudent.studentId}] 학생의 혼동행렬
                         </h4>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>

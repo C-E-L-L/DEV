@@ -205,7 +205,9 @@ export default function StudentPage() {
     return (
       <div style={containerStyle}>
         <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #dee2e6' }}>
-          <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>📊 AI 채점 결과</h2>
+          <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
+            📊 {isDiagnosticMode ? '진단평가 채점 결과' : 'AI 채점 결과'}
+          </h2>
           <div style={{ display: 'flex', justifyContent: 'space-around', padding: '30px 0', background: '#f8f9fa', borderRadius: '8px', marginBottom: '20px' }}>
             <div style={resultStatStyle}>
               <span style={{ fontSize: '48px', fontWeight: 'bold', color: resultData.accuracy >= 80 ? '#28a745' : resultData.accuracy >= 50 ? '#ffc107' : '#dc3545' }}>{resultData.accuracy}%</span>

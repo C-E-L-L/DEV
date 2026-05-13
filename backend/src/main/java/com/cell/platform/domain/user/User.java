@@ -11,25 +11,32 @@ public class User {
 
     private Long id;
     private String username;
+    private String name;
     private String password;
     private Role role;
     private LocalDateTime createdAt;
 
     @Builder
-    public User(Long id, String username, String password, Role role, LocalDateTime createdAt) {
+    public User(Long id, String username, String name, String password, Role role, LocalDateTime createdAt) {
         this.id = id;
         this.username = username;
+        this.name = name;
         this.password = password;
         this.role = role;
         this.createdAt = createdAt;
     }
 
-    public static User create(String username, String password, Role role) {
+    public static User create(String username, String name, String password, Role role) {
         return User.builder()
                 .username(username)
+                .name(name)
                 .password(password)
                 .role(role)
                 .build();
+    }
+
+    public static User create(String username, String password, Role role) {
+        return create(username, null, password, role);
     }
 
 }

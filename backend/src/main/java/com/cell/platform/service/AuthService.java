@@ -27,8 +27,9 @@ public class AuthService {
     public void register(RegisterRequest request) {
         validateUniqueUsername(request.username());
         Role role = Role.find(request.role());
+        validateStudentName(role, request.name());
         String hashedPassword = passwordEncoder.encode(request.password());
-        User user = User.create(request.username(), hashedPassword, role);
+        User user = User.create(request.username(), normalizeName(request.name()), hashedPassword, role);
         userRepository.save(user);
     }
 
@@ -36,13 +37,23 @@ public class AuthService {
         User user = findUserByUsername(request.username());
         validatePassword(request.password(), user.getPassword());
         String token = jwtTokenProvider.generateToken(user.getUsername(), user.getRole().name());
-        return LoginResponse.of(token, user.getRole().name(), user.getUsername());
+        return LoginResponse.of(token, user.getRole().name(), user.getUsername(), user.getName());
     }
 
     private void validateUniqueUsername(String username) {
         if (userRepository.existsByUsername(username)) {
             throw new BadRequestException("이미 존재하는 아이디입니다: " + username, ErrorCode.U000);
         }
+    }
+
+    private void validateStudentName(Role role, String name) {
+        if (role == Role.STUDENT && (name == null || name.isBlank())) {
+            throw new BadRequestException("학생 이름은 필수입니다.", ErrorCode.U003);
+        }
+    }
+
+    private String normalizeName(String name) {
+        return name == null || name.isBlank() ? null : name.trim();
     }
 
     private User findUserByUsername(String username) {

@@ -15,6 +15,8 @@ public class DiagnosticStudentMatrixResponse {
     @Builder
     public static class StudentMatrixDetail {
         private String studentId;
+        private String studentName;
+        private String studentDisplayName;
         private Map<String, Map<String, Integer>> confusionMatrix;
         private int totalSolved;
         private int accuracy;

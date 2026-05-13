@@ -5,6 +5,7 @@ import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CropRepository;
 import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.submission.SubmissionRepository;
+import com.cell.platform.domain.user.UserRepository;
 
 // 혼동행렬 관련 import
 import com.cell.platform.domain.matrix.ConfusionMatrixRepository;
@@ -37,6 +38,7 @@ public class SubmissionService {
 
     private final SubmissionRepository submissionRepository;
     private final CropRepository cropRepository;
+    private final UserRepository userRepository;
 
     // 혼동행렬 레포지토리 주입
     private final ConfusionMatrixRepository confusionMatrixRepository;
@@ -194,8 +196,12 @@ public class SubmissionService {
                         }
                     }
 
+                    String studentName = resolveStudentName(entity.getStudentId());
+
                     return DiagnosticStudentMatrixResponse.StudentMatrixDetail.builder()
                             .studentId(entity.getStudentId())
+                            .studentName(studentName)
+                            .studentDisplayName(buildStudentDisplayName(entity.getStudentId(), studentName))
                             .confusionMatrix(matrix)
                             .totalSolved(total)
                             .accuracy(total > 0 ? (correct * 100 / total) : 0)
@@ -206,5 +212,16 @@ public class SubmissionService {
         return DiagnosticStudentMatrixResponse.builder()
                 .studentMatrices(details)
                 .build();
+    }
+
+    private String resolveStudentName(String studentId) {
+        return userRepository.findByUsername(studentId)
+                .map(user -> user.getName())
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(null);
+    }
+
+    private String buildStudentDisplayName(String studentId, String studentName) {
+        return studentName == null ? studentId : studentId + "_" + studentName;
     }
 }

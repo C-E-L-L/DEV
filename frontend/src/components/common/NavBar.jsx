@@ -4,7 +4,7 @@ export default function NavBar() {
   const { user, logout, isLoggedIn } = useAuth();
   if (!isLoggedIn) return null;
 
-  const dashboardPath = user.role === 'expert' ? '/expert' : '/student';
+  const dashboardPath = String(user.role).toUpperCase() === 'EXPERT' ? '/expert' : '/student';
 
   return (
     <nav style={navStyle}>
@@ -12,7 +12,7 @@ export default function NavBar() {
         <a href={dashboardPath} style={logoStyle}>C.E.L.L. Platform</a>
       </div>
       <div style={rightStyle}>
-        <span>반갑습니다, <strong>{user.username}</strong>님 ({user.role})</span>
+        <span>반갑습니다, <strong>{user.name || user.username}</strong>님 ({user.role})</span>
         <button onClick={logout} style={logoutBtnStyle}>로그아웃</button>
       </div>
     </nav>
