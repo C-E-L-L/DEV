@@ -27,6 +27,7 @@ public class AuthService {
     public void register(RegisterRequest request) {
         validateUniqueUsername(request.username());
         Role role = Role.find(request.role());
+        validateRegisterRole(role);
         validateStudentName(role, request.name());
         String hashedPassword = passwordEncoder.encode(request.password());
         User user = User.create(request.username(), normalizeName(request.name()), hashedPassword, role);
@@ -49,6 +50,12 @@ public class AuthService {
     private void validateStudentName(Role role, String name) {
         if (role == Role.STUDENT && (name == null || name.isBlank())) {
             throw new BadRequestException("학생 이름은 필수입니다.", ErrorCode.U003);
+        }
+    }
+
+    private void validateRegisterRole(Role role) {
+        if (role == Role.ADMIN) {
+            throw new BadRequestException("관리자 계정은 회원가입으로 생성할 수 없습니다.", ErrorCode.U003);
         }
     }
 

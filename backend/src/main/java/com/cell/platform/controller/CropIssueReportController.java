@@ -24,7 +24,7 @@ public class CropIssueReportController {
     }
 
     @GetMapping("/reports")
-    @PreAuthorize("hasRole('EXPERT')")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
     public ResponseEntity<List<CropIssueReportResponse>> getReports() {
         return ResponseEntity.ok(reportService.getReports());
     }
