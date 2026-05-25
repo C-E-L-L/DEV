@@ -64,6 +64,16 @@ public class DiagnosticDatasetService {
         return selected;
     }
 
+    public Optional<CellType> findLabelByCropFilename(String cropFilename) {
+        if (cropFilename == null || cropFilename.isBlank()) {
+            return Optional.empty();
+        }
+        return loadCells().stream()
+                .filter(cell -> cropFilename.equals(cell.cropFilename()))
+                .map(DiagnosticCell::label)
+                .findFirst();
+    }
+
     private List<DiagnosticCell> loadCells() {
         Path manifestPath = Paths.get(processedDir).resolve("manifest.json").toAbsolutePath().normalize();
         try {

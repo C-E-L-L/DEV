@@ -1,6 +1,5 @@
 package com.cell.platform.service;
 
-import com.cell.platform.domain.crop.CellType;
 import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
@@ -58,7 +57,9 @@ public class TaskService {
             Crop crop = Crop.create(
                     cell.getCropFilename(),
                     cell.getBbox(),
-                    CellType.valueOf(cell.getPrediction()),
+                    null,
+                    null,
+                    null,
                     cell.getConfidence()
             );
             task.getCrops().add(crop);

@@ -52,6 +52,11 @@ public class CropCoreRepository implements CropRepository {
     }
 
     @Override
+    public List<Long> findDistinctTaskIdsByFinalLabelIsNotNull() {
+        return cropJpaRepository.findDistinctTaskIdsByFinalLabelIsNotNull();
+    }
+
+    @Override
     public List<Crop> findAll() {
         return cropJpaRepository.findAll().stream()
                 .map(Mapper::convertToCrop)

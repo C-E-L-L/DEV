@@ -13,5 +13,7 @@ public interface CropRepository {
 
     List<Crop> findAllByFinalLabelIsNotNull();
 
+    List<Long> findDistinctTaskIdsByFinalLabelIsNotNull();
+
     List<Crop> findAll();
 }

@@ -5,6 +5,10 @@ import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CropRepository;
 import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.submission.SubmissionRepository;
+import com.cell.platform.domain.task.TaskRepository;
+import com.cell.platform.domain.user.Role;
+import com.cell.platform.domain.user.User;
+import com.cell.platform.domain.user.UserRepository;
 
 // 혼동행렬 관련 import
 import com.cell.platform.domain.matrix.ConfusionMatrixRepository;
@@ -23,9 +27,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -35,8 +41,13 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class SubmissionService {
 
+    private static final String DIAGNOSTIC_PREFIX = "diagnostic-";
+
     private final SubmissionRepository submissionRepository;
     private final CropRepository cropRepository;
+    private final UserRepository userRepository;
+    private final TaskRepository taskRepository;
+    private final DiagnosticDatasetService diagnosticDatasetService;
 
     // 혼동행렬 레포지토리 주입
     private final ConfusionMatrixRepository confusionMatrixRepository;
@@ -51,11 +62,10 @@ public class SubmissionService {
         submissionRepository.save(submission);
 
         // 정답(GT) 판별 및 혼동행렬 실시간 업데이트
-        String correctLabel = crop.getFinalLabel() != null
-                ? crop.getFinalLabel().name()
-                : crop.getAiPrediction().name();
-
-        updateConfusionMatrix(studentId, crop.getTaskId(), correctLabel, label.name());
+        CellType correctLabel = resolveCorrectLabel(crop, isDiagnosticTask(crop.getTaskId()));
+        if (correctLabel != null) {
+            updateConfusionMatrix(studentId, crop.getTaskId(), correctLabel.name(), label.name());
+        }
     }
 
     // --- 여기서부터 원래 주훈님이 가지고 계시던 소중한 코드들 복구 --- //
@@ -71,6 +81,7 @@ public class SubmissionService {
 
     public MyResultsResponse getMyResults(Long taskId, String studentId) {
         List<Crop> crops = cropRepository.findAllByTaskId(taskId);
+        boolean diagnosticTask = isDiagnosticTask(taskId);
         List<Long> cropIds = crops.stream().map(Crop::getId).toList();
         Map<Long, Crop> cropMap = crops.stream()
                 .collect(Collectors.toMap(Crop::getId, Function.identity()));
@@ -90,27 +101,28 @@ public class SubmissionService {
             Crop crop = cropMap.get(sub.getCropId());
             if (crop == null) continue;
 
-            String correctLabel = crop.getFinalLabel() != null
-                    ? crop.getFinalLabel().name()
-                    : crop.getAiPrediction().name();
-            boolean isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+            CellType resolvedLabel = resolveCorrectLabel(crop, diagnosticTask);
+            String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
+            Boolean isCorrect = null;
+            if (correctLabel != null) {
+                isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+                if (isCorrect) correct++;
+                else wrong++;
 
-            if (isCorrect) correct++;
-            else wrong++;
-
-            confusionMatrix.get(correctLabel)
-                    .compute(sub.getStudentLabel().name(), (key, value) -> value == null ? 1 : value + 1);
+                confusionMatrix.get(correctLabel)
+                        .compute(sub.getStudentLabel().name(), (key, value) -> value == null ? 1 : value + 1);
+            }
 
             details.add(MyResultsResponse.Detail.builder()
                     .cropId(crop.getId())
                     .cropFilename(crop.getCropFilename())
                     .studentLabel(sub.getStudentLabel().name())
-                    .aiLabel(correctLabel)
+                    .correctLabel(correctLabel)
                     .isCorrect(isCorrect)
                     .build());
         }
 
-        int total = submissions.size();
+        int total = correct + wrong;
         int accuracy = total > 0 ? Math.round((float) correct / total * 100) : 0;
 
         return MyResultsResponse.builder()
@@ -122,6 +134,30 @@ public class SubmissionService {
                 .labels(labels)
                 .confusionMatrix(confusionMatrix)
                 .build();
+    }
+
+    private boolean isDiagnosticTask(Long taskId) {
+        if (taskId == null) {
+            return false;
+        }
+        return taskRepository.findById(taskId)
+                .map(task -> task.getUploadedFilename() != null
+                        && task.getUploadedFilename().startsWith(DIAGNOSTIC_PREFIX))
+                .orElse(false);
+    }
+
+    private CellType resolveCorrectLabel(Crop crop, boolean diagnosticTask) {
+        if (crop.getFinalLabel() != null) {
+            return crop.getFinalLabel();
+        }
+        if (!diagnosticTask) {
+            return null;
+        }
+        if (crop.getGtLabel() != null) {
+            return crop.getGtLabel();
+        }
+        // Diagnostic tasks created before GT columns were added can still be graded from the manifest.
+        return diagnosticDatasetService.findLabelByCropFilename(crop.getCropFilename()).orElse(null);
     }
 
     private Map<String, Map<String, Integer>> initConfusionMatrix(List<String> labels) {
@@ -194,8 +230,12 @@ public class SubmissionService {
                         }
                     }
 
+                    String studentName = resolveStudentName(entity.getStudentId());
+
                     return DiagnosticStudentMatrixResponse.StudentMatrixDetail.builder()
                             .studentId(entity.getStudentId())
+                            .studentName(studentName)
+                            .studentDisplayName(buildStudentDisplayName(entity.getStudentId(), studentName))
                             .confusionMatrix(matrix)
                             .totalSolved(total)
                             .accuracy(total > 0 ? (correct * 100 / total) : 0)
@@ -206,5 +246,146 @@ public class SubmissionService {
         return DiagnosticStudentMatrixResponse.builder()
                 .studentMatrices(details)
                 .build();
+    }
+
+    public DiagnosticStudentMatrixResponse getCumulativeStudentMatrices() {
+        List<User> students = userRepository.findAllByRole(Role.STUDENT);
+        List<String> labels = Arrays.stream(CellType.values())
+                .map(Enum::name)
+                .toList();
+
+        Map<String, Map<String, Map<String, Integer>>> matrixByStudent = new LinkedHashMap<>();
+        Map<String, String> nameByStudent = new HashMap<>();
+        Map<String, String> displayByStudent = new HashMap<>();
+
+        for (User student : students) {
+            String studentId = student.getUsername();
+            String studentName = normalizeStudentName(student.getName());
+            matrixByStudent.put(studentId, initConfusionMatrix(labels));
+            nameByStudent.put(studentId, studentName);
+            displayByStudent.put(studentId, buildStudentDisplayName(studentId, studentName));
+        }
+
+        List<Long> eligibleTaskIds = resolveEligibleTaskIds();
+        if (!eligibleTaskIds.isEmpty()) {
+            List<StudentConfusionMatrixEntity> entities = confusionMatrixRepository
+                    .findAllByTaskIdIn(eligibleTaskIds);
+
+            for (StudentConfusionMatrixEntity entity : entities) {
+                String studentId = entity.getStudentId();
+                matrixByStudent.computeIfAbsent(studentId, id -> initConfusionMatrix(labels));
+                if (!nameByStudent.containsKey(studentId)) {
+                    String studentName = resolveStudentName(studentId);
+                    nameByStudent.put(studentId, studentName);
+                    displayByStudent.put(studentId, buildStudentDisplayName(studentId, studentName));
+                }
+                mergeConfusionMatrix(matrixByStudent.get(studentId), entity.getMatrixData(), labels);
+            }
+        }
+
+        Map<String, Map<String, Integer>> totalMatrix = initConfusionMatrix(labels);
+        for (Map<String, Map<String, Integer>> matrix : matrixByStudent.values()) {
+            mergeConfusionMatrix(totalMatrix, matrix, labels);
+        }
+
+        List<DiagnosticStudentMatrixResponse.StudentMatrixDetail> details = new ArrayList<>();
+        details.add(buildStudentMatrixDetail(
+                "ALL",
+                null,
+                "전체 합계",
+                totalMatrix
+        ));
+
+        for (Map.Entry<String, Map<String, Map<String, Integer>>> entry : matrixByStudent.entrySet()) {
+            String studentId = entry.getKey();
+            Map<String, Map<String, Integer>> matrix = entry.getValue();
+            details.add(buildStudentMatrixDetail(
+                    studentId,
+                    nameByStudent.get(studentId),
+                    displayByStudent.get(studentId),
+                    matrix
+            ));
+        }
+
+        return DiagnosticStudentMatrixResponse.builder()
+                .studentMatrices(details)
+                .build();
+    }
+
+    private DiagnosticStudentMatrixResponse.StudentMatrixDetail buildStudentMatrixDetail(
+            String studentId,
+            String studentName,
+            String studentDisplayName,
+            Map<String, Map<String, Integer>> matrix
+    ) {
+        int total = 0;
+        int correct = 0;
+        for (String actual : matrix.keySet()) {
+            for (String predicted : matrix.get(actual).keySet()) {
+                int count = matrix.get(actual).get(predicted);
+                total += count;
+                if (actual.equals(predicted)) correct += count;
+            }
+        }
+
+        return DiagnosticStudentMatrixResponse.StudentMatrixDetail.builder()
+                .studentId(studentId)
+                .studentName(studentName)
+                .studentDisplayName(studentDisplayName)
+                .confusionMatrix(matrix)
+                .totalSolved(total)
+                .accuracy(total > 0 ? (correct * 100 / total) : 0)
+                .build();
+    }
+
+    private List<Long> resolveEligibleTaskIds() {
+        Set<Long> taskIds = new LinkedHashSet<>();
+        taskIds.addAll(taskRepository.findIdsByUploadedFilenameStartingWith(DIAGNOSTIC_PREFIX));
+        taskIds.addAll(cropRepository.findDistinctTaskIdsByFinalLabelIsNotNull());
+        return new ArrayList<>(taskIds);
+    }
+
+    private void mergeConfusionMatrix(
+            Map<String, Map<String, Integer>> target,
+            Map<String, Map<String, Integer>> source,
+            List<String> labels
+    ) {
+        if (source == null) return;
+        for (Map.Entry<String, Map<String, Integer>> actualEntry : source.entrySet()) {
+            String actual = actualEntry.getKey();
+            Map<String, Integer> sourceRow = actualEntry.getValue();
+            if (sourceRow == null) continue;
+
+            Map<String, Integer> targetRow = target.computeIfAbsent(actual, key -> initMatrixRow(labels));
+            for (Map.Entry<String, Integer> predictedEntry : sourceRow.entrySet()) {
+                String predicted = predictedEntry.getKey();
+                int count = predictedEntry.getValue() == null ? 0 : predictedEntry.getValue();
+                targetRow.merge(predicted, count, Integer::sum);
+            }
+        }
+    }
+
+    private Map<String, Integer> initMatrixRow(List<String> labels) {
+        Map<String, Integer> row = new LinkedHashMap<>();
+        for (String label : labels) {
+            row.put(label, 0);
+        }
+        return row;
+    }
+
+    private String resolveStudentName(String studentId) {
+        return userRepository.findByUsername(studentId)
+                .map(user -> user.getName())
+                .map(this::normalizeStudentName)
+                .orElse(null);
+    }
+
+    private String normalizeStudentName(String studentName) {
+        if (studentName == null || studentName.isBlank()) return null;
+        return studentName;
+    }
+
+    private String buildStudentDisplayName(String studentId, String studentName) {
+        return studentName == null ? studentId : studentId + "_" + studentName;
     }
 }

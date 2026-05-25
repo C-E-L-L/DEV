@@ -40,4 +40,9 @@ public class TaskCoreRepository implements TaskRepository {
                 .map(Mapper::convertToTask)
                 .toList();
     }
+
+    @Override
+    public List<Long> findIdsByUploadedFilenameStartingWith(String prefix) {
+        return taskJpaRepository.findIdsByUploadedFilenameStartingWith(prefix);
+    }
 }

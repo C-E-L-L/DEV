@@ -32,6 +32,10 @@ jwt:
   secret: ${JWT_SECRET}
   expiration-hours: ${JWT_EXPIRATION_HOURS}
 
+admin:
+  username: ${ADMIN_USERNAME}
+  password: ${ADMIN_PASSWORD}
+
 ai-server:
   base-url: ${AI_SERVER_URL}
 

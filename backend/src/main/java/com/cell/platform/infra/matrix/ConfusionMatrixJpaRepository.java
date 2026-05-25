@@ -12,4 +12,5 @@ public interface ConfusionMatrixJpaRepository extends JpaRepository<StudentConfu
     Optional<StudentConfusionMatrixEntity> findByStudentIdAndTaskId(String studentId, Long taskId);
     // [추가된 부분]
     List<StudentConfusionMatrixEntity> findAllByTaskId(Long taskId);
+    List<StudentConfusionMatrixEntity> findAllByTaskIdIn(List<Long> taskIds);
 }

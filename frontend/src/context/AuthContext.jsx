@@ -10,10 +10,12 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const { data } = await authApi.login(username, password);
-    const userData = { username: data.username, role: data.role, token: data.accessToken };
+    const userData = { username: data.username, name: data.name, role: data.role, token: data.accessToken };
     saveUserToStorage(userData);
     setUser(userData);
-    navigate(userData.role.toUpperCase() === 'EXPERT' ? '/expert' : '/student', { replace: true });
+    const role = String(userData.role || '').toUpperCase();
+    const homePath = role === 'ADMIN' ? '/admin' : role === 'EXPERT' ? '/expert' : '/student';
+    navigate(homePath, { replace: true });
   }, [navigate]);
 
   const logout = useCallback(() => {
@@ -39,12 +41,15 @@ function loadUserFromStorage() {
   return {
     token,
     username: localStorage.getItem('username'),
+    name: localStorage.getItem('name'),
     role: localStorage.getItem('role'),
   };
 }
 
-function saveUserToStorage({ token, username, role }) {
+function saveUserToStorage({ token, username, name, role }) {
   localStorage.setItem('token', token);
   localStorage.setItem('username', username);
+  if (name) localStorage.setItem('name', name);
+  else localStorage.removeItem('name');
   localStorage.setItem('role', role);
 }

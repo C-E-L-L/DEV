@@ -15,6 +15,10 @@ backend/data/
 backend/*.db
 backend/*.log
 
+# --- Runtime Uploaded Images ---
+data/originals/
+data/crops/
+
 # --- AI Server (FastAPI / Python) ---
 ai-server/venv/
 ai-server/.venv/

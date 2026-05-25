@@ -7,13 +7,5 @@ export const diagnosticApi = {
 
   createTask: (payload) =>
     api.post('/tasks/diagnostic/create', payload),
-  getStudentMatrices: (taskId) => client.get(`/tasks/${taskId}/diagnostic/student-matrices`)
-};
-
-
-
-export const getDiagnosticStudentMatrices = async (taskId) => {
-    // client.js에 설정된 axios 인스턴스를 통해 GET 요청 전송 (토큰 자동 포함)
-    const response = await client.get(`/tasks/${taskId}/diagnostic/student-matrices`);
-    return response.data;
+  getStudentMatrices: () => client.get('/tasks/diagnostic/student-matrices')
 };

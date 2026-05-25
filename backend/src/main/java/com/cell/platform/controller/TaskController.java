@@ -52,9 +52,15 @@ public class TaskController {
         return ResponseEntity.ok(diagnosticTaskService.createDiagnosticTask(request));
     }
 
+    @GetMapping("/diagnostic/student-matrices")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public ResponseEntity<DiagnosticStudentMatrixResponse> getCumulativeStudentMatrices() {
+        return ResponseEntity.ok(submissionService.getCumulativeStudentMatrices());
+    }
+
     // [추가된 부분] 교수님용: 특정 과제의 모든 학생 혼동행렬 조회 API
     @GetMapping("/{taskId}/diagnostic/student-matrices")
-    @PreAuthorize("hasRole('EXPERT')")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
     public ResponseEntity<DiagnosticStudentMatrixResponse> getStudentMatrices(@PathVariable Long taskId) {
         return ResponseEntity.ok(submissionService.getDiagnosticStudentMatrices(taskId));
     }

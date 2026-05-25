@@ -4,9 +4,14 @@ public record LoginResponse(
         String accessToken,
         String tokenType,
         String role,
-        String username
+        String username,
+        String name
 ) {
+    public static LoginResponse of(String token, String role, String username, String name) {
+        return new LoginResponse(token, "bearer", role, username, name);
+    }
+
     public static LoginResponse of(String token, String role, String username) {
-        return new LoginResponse(token, "bearer", role, username);
+        return of(token, role, username, null);
     }
 }

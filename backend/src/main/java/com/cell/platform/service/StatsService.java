@@ -50,18 +50,21 @@ public class StatsService {
 
     private CropStatsResponse buildCropStats(Crop crop, List<Submission> submissions) {
         int totalAnswers = submissions.size();
-        String correctLabel = crop.getFinalLabel() != null
-                ? crop.getFinalLabel().name()
-                : crop.getAiPrediction().name();
+        boolean scorable = crop.getFinalLabel() != null;
+        String correctLabel = scorable ? crop.getFinalLabel().name() : null;
 
-        List<String> wrongDetails = submissions.stream()
+        List<String> wrongDetails = scorable
+                ? submissions.stream()
                 .filter(sub -> !sub.getStudentLabel().name().equals(correctLabel))
                 .map(sub -> sub.getStudentLabel().name())
-                .toList();
+                .toList()
+                : List.of();
 
-        double errorRate = totalAnswers > 0 ? (double) wrongDetails.size() / totalAnswers * 100 : 0;
-        double accuracyRate = 100 - errorRate;
-        double hardScore = errorRate + (1 - crop.getAiConfidence()) * 100;
+        double errorRate = scorable && totalAnswers > 0
+                ? (double) wrongDetails.size() / totalAnswers * 100
+                : 0;
+        double accuracyRate = scorable ? 100 - errorRate : 0;
+        double hardScore = scorable ? errorRate : 0;
 
         Map<String, Integer> voteDistribution = new LinkedHashMap<>();
         for (String label : CELL_LABELS) {
@@ -75,9 +78,12 @@ public class StatsService {
                 .taskId(crop.getTaskId())
                 .cropId(crop.getId())
                 .filename(crop.getCropFilename())
+                .originalSmearFilename(crop.getOriginalSmearFilename())
                 .bbox(crop.getBbox())
-                .aiLabel(crop.getAiPrediction().name())
-                .aiConfidence(crop.getAiConfidence())
+                .gtLabel(crop.getGtLabel() != null ? crop.getGtLabel().name() : null)
+                .pseudoLabel(crop.getPseudoLabel() != null ? crop.getPseudoLabel().name() : null)
+                .aiBboxConfidence(crop.getAiBboxConfidence())
+                .aiClassificationConfidence(crop.getAiClassificationConfidence())
                 .finalLabel(crop.getFinalLabel() != null ? crop.getFinalLabel().name() : null)
                 .totalAnswers(totalAnswers)
                 .errorRate(Math.round(errorRate * 10) / 10.0)

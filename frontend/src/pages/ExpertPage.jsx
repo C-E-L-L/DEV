@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { taskApi, statsApi, cropApi, diagnosticApi } from '../api';
-import { CELL_KEYS, imageUrl } from '../constants';
+import { taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
+import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -43,6 +43,10 @@ function emptyDistribution() {
   return CELL_KEYS.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
 }
 
+function isDiagnosticTask(task) {
+  return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
+}
+
 function autoDistributeByTotal(total, availableByClass) {
   const target = Math.max(0, Number(total) || 0);
   const result = emptyDistribution();
@@ -65,6 +69,33 @@ function autoDistributeByTotal(total, availableByClass) {
   return result;
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getMatrixCellStyle(count, rowTotal, isCorrect) {
+  if (!rowTotal || count === 0) {
+    return { background: '#fff', color: '#adb5bd', fontWeight: 'normal' };
+  }
+
+  const pct = count / rowTotal;
+  const alpha = clamp(0.15 + pct * 0.85, 0.15, 0.95);
+  const base = isCorrect ? '40, 167, 69' : '220, 53, 69';
+  const textColor = isCorrect ? '#155724' : '#721c24';
+
+  return {
+    background: `rgba(${base}, ${alpha})`,
+    color: textColor,
+    fontWeight: '600',
+  };
+}
+
+function getReportCategory(reason) {
+  const normalized = (reason || '').trim();
+  if (REPORT_REASONS.includes(normalized)) return normalized;
+  return '기타';
+}
+
 /* ──────────────── Main ExpertPage ──────────────── */
 export default function ExpertPage() {
   const { user } = useAuth();
@@ -85,6 +116,11 @@ export default function ExpertPage() {
   const [stats, setStats] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [allCellStats, setAllCellStats] = useState([]);
+  const [reportItems, setReportItems] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportFilters, setReportFilters] = useState(
+    () => Object.fromEntries(REPORT_REASONS.map((reason) => [reason, true]))
+  );
 
   /* ── Tab 3: Diagnostic Evaluation ── */
   const [poolStats, setPoolStats] = useState(null);
@@ -101,24 +137,41 @@ export default function ExpertPage() {
   const [imageLoaded, setImageLoaded] = useState(false);
   // ========================================================
   // ⭐ [여기에 아래 상태 변수와 함수를 꼭 추가해 주세요!] ⭐
-  const [selectedDiagTaskId, setSelectedDiagTaskId] = useState(null);
   const [studentMatrices, setStudentMatrices] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  const fetchStudentMatrices = async (taskId) => {
-    setSelectedDiagTaskId(taskId);
+  const diagnosticTaskOrder = [...tasks]
+    .filter(isDiagnosticTask)
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (aTime !== bTime) return aTime - bTime;
+      return (a.id || 0) - (b.id || 0);
+    })
+    .reduce((acc, task, index) => {
+      acc.set(task.id, index + 1);
+      return acc;
+    }, new Map());
+  const selectedAnalyticsTask = tasks.find(task => task.id === selectedTaskId);
+  const taskFilenameById = new Map(
+    tasks.map(task => [task.id, task.uploadedFilename || task.originalFilename])
+  );
+  const displaySmearFilename = (item) =>
+    taskFilenameById.get(item.taskId) || item.originalSmearFilename || '-';
+
+  const fetchStudentMatrices = useCallback(async () => {
     setSelectedStudent(null);
     try {
-      const { data } = await diagnosticApi.getStudentMatrices(taskId);
+      const { data } = await diagnosticApi.getStudentMatrices();
       setStudentMatrices(data.studentMatrices || []);
       if (data.studentMatrices && data.studentMatrices.length > 0) {
-        setSelectedStudent(data.studentMatrices[0]); // 첫 번째 학생 자동 선택
+        setSelectedStudent(data.studentMatrices[0]);
       }
     } catch (error) {
-      console.error("학생 혼동행렬 조회 실패:", error);
+      console.error("학생 누적 혼동행렬 조회 실패:", error);
       alert("혼동행렬 데이터를 불러오는데 실패했습니다.");
     }
-  };
+  }, []);
   // ========================================================
 
   /* ── Analytics 탭 열릴 때 데이터 로드 ── */
@@ -127,6 +180,20 @@ export default function ExpertPage() {
     taskApi.getAll().then(({ data }) => setTasks(data)).catch(console.error);
     statsApi.getAll().then(({ data }) => setAllCellStats(data)).catch(console.error);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 2 || analyticsSubTab !== 'students') return;
+    fetchStudentMatrices();
+  }, [activeTab, analyticsSubTab, fetchStudentMatrices]);
+
+  useEffect(() => {
+    if (activeTab !== 2 || analyticsSubTab !== 'reports') return;
+    setReportLoading(true);
+    reportApi.getAll()
+      .then(({ data }) => setReportItems(data || []))
+      .catch(() => setReportItems([]))
+      .finally(() => setReportLoading(false));
+  }, [activeTab, analyticsSubTab]);
 
   useEffect(() => {
     if (activeTab !== 3) return;
@@ -213,6 +280,34 @@ export default function ExpertPage() {
       await cropApi.confirm(cropId, finalLabel);
       fetchTaskStats(selectedTaskId);
     } catch { alert("Confirmation failed."); }
+  };
+
+  const handleLabelingExport = async (taskId) => {
+    try {
+      const { data } = await labelingApi.exportTask(taskId);
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `task_${taskId}_labeling.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('라벨링 ZIP을 생성하지 못했습니다.');
+    }
+  };
+
+  const handleLabelingImport = async (taskId, file) => {
+    if (!file) return;
+    try {
+      const manifest = JSON.parse(await file.text());
+      const { data } = await labelingApi.importTask(taskId, manifest);
+      await fetchTaskStats(taskId);
+      const allStats = await statsApi.getAll();
+      setAllCellStats(allStats.data);
+      alert(`${data.updated}개 세포의 GT 라벨을 반영했습니다.`);
+    } catch {
+      alert('annotations.json 형식 또는 라벨 값을 확인해 주세요.');
+    }
   };
 
   /* ── Upload 핸들러 ── */
@@ -339,6 +434,7 @@ export default function ExpertPage() {
             <button onClick={() => setAnalyticsSubTab('tasks')} style={analyticsSubTab === 'tasks' ? subTabActive : subTabInactive}>📋 Tasks</button>
             <button onClick={() => setAnalyticsSubTab('cells')} style={analyticsSubTab === 'cells' ? subTabActive : subTabInactive}>🔬 Cells</button>
             <button onClick={() => setAnalyticsSubTab('students')} style={analyticsSubTab === 'students' ? subTabActive : subTabInactive}>🧑‍🎓 Student Matrices</button>
+            <button onClick={() => setAnalyticsSubTab('reports')} style={analyticsSubTab === 'reports' ? subTabActive : subTabInactive}>Reports</button>
           </div>
 
           {/* ───── Tasks 서브탭 ───── */}
@@ -347,19 +443,57 @@ export default function ExpertPage() {
               <h3 style={sectionHeader}>Select a Task</h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '25px' }}>
                 {tasks.map(task => (
+                  (() => {
+                    const diagnostic = isDiagnosticTask(task);
+                    const diagnosticNumber = diagnosticTaskOrder.get(task.id);
+                    return (
                   <button key={task.id} onClick={() => fetchTaskStats(task.id)} style={{
                     ...taskBtnStyle,
                     ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
                     display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
                   }}>
-                    <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
-                    <div style={{ fontWeight: '600', fontSize: '14px' }}>Task #{task.id}</div>
+                    {diagnostic ? (
+                      <div style={{ width: '160px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6', fontSize: '12px', color: '#6c757d', fontWeight: '700' }}>
+                        Diagnostic Task
+                      </div>
+                    ) : (
+                      <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                    )}
+                    <div style={{ fontWeight: '600', fontSize: '14px' }}>{diagnostic ? `Diagnostic #${diagnosticNumber || task.id}` : `Task #${task.id}`}</div>
                     <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                       {task.uploadedFilename || task.originalFilename}
                     </div>
                   </button>
+                    );
+                  })()
                 ))}
               </div>
+
+              {selectedTaskId && stats.length > 0 && selectedAnalyticsTask && !isDiagnosticTask(selectedAnalyticsTask) && (
+                <div style={labelingToolsStyle}>
+                  <div>
+                    <strong>JSON Labeling</strong>
+                    <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '3px' }}>
+                      읽기 쉬운 파일명의 이미지 묶음과 annotations.json을 내려받아 라벨링할 수 있습니다.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => handleLabelingExport(selectedTaskId)} style={labelingActionStyle}>Export ZIP</button>
+                    <label style={labelingActionStyle}>
+                      Import JSON
+                      <input
+                        type="file"
+                        accept="application/json,.json"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          handleLabelingImport(selectedTaskId, e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
 
               {/* ── 이미지 + 셀 패널 ── */}
               {selectedTaskId && stats.length > 0 && (
@@ -403,14 +537,20 @@ export default function ExpertPage() {
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
                           </div>
+                          {displaySmearFilename(selectedCrop) !== '-' && (
+                            <div style={{ marginTop: '6px', fontSize: '12px', color: '#6c757d', wordBreak: 'break-all' }}>
+                              Smear: {displaySmearFilename(selectedCrop)}
+                            </div>
+                          )}
                         </div>
 
                         {/* AI 예측 */}
-                        <div style={infoBadge}>
-                          <span style={{ color: '#6c757d' }}>🤖 AI Prediction:</span>
-                          <span style={{ fontWeight: '700', color: '#0056b3', marginLeft: '10px', fontSize: '16px' }}>{selectedCrop.aiLabel}</span>
-                          <span style={{ color: '#6c757d', marginLeft: '8px' }}>({Math.round(selectedCrop.aiConfidence * 100)}% confidence)</span>
-                        </div>
+                        {selectedCrop.gtLabel && (
+                          <div style={infoBadge}>
+                            <span style={{ color: '#6c757d' }}>정답(GT):</span>
+                            <span style={{ fontWeight: '700', color: '#0056b3', marginLeft: '10px', fontSize: '16px' }}>{selectedCrop.gtLabel}</span>
+                          </div>
+                        )}
 
                         {/* 투표 분포 */}
                         <div style={{ marginTop: '20px' }}>
@@ -425,7 +565,7 @@ export default function ExpertPage() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '14px', color: '#495057' }}>Student Accuracy:</span>
                             <span style={{ fontSize: '18px', fontWeight: '700', color: getAccuracyColor(selectedCrop.accuracyRate, selectedCrop.totalAnswers) }}>
-                              {selectedCrop.totalAnswers > 0 ? `${selectedCrop.accuracyRate}%` : 'N/A'}
+                              {selectedCrop.finalLabel && selectedCrop.totalAnswers > 0 ? `${selectedCrop.accuracyRate}%` : 'N/A'}
                             </span>
                           </div>
                         </div>
@@ -441,7 +581,7 @@ export default function ExpertPage() {
                             </div>
                           ) : (
                             <div style={{ display: 'flex', gap: '10px' }}>
-                              <select id={`gt_${selectedCrop.cropId}`} defaultValue={selectedCrop.aiLabel} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ced4da' }}>
+                              <select id={`gt_${selectedCrop.cropId}`} defaultValue={selectedCrop.gtLabel || CELL_KEYS[0]} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ced4da' }}>
                                 {CELL_KEYS.map(label => <option key={label} value={label}>{label}</option>)}
                               </select>
                               <button onClick={() => handleConfirmLabel(selectedCrop.cropId, document.getElementById(`gt_${selectedCrop.cropId}`).value)} style={confirmBtn}>
@@ -495,20 +635,22 @@ export default function ExpertPage() {
                           <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '5px' }}>
                             Crop #{item.cropId}
                           </div>
-                          <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '3px' }}>
-                            AI: <strong>{item.aiLabel}</strong> ({Math.round(item.aiConfidence * 100)}%)
-                          </div>
                           <div style={{ fontSize: '12px', marginBottom: '3px' }}>
-                            {item.totalAnswers > 0 ? (
+                            {item.finalLabel && item.totalAnswers > 0 ? (
                               <>Error Rate: <strong style={{ color: getAccuracyColor(item.accuracyRate, item.totalAnswers) }}>{item.errorRate}%</strong></>
                             ) : (
-                              <span style={{ color: '#adb5bd' }}>No responses yet</span>
+                              <span style={{ color: '#adb5bd' }}>Not scored yet</span>
                             )}
                           </div>
                           <div style={{ fontSize: '12px', color: '#6c757d' }}>Responses: {item.totalAnswers}</div>
-                          {item.finalLabel && (
+                          {displaySmearFilename(item) !== '-' && (
+                            <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px', wordBreak: 'break-all' }}>
+                              Smear: {displaySmearFilename(item)}
+                            </div>
+                          )}
+                          {(item.finalLabel || item.gtLabel) && (
                             <div style={{ fontSize: '11px', color: '#155724', marginTop: '5px', background: '#d4edda', padding: '2px 6px', borderRadius: '3px', display: 'inline-block' }}>
-                              ✅ {item.finalLabel}
+                              ✅ {item.finalLabel || item.gtLabel}
                             </div>
                           )}
                         </div>
@@ -527,110 +669,184 @@ export default function ExpertPage() {
           {/* ───── Students 서브탭 (혼동행렬) ───── */}
           {analyticsSubTab === 'students' && (
             <div>
-              <h3 style={sectionHeader}>Select a Task to view Student Matrices</h3>
-              {/* 과제 선택 버튼 목록 */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '25px' }}>
-                {tasks.map(task => (
-                  <button key={task.id} onClick={() => fetchStudentMatrices(task.id)} style={{
-                    ...taskBtnStyle,
-                    ...(selectedDiagTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
-                    padding: '10px 15px', minWidth: '120px'
-                  }}>
-                    <div style={{ fontWeight: '600' }}>Task #{task.id}</div>
-                  </button>
-                ))}
-              </div>
-
+              <h3 style={sectionHeader}>Cumulative Student Matrices</h3>
               {/* 하단: 학생 리스트 & 혼동행렬 테이블 */}
-              {selectedDiagTaskId && (
-                <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
-                  
-                  {/* 왼쪽: 학생 리스트 */}
-                  <div style={{ flex: '0 0 250px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '15px' }}>
-                    <h4 style={{ fontWeight: '600', marginBottom: '15px', color: '#495057' }}>학생 목록</h4>
-                    {studentMatrices.length === 0 ? (
-                      <div style={{ color: '#adb5bd', fontSize: '14px' }}>제출한 학생이 없습니다.</div>
-                    ) : (
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {studentMatrices.map((student, idx) => (
-                          <li 
-                            key={idx} 
-                            style={{
-                              padding: '10px', marginBottom: '8px', borderRadius: '6px', cursor: 'pointer',
-                              background: selectedStudent?.studentId === student.studentId ? '#e7f3ff' : '#f8f9fa',
-                              border: selectedStudent?.studentId === student.studentId ? '1px solid #74c0fc' : '1px solid #e9ecef',
-                            }}
-                            onClick={() => setSelectedStudent(student)}
-                          >
-                            <div style={{ fontWeight: '600', color: selectedStudent?.studentId === student.studentId ? '#0056b3' : '#495057' }}>
-                              {student.studentId}
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
-                              정확도: {student.accuracy}% ({student.totalSolved}문제)
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+              <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
+                
+                {/* 왼쪽: 학생 리스트 */}
+                <div style={{ flex: '0 0 250px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '15px' }}>
+                  <h4 style={{ fontWeight: '600', marginBottom: '15px', color: '#495057' }}>학생 목록</h4>
+                  {studentMatrices.length === 0 ? (
+                    <div style={{ color: '#adb5bd', fontSize: '14px' }}>학생 데이터가 없습니다.</div>
+                  ) : (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {studentMatrices.map((student, idx) => (
+                        <li 
+                          key={idx} 
+                          style={{
+                            padding: '10px', marginBottom: '8px', borderRadius: '6px', cursor: 'pointer',
+                            background: selectedStudent?.studentId === student.studentId ? '#e7f3ff' : '#f8f9fa',
+                            border: selectedStudent?.studentId === student.studentId ? '1px solid #74c0fc' : '1px solid #e9ecef',
+                          }}
+                          onClick={() => setSelectedStudent(student)}
+                        >
+                          <div style={{ fontWeight: '600', color: selectedStudent?.studentId === student.studentId ? '#0056b3' : '#495057' }}>
+                            {student.studentDisplayName || student.studentId}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
+                            정확도: {student.accuracy}% ({student.totalSolved}문제)
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
-                  {/* 오른쪽: 선택된 학생의 혼동행렬 테이블 */}
-                  <div style={{ flex: 1, background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' }}>
-                    {selectedStudent ? (
-                      <div>
-                        <h4 style={{ fontWeight: '600', marginBottom: '15px', fontSize: '18px', color: '#495057' }}>
-                          [{selectedStudent.studentId}] 학생의 혼동행렬
-                        </h4>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
-                            <thead>
-                              <tr>
-                                <th style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', width: '120px' }}>GT \ 예측</th>
-                                {CELL_KEYS.map(key => (
-                                  <th key={key} style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', color: '#495057' }}>
-                                    {key.substring(0, 3)}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {CELL_KEYS.map(actual => (
-                                <tr key={actual}>
-                                  <td style={{ border: '1px solid #dee2e6', padding: '10px', fontWeight: 'bold', background: '#f8f9fa', color: '#495057' }}>
-                                    {actual}
-                                  </td>
-                                  {CELL_KEYS.map(predicted => {
+                {/* 오른쪽: 선택된 학생의 혼동행렬 테이블 */}
+                <div style={{ flex: 1, background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' }}>
+                  {selectedStudent ? (
+                    <div>
+                      <h4 style={{ fontWeight: '600', marginBottom: '15px', fontSize: '18px', color: '#495057' }}>
+                        [{selectedStudent.studentDisplayName || selectedStudent.studentId}] 학생의 혼동행렬
+                      </h4>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', width: '120px' }}>GT \ 응답</th>
+                              {CELL_KEYS.map(key => (
+                                <th key={key} style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', color: '#495057' }}>
+                                  {key.substring(0, 3)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {CELL_KEYS.map(actual => (
+                              <tr key={actual}>
+                                <td style={{ border: '1px solid #dee2e6', padding: '10px', fontWeight: 'bold', background: '#f8f9fa', color: '#495057' }}>
+                                  {actual}
+                                </td>
+                                {(() => {
+                                  const rowTotal = CELL_KEYS.reduce((sum, predicted) => {
+                                    const value = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
+                                    return sum + value;
+                                  }, 0);
+
+                                  return CELL_KEYS.map(predicted => {
                                     const count = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
                                     const isCorrect = actual === predicted;
-                                    const bgColor = count > 0 ? (isCorrect ? '#d4edda' : '#f8d7da') : '#fff';
-                                    const fontColor = count > 0 ? (isCorrect ? '#155724' : '#721c24') : '#adb5bd';
-                                    
+                                    const cellStyle = getMatrixCellStyle(count, rowTotal, isCorrect);
+                                    const pct = rowTotal > 0 ? Math.round((count / rowTotal) * 100) : 0;
+                                    const title = rowTotal > 0
+                                      ? `${count} (${pct}%)`
+                                      : '0 (0%)';
+
                                     return (
-                                      <td key={predicted} style={{
-                                        border: '1px solid #dee2e6',
-                                        padding: '10px',
-                                        background: bgColor,
-                                        color: fontColor,
-                                        fontWeight: count > 0 ? 'bold' : 'normal'
-                                      }}>
+                                      <td
+                                        key={predicted}
+                                        title={title}
+                                        style={{
+                                          border: '1px solid #dee2e6',
+                                          padding: '10px',
+                                          ...cellStyle,
+                                        }}
+                                      >
                                         {count}
                                       </td>
                                     );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                                  });
+                                })()}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
-                        왼쪽에서 학생을 선택하면 혼동행렬이 표시됩니다.
-                      </div>
-                    )}
-                  </div>
-
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+                      왼쪽에서 학생을 선택하면 혼동행렬이 표시됩니다.
+                    </div>
+                  )}
                 </div>
+
+              </div>
+            </div>
+          )}
+          {analyticsSubTab === 'reports' && (
+            <div>
+              <h3 style={sectionHeader}>Crop Issue Reports</h3>
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ fontSize: '13px', color: '#6c757d', marginBottom: '8px' }}>사유 필터</div>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {Object.keys(reportFilters).map((key) => (
+                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#495057' }}>
+                      <input
+                        type="checkbox"
+                        checked={reportFilters[key]}
+                        onChange={(e) => setReportFilters(prev => ({ ...prev, [key]: e.target.checked }))}
+                      />
+                      {key}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {reportLoading ? (
+                <div style={{ color: '#6c757d' }}>불러오는 중...</div>
+              ) : reportItems.length === 0 ? (
+                <div style={{ color: '#adb5bd' }}>신고된 항목이 없습니다.</div>
+              ) : (
+                (() => {
+                  const activeFilters = Object.entries(reportFilters)
+                    .filter(([, enabled]) => enabled)
+                    .map(([key]) => key);
+                  const filteredItems = activeFilters.length === 0
+                    ? []
+                    : reportItems.filter(item => activeFilters.includes(getReportCategory(item.reason)));
+
+                  if (filteredItems.length === 0) {
+                    return <div style={{ color: '#adb5bd' }}>해당 사유의 신고가 없습니다.</div>;
+                  }
+
+                  return (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                    <thead>
+                      <tr>
+                        <th style={reportHeadStyle}>이미지</th>
+                        <th style={reportHeadStyle}>시간</th>
+                        <th style={reportHeadStyle}>학생</th>
+                        <th style={reportHeadStyle}>Task</th>
+                        <th style={reportHeadStyle}>Crop</th>
+                        <th style={reportHeadStyle}>사유</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredItems.map((item) => (
+                        <tr key={item.id}>
+                          <td style={reportCellStyle}>
+                            {item.cropFilename ? (
+                              <img
+                                src={imageUrl.crop(item.cropFilename)}
+                                alt={`Crop ${item.cropId}`}
+                                style={reportThumbStyle}
+                              />
+                            ) : (
+                              <div style={{ color: '#adb5bd' }}>N/A</div>
+                            )}
+                          </td>
+                          <td style={reportCellStyle}>{item.createdAt || '-'}</td>
+                          <td style={reportCellStyle}>{item.studentId}</td>
+                          <td style={reportCellStyle}>#{item.taskId}</td>
+                          <td style={reportCellStyle}>#{item.cropId}</td>
+                          <td style={reportCellStyle}>{item.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                  );
+                })()
               )}
             </div>
           )}
@@ -744,5 +960,11 @@ const taskBtnStyle = { padding: '12px 18px', background: '#fff', border: '2px so
 const cellPanelStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' };
 const infoBadge = { background: '#e7f3ff', padding: '12px 15px', borderRadius: '8px', fontSize: '14px' };
 const confirmBtn = { background: '#495057', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' };
+const labelingToolsStyle = { marginBottom: '18px', padding: '14px 16px', border: '1px solid #b6d4fe', borderRadius: '8px', background: '#eef6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' };
+const labelingActionStyle = { display: 'inline-flex', alignItems: 'center', padding: '9px 13px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' };
+
+const reportHeadStyle = { borderBottom: '2px solid #dee2e6', padding: '10px', background: '#f8f9fa', fontWeight: '600', color: '#495057' };
+const reportCellStyle = { borderBottom: '1px solid #dee2e6', padding: '10px', color: '#495057' };
+const reportThumbStyle = { width: '48px', height: '48px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' };
 
 const dropZoneStyle = { border: '3px dashed #ced4da', borderRadius: '12px', padding: '40px 20px', cursor: 'pointer', transition: 'all 0.3s ease', marginTop: '20px' };

@@ -18,6 +18,8 @@ public class UserEntity {
     @Column(unique = true, nullable = false)
     private String username;
 
+    private String name;
+
     @Column(nullable = false)
     private String password;
 
@@ -33,9 +35,10 @@ public class UserEntity {
     }
 
     @Builder
-    private UserEntity(Long id, String username, String password, Role role, LocalDateTime createdAt) {
+    private UserEntity(Long id, String username, String name, String password, Role role, LocalDateTime createdAt) {
         this.id = id;
         this.username = username;
+        this.name = name;
         this.password = password;
         this.role = role;
         this.createdAt = createdAt;

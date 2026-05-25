@@ -5,7 +5,7 @@ import com.cell.platform.exception.ErrorCode;
 import java.util.Arrays;
 
 public enum Role {
-    STUDENT, EXPERT;
+    STUDENT, EXPERT, ADMIN;
 
     public static Role find(String userRole) {
         return Arrays.stream(values())
