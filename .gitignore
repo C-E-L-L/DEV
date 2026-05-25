@@ -24,7 +24,6 @@ ai-server/venv/
 ai-server/.venv/
 ai-server/__pycache__/
 ai-server/data/
-ai-server/weights/
 ai-server/*.pyc
 ai-server/*.log
 
