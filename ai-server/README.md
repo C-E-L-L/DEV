@@ -1,3 +1,5 @@
+# Juhun's branch
+
 # C.E.L.L. AI Server
 
 YOLO + DenseNet 추론 전용 서버. Spring Boot 백엔드가 이 서버를 호출합니다.
