@@ -249,7 +249,9 @@ export default function StudentPage() {
           </h2>
           <div style={{ display: 'flex', justifyContent: 'space-around', padding: '30px 0', background: '#f8f9fa', borderRadius: '8px', marginBottom: '20px' }}>
             <div style={resultStatStyle}>
-              <span style={{ fontSize: '48px', fontWeight: 'bold', color: resultData.accuracy >= 80 ? '#28a745' : resultData.accuracy >= 50 ? '#ffc107' : '#dc3545' }}>{resultData.accuracy}%</span>
+              <span style={{ fontSize: '48px', fontWeight: 'bold', color: resultData.total > 0 && resultData.accuracy >= 80 ? '#28a745' : resultData.total > 0 && resultData.accuracy >= 50 ? '#ffc107' : '#dc3545' }}>
+                {resultData.total > 0 ? `${resultData.accuracy}%` : 'N/A'}
+              </span>
               <span style={{ color: '#6c757d', marginTop: '10px' }}>정답률</span>
             </div>
             <div style={resultStatStyle}>
@@ -270,13 +272,18 @@ export default function StudentPage() {
               <h3 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>상세 결과</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px', marginTop: '15px' }}>
                 {resultData.details.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', padding: '10px', border: `2px solid ${item.isCorrect ? '#28a745' : '#dc3545'}`, borderRadius: '8px', background: '#fff' }}>
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', padding: '10px', border: `2px solid ${item.isCorrect === null ? '#adb5bd' : item.isCorrect ? '#28a745' : '#dc3545'}`, borderRadius: '8px', background: '#fff' }}>
                     <img src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
                     <div style={{ flex: 1, marginLeft: '10px' }}>
                       <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{item.studentLabel}</strong></div>
-                      <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>정답: </span><strong style={{ color: item.isCorrect ? '#28a745' : '#dc3545' }}>{item.aiLabel}</strong></div>
+                      <div style={{ fontSize: '13px' }}>
+                        <span style={{ color: '#6c757d' }}>정답: </span>
+                        <strong style={{ color: item.isCorrect === null ? '#6c757d' : item.isCorrect ? '#28a745' : '#dc3545' }}>
+                          {item.correctLabel || '채점 대기'}
+                        </strong>
+                      </div>
                     </div>
-                    <span style={{ fontSize: '24px' }}>{item.isCorrect ? '✅' : '❌'}</span>
+                    <span style={{ fontSize: '24px' }}>{item.isCorrect === null ? '⏳' : item.isCorrect ? '✅' : '❌'}</span>
                   </div>
                 ))}
               </div>

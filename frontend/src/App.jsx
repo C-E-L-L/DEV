@@ -5,6 +5,7 @@ import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import StudentPage from './pages/StudentPage';
 import ExpertPage from './pages/ExpertPage';
+import AdminPage from './pages/AdminPage';
 
 export default function App() {
   return (
@@ -22,6 +23,10 @@ export default function App() {
               <Route
                 path="/expert"
                 element={<ProtectedRoute allowedRole="EXPERT"><ExpertPage /></ProtectedRoute>}
+              />
+              <Route
+                path="/admin"
+                element={<ProtectedRoute allowedRole="ADMIN"><AdminPage /></ProtectedRoute>}
               />
               <Route path="*" element={<RoleRedirect />} />
             </Routes>
@@ -68,5 +73,6 @@ function normalizeRole(role) {
 }
 
 function getHomePath(role) {
+  if (role === 'ADMIN') return '/admin';
   return role === 'EXPERT' ? '/expert' : '/student';
 }

@@ -47,7 +47,7 @@ public class DiagnosticTaskService {
         String title = "diagnostic-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
         Task task = Task.create("", title);
         selected.forEach(cell -> {
-            Crop crop = Crop.create(cell.cropFilename(), cell.bbox(), cell.label(), 1.0);
+            Crop crop = Crop.create(cell.cropFilename(), cell.bbox(), cell.label(), null, null, null);
             task.getCrops().add(crop);
         });
 

@@ -73,10 +73,13 @@ public final class Mapper {
         return Crop.builder()
                 .id(entity.getId())
                 .taskId(entity.getTaskId())
+                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getOriginalFilename() : null)
                 .cropFilename(entity.getCropFilename())
                 .bbox(entity.getBbox())
-                .aiPrediction(entity.getAiPrediction())
-                .aiConfidence(entity.getAiConfidence())
+                .gtLabel(entity.getGtLabel())
+                .pseudoLabel(entity.getPseudoLabel())
+                .aiBboxConfidence(entity.getAiBboxConfidence())
+                .aiClassificationConfidence(entity.getAiClassificationConfidence())
                 .finalLabel(entity.getFinalLabel())
                 .build();
     }
@@ -86,8 +89,10 @@ public final class Mapper {
                 .id(crop.getId())
                 .cropFilename(crop.getCropFilename())
                 .bbox(crop.getBbox())
-                .aiPrediction(crop.getAiPrediction())
-                .aiConfidence(crop.getAiConfidence())
+            .gtLabel(crop.getGtLabel())
+            .pseudoLabel(crop.getPseudoLabel())
+            .aiBboxConfidence(crop.getAiBboxConfidence())
+            .aiClassificationConfidence(crop.getAiClassificationConfidence())
                 .finalLabel(crop.getFinalLabel())
                 .build();
     }

@@ -4,7 +4,8 @@ export default function NavBar() {
   const { user, logout, isLoggedIn } = useAuth();
   if (!isLoggedIn) return null;
 
-  const dashboardPath = String(user.role).toUpperCase() === 'EXPERT' ? '/expert' : '/student';
+  const role = String(user.role || '').toUpperCase();
+  const dashboardPath = role === 'ADMIN' ? '/admin' : role === 'EXPERT' ? '/expert' : '/student';
 
   return (
     <nav style={navStyle}>

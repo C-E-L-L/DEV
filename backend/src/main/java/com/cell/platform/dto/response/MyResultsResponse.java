@@ -19,8 +19,8 @@ public record MyResultsResponse(
             Long cropId,
             String cropFilename,
             String studentLabel,
-            String aiLabel,
-            boolean isCorrect
+            String correctLabel,
+            Boolean isCorrect
     ) {
     }
 }

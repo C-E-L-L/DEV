@@ -24,24 +24,35 @@ public class CropEntity {
     private String bbox;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private CellType aiPrediction;
+    @Column(name = "gt_label")
+    private CellType gtLabel;
 
-    @Column(nullable = false)
-    private Double aiConfidence;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pseudo_label")
+    private CellType pseudoLabel;
+
+    @Column(name = "ai_bbox_confidence")
+    private Double aiBboxConfidence;
+
+    @Column(name = "ai_classification_confidence")
+    private Double aiClassificationConfidence;
 
     @Enumerated(EnumType.STRING)
     private CellType finalLabel;
 
     @Builder
     private CropEntity(Long id, TaskEntity task, String cropFilename, String bbox,
-                       CellType aiPrediction, Double aiConfidence, CellType finalLabel) {
+                       CellType gtLabel, CellType pseudoLabel,
+                       Double aiBboxConfidence, Double aiClassificationConfidence,
+                       CellType finalLabel) {
         this.id = id;
         this.task = task;
         this.cropFilename = cropFilename;
         this.bbox = bbox;
-        this.aiPrediction = aiPrediction;
-        this.aiConfidence = aiConfidence;
+        this.gtLabel = gtLabel;
+        this.pseudoLabel = pseudoLabel;
+        this.aiBboxConfidence = aiBboxConfidence;
+        this.aiClassificationConfidence = aiClassificationConfidence;
         this.finalLabel = finalLabel;
     }
 
@@ -55,5 +66,13 @@ public class CropEntity {
 
     public void updateFinalLabel(CellType finalLabel) {
         this.finalLabel = finalLabel;
+    }
+
+    public void updateGtLabel(CellType gtLabel) {
+        this.gtLabel = gtLabel;
+    }
+
+    public void updatePseudoLabel(CellType pseudoLabel) {
+        this.pseudoLabel = pseudoLabel;
     }
 }

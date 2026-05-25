@@ -47,6 +47,7 @@ public class SubmissionService {
     private final CropRepository cropRepository;
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
+    private final DiagnosticDatasetService diagnosticDatasetService;
 
     // 혼동행렬 레포지토리 주입
     private final ConfusionMatrixRepository confusionMatrixRepository;
@@ -61,11 +62,10 @@ public class SubmissionService {
         submissionRepository.save(submission);
 
         // 정답(GT) 판별 및 혼동행렬 실시간 업데이트
-        String correctLabel = crop.getFinalLabel() != null
-                ? crop.getFinalLabel().name()
-                : crop.getAiPrediction().name();
-
-        updateConfusionMatrix(studentId, crop.getTaskId(), correctLabel, label.name());
+        CellType correctLabel = resolveCorrectLabel(crop, isDiagnosticTask(crop.getTaskId()));
+        if (correctLabel != null) {
+            updateConfusionMatrix(studentId, crop.getTaskId(), correctLabel.name(), label.name());
+        }
     }
 
     // --- 여기서부터 원래 주훈님이 가지고 계시던 소중한 코드들 복구 --- //
@@ -81,6 +81,7 @@ public class SubmissionService {
 
     public MyResultsResponse getMyResults(Long taskId, String studentId) {
         List<Crop> crops = cropRepository.findAllByTaskId(taskId);
+        boolean diagnosticTask = isDiagnosticTask(taskId);
         List<Long> cropIds = crops.stream().map(Crop::getId).toList();
         Map<Long, Crop> cropMap = crops.stream()
                 .collect(Collectors.toMap(Crop::getId, Function.identity()));
@@ -100,27 +101,28 @@ public class SubmissionService {
             Crop crop = cropMap.get(sub.getCropId());
             if (crop == null) continue;
 
-            String correctLabel = crop.getFinalLabel() != null
-                    ? crop.getFinalLabel().name()
-                    : crop.getAiPrediction().name();
-            boolean isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+            CellType resolvedLabel = resolveCorrectLabel(crop, diagnosticTask);
+            String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
+            Boolean isCorrect = null;
+            if (correctLabel != null) {
+                isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+                if (isCorrect) correct++;
+                else wrong++;
 
-            if (isCorrect) correct++;
-            else wrong++;
-
-            confusionMatrix.get(correctLabel)
-                    .compute(sub.getStudentLabel().name(), (key, value) -> value == null ? 1 : value + 1);
+                confusionMatrix.get(correctLabel)
+                        .compute(sub.getStudentLabel().name(), (key, value) -> value == null ? 1 : value + 1);
+            }
 
             details.add(MyResultsResponse.Detail.builder()
                     .cropId(crop.getId())
                     .cropFilename(crop.getCropFilename())
                     .studentLabel(sub.getStudentLabel().name())
-                    .aiLabel(correctLabel)
+                    .correctLabel(correctLabel)
                     .isCorrect(isCorrect)
                     .build());
         }
 
-        int total = submissions.size();
+        int total = correct + wrong;
         int accuracy = total > 0 ? Math.round((float) correct / total * 100) : 0;
 
         return MyResultsResponse.builder()
@@ -132,6 +134,30 @@ public class SubmissionService {
                 .labels(labels)
                 .confusionMatrix(confusionMatrix)
                 .build();
+    }
+
+    private boolean isDiagnosticTask(Long taskId) {
+        if (taskId == null) {
+            return false;
+        }
+        return taskRepository.findById(taskId)
+                .map(task -> task.getUploadedFilename() != null
+                        && task.getUploadedFilename().startsWith(DIAGNOSTIC_PREFIX))
+                .orElse(false);
+    }
+
+    private CellType resolveCorrectLabel(Crop crop, boolean diagnosticTask) {
+        if (crop.getFinalLabel() != null) {
+            return crop.getFinalLabel();
+        }
+        if (!diagnosticTask) {
+            return null;
+        }
+        if (crop.getGtLabel() != null) {
+            return crop.getGtLabel();
+        }
+        // Diagnostic tasks created before GT columns were added can still be graded from the manifest.
+        return diagnosticDatasetService.findLabelByCropFilename(crop.getCropFilename()).orElse(null);
     }
 
     private Map<String, Map<String, Integer>> initConfusionMatrix(List<String> labels) {

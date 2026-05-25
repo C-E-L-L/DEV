@@ -13,7 +13,9 @@ export function AuthProvider({ children }) {
     const userData = { username: data.username, name: data.name, role: data.role, token: data.accessToken };
     saveUserToStorage(userData);
     setUser(userData);
-    navigate(userData.role.toUpperCase() === 'EXPERT' ? '/expert' : '/student', { replace: true });
+    const role = String(userData.role || '').toUpperCase();
+    const homePath = role === 'ADMIN' ? '/admin' : role === 'EXPERT' ? '/expert' : '/student';
+    navigate(homePath, { replace: true });
   }, [navigate]);
 
   const logout = useCallback(() => {

@@ -13,4 +13,13 @@ public interface CropJpaRepository extends JpaRepository<CropEntity, Long> {
 
     @Query("select distinct c.task.id from CropEntity c where c.finalLabel is not null")
     List<Long> findDistinctTaskIdsByFinalLabelIsNotNull();
+
+    @Query("select c.task.id, count(c) from CropEntity c group by c.task.id")
+    List<Object[]> countByTaskId();
+
+    @Query("select c.task.id, count(c) from CropEntity c where c.finalLabel is not null group by c.task.id")
+    List<Object[]> countLabeledByTaskId();
+
+    @Query("select c from CropEntity c join fetch c.task t where t.originalFilename is not null")
+    List<CropEntity> findAllWithTaskOriginalFilename();
 }
