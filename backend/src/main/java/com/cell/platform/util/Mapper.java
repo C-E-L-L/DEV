@@ -73,7 +73,7 @@ public final class Mapper {
         return Crop.builder()
                 .id(entity.getId())
                 .taskId(entity.getTaskId())
-                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getOriginalFilename() : null)
+                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getUploadedFilename() : null)
                 .cropFilename(entity.getCropFilename())
                 .bbox(entity.getBbox())
                 .gtLabel(entity.getGtLabel())

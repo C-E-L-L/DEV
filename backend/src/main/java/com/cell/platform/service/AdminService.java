@@ -23,7 +23,7 @@ public class AdminService {
     private final CropJpaRepository cropJpaRepository;
 
     public List<AdminSmearResponse> getSmears() {
-        List<TaskEntity> tasks = taskJpaRepository.findAllByOriginalFilenameIsNotNullOrderByIdDesc();
+        List<TaskEntity> tasks = taskJpaRepository.findAllUploadedSmearsOrderByIdDesc();
         Map<Long, Long> totalCounts = toCountMap(cropJpaRepository.countByTaskId());
         Map<Long, Long> labeledCounts = toCountMap(cropJpaRepository.countLabeledByTaskId());
 
@@ -58,7 +58,7 @@ public class AdminService {
                             crop.getId(),
                             task != null ? task.getId() : null,
                             crop.getCropFilename(),
-                            task != null ? task.getOriginalFilename() : null,
+                            task != null ? task.getUploadedFilename() : null,
                         gtLabel,
                         pseudoLabel,
                             finalLabel,

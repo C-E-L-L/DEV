@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { adminApi, taskApi, statsApi, cropApi, diagnosticApi, reportApi } from '../api';
+import { adminApi, taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
@@ -71,6 +71,7 @@ function getReportCategory(reason) {
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState(1);
+  const [tasks, setTasks] = useState([]);
 
   /* ── Tab 1: Smear List ── */
   const [smears, setSmears] = useState([]);
@@ -110,11 +111,22 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab !== 2) return;
     setCropLoading(true);
-    adminApi.getCrops()
-      .then(({ data }) => setCrops(data || []))
+    Promise.all([adminApi.getCrops(), taskApi.getAll()])
+      .then(([cropResponse, taskResponse]) => {
+        setCrops(cropResponse.data || []);
+        setTasks(taskResponse.data || []);
+      })
       .catch(() => setCrops([]))
       .finally(() => setCropLoading(false));
   }, [activeTab]);
+
+  const taskFilenameById = useMemo(
+    () => new Map(tasks.map(task => [task.id, task.uploadedFilename || task.originalFilename])),
+    [tasks]
+  );
+
+  const displaySmearFilename = (item) =>
+    taskFilenameById.get(item.taskId) || item.originalSmearFilename || '-';
 
   const filteredCrops = useMemo(() => {
     const query = cropQuery.trim().toLowerCase();
@@ -125,14 +137,13 @@ export default function AdminPage() {
       if (!labelMatch) return false;
       if (!query) return true;
       const cropName = String(item.cropFilename || '').toLowerCase();
-      const smearName = String(item.originalSmearFilename || '').toLowerCase();
+      const smearName = String(taskFilenameById.get(item.taskId) || item.originalSmearFilename || '').toLowerCase();
       return cropName.includes(query) || smearName.includes(query);
     });
-  }, [crops, cropFilter, cropQuery]);
+  }, [crops, cropFilter, cropQuery, taskFilenameById]);
 
   /* ── Tab 3: Analytics ── */
   const [analyticsSubTab, setAnalyticsSubTab] = useState('tasks');
-  const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [stats, setStats] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState(null);
@@ -162,6 +173,7 @@ export default function AdminPage() {
       acc.set(task.id, index + 1);
       return acc;
     }, new Map());
+  const selectedAnalyticsTask = tasks.find(task => task.id === selectedTaskId);
 
   const fetchStudentMatrices = useCallback(async () => {
     setSelectedStudent(null);
@@ -266,6 +278,37 @@ export default function AdminPage() {
     } catch { alert('Confirmation failed.'); }
   };
 
+  const handleLabelingExport = async (taskId) => {
+    try {
+      const { data } = await labelingApi.exportTask(taskId);
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `task_${taskId}_labeling.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('라벨링 ZIP을 생성하지 못했습니다.');
+    }
+  };
+
+  const handleLabelingImport = async (taskId, file) => {
+    if (!file) return;
+    try {
+      const manifest = JSON.parse(await file.text());
+      const { data } = await labelingApi.importTask(taskId, manifest);
+      const [smearResponse, cropResponse] = await Promise.all([adminApi.getSmears(), adminApi.getCrops()]);
+      setSmears(smearResponse.data || []);
+      setCrops(cropResponse.data || []);
+      if (selectedTaskId === taskId) {
+        await fetchTaskStats(taskId);
+      }
+      alert(`${data.updated}개 세포의 GT 라벨을 반영했습니다.`);
+    } catch {
+      alert('annotations.json 형식 또는 라벨 값을 확인해 주세요.');
+    }
+  };
+
   return (
     <div style={containerStyle}>
       <div style={tabBar}>
@@ -302,12 +345,12 @@ export default function AdminPage() {
                   <tr>
                     <th style={tableHeadStyle}>Preview</th>
                     <th style={tableHeadStyle}>Task</th>
-                    <th style={tableHeadStyle}>Original Filename</th>
-                    <th style={tableHeadStyle}>Uploaded Filename</th>
+                    <th style={tableHeadStyle}>File Name</th>
                     <th style={tableHeadStyle}>Created At</th>
                     <th style={tableHeadStyle}>Total Crops</th>
                     <th style={tableHeadStyle}>Labeled Crops</th>
                     <th style={tableHeadStyle}>라벨 상태</th>
+                    <th style={tableHeadStyle}>JSON Labeling</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -321,12 +364,28 @@ export default function AdminPage() {
                         />
                       </td>
                       <td style={tableCellStyle}>#{item.taskId}</td>
-                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }}>{item.originalFilename}</td>
-                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }}>{item.uploadedFilename || '-'}</td>
+                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }} title={item.originalFilename}>{item.uploadedFilename || item.originalFilename}</td>
                       <td style={tableCellStyle}>{item.createdAt || '-'}</td>
                       <td style={tableCellStyle}>{item.totalCrops}</td>
                       <td style={tableCellStyle}>{item.labeledCrops}</td>
                       <td style={tableCellStyle}>{item.hasLabel ? '라벨 있음' : '라벨 없음'}</td>
+                      <td style={tableCellStyle}>
+                        <div style={{ display: 'flex', gap: '6px', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => handleLabelingExport(item.taskId)} style={tableActionStyle}>Export</button>
+                          <label style={tableActionStyle}>
+                            Import
+                            <input
+                              type="file"
+                              accept="application/json,.json"
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                handleLabelingImport(item.taskId, e.target.files?.[0]);
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -364,8 +423,8 @@ export default function AdminPage() {
                   <tr>
                     <th style={tableHeadStyle}>Preview</th>
                     <th style={tableHeadStyle}>Crop</th>
-                    <th style={tableHeadStyle}>Crop Filename</th>
-                    <th style={tableHeadStyle}>Original Smear Filename</th>
+                    <th style={tableHeadStyle}>Labeling Filename</th>
+                    <th style={tableHeadStyle}>Smear File</th>
                     <th style={tableHeadStyle}>Task</th>
                     <th style={tableHeadStyle}>GT Label</th>
                     <th style={tableHeadStyle}>Pseudo Label</th>
@@ -384,8 +443,8 @@ export default function AdminPage() {
                         />
                       </td>
                       <td style={tableCellStyle}>#{item.cropId}</td>
-                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }}>{item.cropFilename}</td>
-                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }}>{item.originalSmearFilename || '-'}</td>
+                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }} title={item.cropFilename}>{`task_${item.taskId}_cell_${item.cropId}.jpg`}</td>
+                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }} title={item.originalSmearFilename || ''}>{displaySmearFilename(item)}</td>
                       <td style={tableCellStyle}>#{item.taskId}</td>
                       <td style={tableCellStyle}>{item.gtLabel || '-'}</td>
                       <td style={tableCellStyle}>{item.pseudoLabel || '-'}</td>
@@ -440,6 +499,32 @@ export default function AdminPage() {
                 ))}
               </div>
 
+              {selectedTaskId && stats.length > 0 && selectedAnalyticsTask && !isDiagnosticTask(selectedAnalyticsTask) && (
+                <div style={labelingToolsStyle}>
+                  <div>
+                    <strong>JSON Labeling</strong>
+                    <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '3px' }}>
+                      읽기 쉬운 파일명의 이미지 묶음과 annotations.json을 내려받아 라벨링할 수 있습니다.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => handleLabelingExport(selectedTaskId)} style={labelingActionStyle}>Export ZIP</button>
+                    <label style={labelingActionStyle}>
+                      Import JSON
+                      <input
+                        type="file"
+                        accept="application/json,.json"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          handleLabelingImport(selectedTaskId, e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {selectedTaskId && stats.length > 0 && (
                 <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
                   <div style={{ flex: '0 0 720px' }}>
@@ -477,9 +562,9 @@ export default function AdminPage() {
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
                           </div>
-                          {selectedCrop.originalSmearFilename && (
+                          {displaySmearFilename(selectedCrop) !== '-' && (
                             <div style={{ marginTop: '6px', fontSize: '12px', color: '#6c757d', wordBreak: 'break-all' }}>
-                              Smear: {selectedCrop.originalSmearFilename}
+                              Smear: {displaySmearFilename(selectedCrop)}
                             </div>
                           )}
                         </div>
@@ -577,9 +662,9 @@ export default function AdminPage() {
                             )}
                           </div>
                           <div style={{ fontSize: '12px', color: '#6c757d' }}>Responses: {item.totalAnswers}</div>
-                          {item.originalSmearFilename && (
+                          {displaySmearFilename(item) !== '-' && (
                             <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px', wordBreak: 'break-all' }}>
-                              Smear: {item.originalSmearFilename}
+                              Smear: {displaySmearFilename(item)}
                             </div>
                           )}
                           {(item.finalLabel || item.gtLabel) && (
@@ -796,6 +881,8 @@ const taskBtnStyle = { padding: '12px 18px', background: '#fff', border: '2px so
 const cellPanelStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' };
 const infoBadge = { background: '#e7f3ff', padding: '12px 15px', borderRadius: '8px', fontSize: '14px' };
 const confirmBtn = { background: '#495057', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' };
+const labelingToolsStyle = { marginBottom: '18px', padding: '14px 16px', border: '1px solid #b6d4fe', borderRadius: '8px', background: '#eef6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' };
+const labelingActionStyle = { display: 'inline-flex', alignItems: 'center', padding: '9px 13px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' };
 
 const subTabBar = { display: 'flex', gap: '10px', marginBottom: '25px', borderBottom: '2px solid #dee2e6', paddingBottom: '15px' };
 const subTabActive = { padding: '10px 20px', background: '#495057', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' };
@@ -808,6 +895,7 @@ const filterInput = { padding: '8px 10px', border: '1px solid #ced4da', borderRa
 const tableStyle = { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' };
 const tableHeadStyle = { borderBottom: '2px solid #dee2e6', padding: '10px', background: '#f8f9fa', fontWeight: '600', color: '#495057' };
 const tableCellStyle = { borderBottom: '1px solid #dee2e6', padding: '10px', color: '#495057' };
+const tableActionStyle = { display: 'inline-flex', alignItems: 'center', padding: '6px 9px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' };
 const inventorySmearThumbStyle = { width: '92px', height: '64px', objectFit: 'cover', display: 'block', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' };
 const inventoryCropThumbStyle = { width: '64px', height: '64px', objectFit: 'contain', display: 'block', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' };
 

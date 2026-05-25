@@ -10,7 +10,14 @@ public interface TaskJpaRepository extends JpaRepository<TaskEntity, Long> {
 
     List<TaskEntity> findAllByOrderByIdDesc();
 
-    List<TaskEntity> findAllByOriginalFilenameIsNotNullOrderByIdDesc();
+    @Query("""
+            select t from TaskEntity t
+            where t.originalFilename is not null
+              and t.originalFilename <> ''
+              and (t.uploadedFilename is null or t.uploadedFilename not like 'diagnostic-%')
+            order by t.id desc
+            """)
+    List<TaskEntity> findAllUploadedSmearsOrderByIdDesc();
 
     @Query("select t.id from TaskEntity t where t.uploadedFilename like concat(:prefix, '%')")
     List<Long> findIdsByUploadedFilenameStartingWith(@Param("prefix") String prefix);

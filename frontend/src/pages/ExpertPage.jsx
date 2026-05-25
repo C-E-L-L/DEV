@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { taskApi, statsApi, cropApi, diagnosticApi, reportApi } from '../api';
+import { taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
@@ -152,6 +152,12 @@ export default function ExpertPage() {
       acc.set(task.id, index + 1);
       return acc;
     }, new Map());
+  const selectedAnalyticsTask = tasks.find(task => task.id === selectedTaskId);
+  const taskFilenameById = new Map(
+    tasks.map(task => [task.id, task.uploadedFilename || task.originalFilename])
+  );
+  const displaySmearFilename = (item) =>
+    taskFilenameById.get(item.taskId) || item.originalSmearFilename || '-';
 
   const fetchStudentMatrices = useCallback(async () => {
     setSelectedStudent(null);
@@ -274,6 +280,34 @@ export default function ExpertPage() {
       await cropApi.confirm(cropId, finalLabel);
       fetchTaskStats(selectedTaskId);
     } catch { alert("Confirmation failed."); }
+  };
+
+  const handleLabelingExport = async (taskId) => {
+    try {
+      const { data } = await labelingApi.exportTask(taskId);
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `task_${taskId}_labeling.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('라벨링 ZIP을 생성하지 못했습니다.');
+    }
+  };
+
+  const handleLabelingImport = async (taskId, file) => {
+    if (!file) return;
+    try {
+      const manifest = JSON.parse(await file.text());
+      const { data } = await labelingApi.importTask(taskId, manifest);
+      await fetchTaskStats(taskId);
+      const allStats = await statsApi.getAll();
+      setAllCellStats(allStats.data);
+      alert(`${data.updated}개 세포의 GT 라벨을 반영했습니다.`);
+    } catch {
+      alert('annotations.json 형식 또는 라벨 값을 확인해 주세요.');
+    }
   };
 
   /* ── Upload 핸들러 ── */
@@ -435,6 +469,32 @@ export default function ExpertPage() {
                 ))}
               </div>
 
+              {selectedTaskId && stats.length > 0 && selectedAnalyticsTask && !isDiagnosticTask(selectedAnalyticsTask) && (
+                <div style={labelingToolsStyle}>
+                  <div>
+                    <strong>JSON Labeling</strong>
+                    <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '3px' }}>
+                      읽기 쉬운 파일명의 이미지 묶음과 annotations.json을 내려받아 라벨링할 수 있습니다.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => handleLabelingExport(selectedTaskId)} style={labelingActionStyle}>Export ZIP</button>
+                    <label style={labelingActionStyle}>
+                      Import JSON
+                      <input
+                        type="file"
+                        accept="application/json,.json"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          handleLabelingImport(selectedTaskId, e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* ── 이미지 + 셀 패널 ── */}
               {selectedTaskId && stats.length > 0 && (
                 <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
@@ -477,9 +537,9 @@ export default function ExpertPage() {
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
                           </div>
-                          {selectedCrop.originalSmearFilename && (
+                          {displaySmearFilename(selectedCrop) !== '-' && (
                             <div style={{ marginTop: '6px', fontSize: '12px', color: '#6c757d', wordBreak: 'break-all' }}>
-                              Smear: {selectedCrop.originalSmearFilename}
+                              Smear: {displaySmearFilename(selectedCrop)}
                             </div>
                           )}
                         </div>
@@ -583,9 +643,9 @@ export default function ExpertPage() {
                             )}
                           </div>
                           <div style={{ fontSize: '12px', color: '#6c757d' }}>Responses: {item.totalAnswers}</div>
-                          {item.originalSmearFilename && (
+                          {displaySmearFilename(item) !== '-' && (
                             <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px', wordBreak: 'break-all' }}>
-                              Smear: {item.originalSmearFilename}
+                              Smear: {displaySmearFilename(item)}
                             </div>
                           )}
                           {(item.finalLabel || item.gtLabel) && (
@@ -900,6 +960,8 @@ const taskBtnStyle = { padding: '12px 18px', background: '#fff', border: '2px so
 const cellPanelStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' };
 const infoBadge = { background: '#e7f3ff', padding: '12px 15px', borderRadius: '8px', fontSize: '14px' };
 const confirmBtn = { background: '#495057', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' };
+const labelingToolsStyle = { marginBottom: '18px', padding: '14px 16px', border: '1px solid #b6d4fe', borderRadius: '8px', background: '#eef6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' };
+const labelingActionStyle = { display: 'inline-flex', alignItems: 'center', padding: '9px 13px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' };
 
 const reportHeadStyle = { borderBottom: '2px solid #dee2e6', padding: '10px', background: '#f8f9fa', fontWeight: '600', color: '#495057' };
 const reportCellStyle = { borderBottom: '1px solid #dee2e6', padding: '10px', color: '#495057' };
