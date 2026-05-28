@@ -2,6 +2,7 @@ package com.cell.platform.controller;
 
 import com.cell.platform.config.JwtTokenProvider;
 import com.cell.platform.dto.response.LoginResponse;
+import com.cell.platform.dto.response.RegisterResponse;
 import com.cell.platform.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Nested;
@@ -17,7 +18,6 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doNothing;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,7 +44,7 @@ class AuthControllerTest {
         @Test
         void 정상_요청이면_200을_반환한다() throws Exception {
             // given
-            doNothing().when(authService).register(any());
+            given(authService.register(any())).willReturn(RegisterResponse.active());
             Map<String, String> request = Map.of(
                     "username", "student01",
                     "password", "password123",

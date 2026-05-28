@@ -7,12 +7,18 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('student');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const { login } = useAuth();
+  const studentIdPattern = /^\d{10}$/;
 
-  const isStudentSignup = !isLoginMode && role === 'student';
+  const handleUsernameChange = (value) => {
+    if (isLoginMode) {
+      setUsername(value);
+      return;
+    }
+    setUsername(value.replace(/\D/g, '').slice(0, 10));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,20 +29,20 @@ export default function LoginPage() {
       if (isLoginMode) {
         await login(username, password);
       } else {
-        await authApi.register(username, password, role, isStudentSignup ? name : undefined);
-        setSuccess('회원가입 성공! 이제 로그인해 주세요.');
+        if (!studentIdPattern.test(username)) {
+          setError('학번은 10자리 숫자여야 합니다.');
+          return;
+        }
+        const { data } = await authApi.register(username, password, 'student', name);
+        setSuccess(data?.message || '회원가입이 완료되었습니다.');
         setIsLoginMode(true);
         setName('');
         setPassword('');
       }
     } catch (err) {
-      setError(
-        isLoginMode
-          ? '아이디 또는 비밀번호가 올바르지 않습니다.'
-          : err.response?.status === 400
-            ? '입력 정보를 확인해 주세요. 이미 사용 중인 아이디일 수 있습니다.'
-            : '회원가입에 실패했습니다.'
-      );
+      setError(err.response?.data?.message || (isLoginMode
+        ? '아이디 또는 비밀번호를 확인해 주세요.'
+        : '회원가입에 실패했습니다.'));
     }
   };
 
@@ -51,7 +57,7 @@ export default function LoginPage() {
       <div style={boxStyle}>
         <h1 style={{ margin: '0 0 10px 0', color: '#343a40' }}>C.E.L.L. Platform</h1>
         <p style={{ color: '#6c757d', marginBottom: '20px' }}>
-          {isLoginMode ? '계정으로 로그인하세요' : '새 계정을 생성하세요'}
+          {isLoginMode ? '계정으로 로그인하세요' : '학생 계정을 생성하세요'}
         </p>
 
         {error && <div style={errorStyle}>{error}</div>}
@@ -60,42 +66,46 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {!isLoginMode && (
             <div>
-              <label style={labelStyle}>가입 유형 (Role)</label>
-              <select value={role} onChange={(e) => setRole(e.target.value)} style={inputStyle}>
-                <option value="student">학생 (Student)</option>
-                <option value="expert">교수/전문가 (Expert)</option>
-              </select>
-            </div>
-          )}
-
-          {isStudentSignup && (
-            <div>
               <label style={labelStyle}>이름</label>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
             </div>
           )}
 
           <div>
-            <label style={labelStyle}>{isStudentSignup ? '학번' : '아이디 (Username)'}</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required style={inputStyle} />
+            <label style={labelStyle}>{isLoginMode ? '아이디' : '학번'}</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => handleUsernameChange(e.target.value)}
+              required
+              inputMode={isLoginMode ? undefined : 'numeric'}
+              maxLength={isLoginMode ? undefined : 10}
+              pattern={isLoginMode ? undefined : '[0-9]{10}'}
+              style={inputStyle}
+            />
           </div>
 
           <div>
-            <label style={labelStyle}>비밀번호 (Password)</label>
+            <label style={labelStyle}>비밀번호</label>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} />
           </div>
 
           <button type="submit" style={btnStyle}>
-            {isLoginMode ? '로그인 (Login)' : '회원가입 (Sign Up)'}
+            {isLoginMode ? '로그인' : '학생 회원가입'}
           </button>
         </form>
 
         <div style={{ marginTop: '20px', fontSize: '14px', color: '#6c757d' }}>
-          {isLoginMode ? '계정이 없으신가요? ' : '이미 계정이 있으신가요? '}
+          {isLoginMode ? '학생 계정이 없나요? ' : '이미 계정이 있나요? '}
           <span onClick={toggleMode} style={toggleStyle}>
-            {isLoginMode ? '회원가입 하기' : '로그인 하기'}
+            {isLoginMode ? '회원가입' : '로그인'}
           </span>
         </div>
+        {!isLoginMode && (
+          <p style={{ marginTop: '12px', fontSize: '12px', color: '#868e96', lineHeight: 1.5 }}>
+            교수 계정은 관리자가 발급한 아이디와 비밀번호로 로그인합니다.
+          </p>
+        )}
       </div>
     </div>
   );
