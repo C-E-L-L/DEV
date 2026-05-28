@@ -39,6 +39,15 @@ function VoteBar({ voteDistribution, totalAnswers }) {
   );
 }
 
+const CLASS_COLORS = {
+  Segment:     '#4dabf7',
+  Band:        '#ff922b',
+  Lymphocyte:  '#51cf66',
+  Monocyte:    '#cc5de8',
+  Eosinophil:  '#ff6b6b',
+  NucleatedRBC:'#20c997',
+};
+
 function emptyDistribution() {
   return CELL_KEYS.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
 }
@@ -107,7 +116,64 @@ export default function ExpertPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadStep, setUploadStep] = useState(0);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!uploadResult || !resultCanvasRef.current) return;
+    const canvas = resultCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      const maxWidth = 860;
+      const scale = maxWidth / img.width;
+      canvas.width = maxWidth;
+      canvas.height = img.height * scale;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      (uploadResult.crops || []).forEach((crop) => {
+        if (!crop.bbox) return;
+        const bbox = JSON.parse(crop.bbox.replace(/'/g, '"'));
+        const [x1, y1, x2, y2] = bbox;
+        const color = CLASS_COLORS[crop.pseudoLabel] || '#adb5bd';
+        const sx = x1 * scale, sy = y1 * scale;
+        const sw = (x2 - x1) * scale, sh = (y2 - y1) * scale;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx, sy, sw, sh);
+
+        const label = crop.pseudoLabel || '?';
+        const conf = crop.aiClassificationConfidence != null
+          ? ` ${Math.round(crop.aiClassificationConfidence * 100)}%` : '';
+        const text = label + conf;
+        ctx.font = 'bold 12px Arial';
+        const tw = ctx.measureText(text).width;
+
+        ctx.fillStyle = color;
+        ctx.fillRect(sx, sy - 17, tw + 8, 17);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(text, sx + 4, sy - 4);
+      });
+    };
+    img.src = imageUrl.original(uploadResult.originalImage);
+  }, [uploadResult]);
+
+  const UPLOAD_STEPS = [
+    { icon: '📤', label: '이미지 서버에 전송 중...' },
+    { icon: '🔍', label: 'YOLO: 세포 영역 탐지 중...' },
+    { icon: '🧬', label: 'DenseNet: 세포 분류 중...' },
+    { icon: '💾', label: '과제 데이터 저장 중...' },
+  ];
+
+  useEffect(() => {
+    if (!uploading) { setUploadStep(0); return; }
+    setUploadStep(1);
+    const t1 = setTimeout(() => setUploadStep(2), 1500);
+    const t2 = setTimeout(() => setUploadStep(3), 4000);
+    const t3 = setTimeout(() => setUploadStep(4), 7000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [uploading]);
 
   /* ── Tab 2: Analytics ── */
   const [analyticsSubTab, setAnalyticsSubTab] = useState('tasks');
@@ -133,6 +199,7 @@ export default function ExpertPage() {
 
   /* ── Canvas ── */
   const canvasRef = useRef(null);
+  const resultCanvasRef = useRef(null);
   const [originalImage, setOriginalImage] = useState(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   // ========================================================
@@ -272,6 +339,17 @@ export default function ExpertPage() {
         return;
       }
     }
+  };
+
+  /* ── Delete Task ── */
+  const handleDeleteTask = async (taskId, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Task #${taskId}를 삭제하시겠습니까?\n관련 제출 기록과 혼동행렬도 모두 삭제됩니다.`)) return;
+    try {
+      await taskApi.delete(taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+      if (selectedTaskId === taskId) { setSelectedTaskId(null); setStats([]); }
+    } catch { alert('삭제에 실패했습니다.'); }
   };
 
   /* ── Confirm Label ── */
@@ -414,14 +492,72 @@ export default function ExpertPage() {
 
           <div style={{ marginTop: '20px' }}>
             <button onClick={handleUpload} disabled={uploading || !file} style={file && !uploading ? btnActive : btnDisabled}>
-              {uploading ? "Processing... (Please wait)" : "🔬 Analyze & Create Task"}
+              {uploading ? '분석 중...' : '🔬 Analyze & Create Task'}
             </button>
           </div>
 
-          {uploadResult && (
-            <div style={successBox}>
-              ✅ <strong>Success!</strong> Task #{uploadResult.taskId} created with <strong>{uploadResult.crops?.length || uploadResult.totalDetected}</strong> cells detected.
+          {uploading && (
+            <div style={{ marginTop: '20px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '10px', padding: '20px' }}>
+              <div style={{ fontWeight: '600', color: '#495057', marginBottom: '16px', fontSize: '14px' }}>AI 분석 진행 중</div>
+              {UPLOAD_STEPS.map((step, i) => {
+                const stepNum = i + 1;
+                const isDone = uploadStep > stepNum;
+                const isActive = uploadStep === stepNum;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', opacity: uploadStep >= stepNum ? 1 : 0.3 }}>
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px',
+                      background: isDone ? '#d4edda' : isActive ? '#cce5ff' : '#f8f9fa',
+                      border: `2px solid ${isDone ? '#28a745' : isActive ? '#0056b3' : '#dee2e6'}`,
+                    }}>
+                      {isDone ? '✓' : step.icon}
+                    </div>
+                    <span style={{ fontSize: '14px', color: isDone ? '#28a745' : isActive ? '#0056b3' : '#adb5bd', fontWeight: isActive ? '600' : 'normal' }}>
+                      {step.label}
+                      {isActive && <span style={{ marginLeft: '6px', animation: 'none' }}>⏳</span>}
+                    </span>
+                  </div>
+                );
+              })}
+              <div style={{ marginTop: '14px', height: '6px', background: '#e9ecef', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${(uploadStep / UPLOAD_STEPS.length) * 100}%`, background: '#0056b3', borderRadius: '3px', transition: 'width 0.5s ease' }} />
+              </div>
             </div>
+          )}
+
+          {uploadResult && (
+            <>
+              <div style={successBox}>
+                ✅ <strong>Task #{uploadResult.taskId}</strong> 생성 완료 —{' '}
+                <strong>{uploadResult.crops?.length || uploadResult.totalDetected}</strong>개 세포 탐지됨
+              </div>
+
+              <div style={{ marginTop: '20px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '10px', padding: '20px' }}>
+                <div style={{ fontWeight: '600', color: '#495057', marginBottom: '14px', fontSize: '15px' }}>
+                  탐지 결과 — AI 예측 클래스
+                </div>
+
+                {/* 범례 */}
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  {Object.entries(CLASS_COLORS).map(([cls, color]) => (
+                    <div key={cls} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#495057' }}>
+                      <div style={{ width: '14px', height: '14px', background: color, borderRadius: '3px' }} />
+                      {cls}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 결과 이미지 */}
+                <canvas
+                  ref={resultCanvasRef}
+                  style={{ width: '100%', borderRadius: '6px', border: '1px solid #dee2e6' }}
+                />
+
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#6c757d' }}>
+                  바운딩 박스 위: 예측 클래스 + 분류 신뢰도(%)
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -447,7 +583,8 @@ export default function ExpertPage() {
                     const diagnostic = isDiagnosticTask(task);
                     const diagnosticNumber = diagnosticTaskOrder.get(task.id);
                     return (
-                  <button key={task.id} onClick={() => fetchTaskStats(task.id)} style={{
+                  <div key={task.id} style={{ position: 'relative' }}>
+                  <button onClick={() => fetchTaskStats(task.id)} style={{
                     ...taskBtnStyle,
                     ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
                     display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
@@ -464,6 +601,12 @@ export default function ExpertPage() {
                       {task.uploadedFilename || task.originalFilename}
                     </div>
                   </button>
+                  <button
+                    onClick={(e) => handleDeleteTask(task.id, e)}
+                    title="과제 삭제"
+                    style={{ position: 'absolute', top: '4px', right: '4px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', width: '22px', height: '22px', cursor: 'pointer', fontSize: '12px', lineHeight: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >✕</button>
+                  </div>
                     );
                   })()
                 ))}

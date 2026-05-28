@@ -1,6 +1,7 @@
 package com.cell.platform.service;
 
 import com.cell.platform.domain.crop.Crop;
+import com.cell.platform.domain.crop.CellType;
 import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.dto.response.AiAnalysisResponse;
@@ -9,6 +10,9 @@ import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
 import com.cell.platform.exception.ErrorCode;
 import com.cell.platform.exception.NotFoundException;
+import com.cell.platform.infra.matrix.ConfusionMatrixJpaRepository;
+import com.cell.platform.infra.report.CropIssueReportJpaRepository;
+import com.cell.platform.infra.submission.SubmissionJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +28,9 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final FileStorageService fileStorageService;
     private final AiClientService aiClientService;
+    private final SubmissionJpaRepository submissionJpaRepository;
+    private final ConfusionMatrixJpaRepository confusionMatrixJpaRepository;
+    private final CropIssueReportJpaRepository cropIssueReportJpaRepository;
 
     public List<TaskResponse> getAllTasks() {
         return taskRepository.findAllByOrderByIdDesc().stream()
@@ -58,11 +65,33 @@ public class TaskService {
                     cell.getCropFilename(),
                     cell.getBbox(),
                     null,
-                    null,
+                    parseCellType(cell.getPrediction()),
                     null,
                     cell.getConfidence()
             );
             task.getCrops().add(crop);
         });
+    }
+
+    @Transactional
+    public void deleteTask(Long taskId) {
+        Task task = getTaskById(taskId);
+        List<Long> cropIds = task.getCrops().stream().map(Crop::getId).toList();
+
+        if (!cropIds.isEmpty()) {
+            submissionJpaRepository.deleteAllByCropIdIn(cropIds);
+        }
+        confusionMatrixJpaRepository.deleteAllByTaskId(taskId);
+        cropIssueReportJpaRepository.deleteAllByTaskId(taskId);
+        taskRepository.deleteById(taskId);
+    }
+
+    private CellType parseCellType(String prediction) {
+        if (prediction == null) return null;
+        try {
+            return CellType.valueOf(prediction);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

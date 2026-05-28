@@ -64,4 +64,11 @@ public class TaskController {
     public ResponseEntity<DiagnosticStudentMatrixResponse> getStudentMatrices(@PathVariable Long taskId) {
         return ResponseEntity.ok(submissionService.getDiagnosticStudentMatrices(taskId));
     }
+
+    @DeleteMapping("/{taskId}")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public ResponseEntity<Void> deleteTask(@PathVariable Long taskId) {
+        taskService.deleteTask(taskId);
+        return ResponseEntity.noContent().build();
+    }
 }
