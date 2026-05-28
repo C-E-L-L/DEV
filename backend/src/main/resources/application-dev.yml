@@ -3,7 +3,7 @@ spring:
     url: jdbc:mysql://localhost:3306/celldb?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
-    password: "0000"
+    password: "root"
 
   h2:
     console:
