@@ -1,6 +1,7 @@
 package com.cell.platform.entity;
 
 import com.cell.platform.domain.user.Role;
+import com.cell.platform.domain.user.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -27,20 +28,39 @@ public class UserEntity {
     @Column(nullable = false)
     private Role role;
 
+    @Enumerated(EnumType.STRING)
+    private UserStatus status;
+
     private LocalDateTime createdAt;
 
     @PrePersist
     void prePersist() {
+        if (this.status == null) {
+            this.status = UserStatus.ACTIVE;
+        }
         this.createdAt = LocalDateTime.now();
     }
 
     @Builder
-    private UserEntity(Long id, String username, String name, String password, Role role, LocalDateTime createdAt) {
+    private UserEntity(Long id, String username, String name, String password, Role role, UserStatus status, LocalDateTime createdAt) {
         this.id = id;
         this.username = username;
         this.name = name;
         this.password = password;
         this.role = role;
+        this.status = status == null ? UserStatus.ACTIVE : status;
         this.createdAt = createdAt;
+    }
+
+    public UserStatus getStatus() {
+        return status == null ? UserStatus.ACTIVE : status;
+    }
+
+    public void changePassword(String password) {
+        this.password = password;
+    }
+
+    public void changeStatus(UserStatus status) {
+        this.status = status;
     }
 }

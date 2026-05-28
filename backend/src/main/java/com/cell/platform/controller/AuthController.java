@@ -3,6 +3,7 @@ package com.cell.platform.controller;
 import com.cell.platform.dto.request.LoginRequest;
 import com.cell.platform.dto.request.RegisterRequest;
 import com.cell.platform.dto.response.LoginResponse;
+import com.cell.platform.dto.response.RegisterResponse;
 import com.cell.platform.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +18,8 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<Void> register(@Valid @RequestBody RegisterRequest request) {
-        authService.register(request);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+        return ResponseEntity.ok(authService.register(request));
     }
 
     @PostMapping("/login")

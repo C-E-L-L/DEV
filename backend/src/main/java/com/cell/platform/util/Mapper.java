@@ -24,6 +24,7 @@ public final class Mapper {
                 .name(entity.getName())
                 .password(entity.getPassword())
                 .role(entity.getRole())
+                .status(entity.getStatus())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }
@@ -35,6 +36,7 @@ public final class Mapper {
                 .name(user.getName())
                 .password(user.getPassword())
                 .role(user.getRole())
+                .status(user.getStatus())
                 .createdAt(user.getCreatedAt())
                 .build();
     }
