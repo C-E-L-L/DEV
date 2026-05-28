@@ -45,4 +45,9 @@ public class TaskCoreRepository implements TaskRepository {
     public List<Long> findIdsByUploadedFilenameStartingWith(String prefix) {
         return taskJpaRepository.findIdsByUploadedFilenameStartingWith(prefix);
     }
+
+    @Override
+    public void deleteById(Long id) {
+        taskJpaRepository.deleteById(id);
+    }
 }

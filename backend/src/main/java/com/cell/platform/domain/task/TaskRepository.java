@@ -12,4 +12,6 @@ public interface TaskRepository {
     List<Task> findAllByOrderByIdDesc();
 
     List<Long> findIdsByUploadedFilenameStartingWith(String prefix);
+
+    void deleteById(Long id);
 }

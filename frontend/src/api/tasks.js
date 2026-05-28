@@ -8,4 +8,7 @@ export const taskApi = {
     api.post('/tasks/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+
+  delete: (taskId) =>
+    api.delete(`/tasks/${taskId}`),
 };
