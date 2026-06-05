@@ -63,6 +63,21 @@ public class CropCoreRepository implements CropRepository {
                 .toList();
     }
 
+    @Override
+    public List<Crop> findAllByTaskIdIn(List<Long> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) return List.of();
+        return cropJpaRepository.findAllByTask_IdIn(taskIds).stream()
+                .map(Mapper::convertToCrop)
+                .toList();
+    }
+
+    @Override
+    public List<Crop> findGtCropsFromDiagnosticTasks() {
+        return cropJpaRepository.findGtCropsFromDiagnosticTasks().stream()
+                .map(Mapper::convertToCrop)
+                .toList();
+    }
+
     public CropEntity findEntityById(Long id) {
         return cropJpaRepository.findById(id).orElse(null);
     }

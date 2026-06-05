@@ -22,6 +22,11 @@ public class CropController {
         return ResponseEntity.ok(cropService.getCropsByTaskId(taskId));
     }
 
+    @GetMapping("/assignments/{assignmentId}/crops")
+    public ResponseEntity<List<CropResponse>> getCropsByAssignment(@PathVariable Long assignmentId) {
+        return ResponseEntity.ok(cropService.getCropsByAssignmentId(assignmentId));
+    }
+
     @PutMapping("/crops/{cropId}/confirm")
     public ResponseEntity<Void> confirmLabel(
             @PathVariable Long cropId,

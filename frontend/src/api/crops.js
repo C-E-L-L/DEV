@@ -4,6 +4,9 @@ export const cropApi = {
   getByTaskId: (taskId) =>
     api.get(`/tasks/${taskId}/crops`),
 
+  getByAssignmentId: (assignmentId) =>
+    api.get(`/assignments/${assignmentId}/crops`),
+
   confirm: (cropId, finalLabel) =>
     api.put(`/crops/${cropId}/confirm`, { finalLabel }),
 

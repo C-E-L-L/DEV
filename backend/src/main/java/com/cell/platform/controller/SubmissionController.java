@@ -35,4 +35,18 @@ public class SubmissionController {
             @PathVariable String studentId) {
         return ResponseEntity.ok(submissionService.getMyResults(taskId, studentId));
     }
+
+    @GetMapping("/assignments/{assignmentId}/submissions/{studentId}")
+    public ResponseEntity<List<Long>> getSolvedCropsForAssignment(
+            @PathVariable Long assignmentId,
+            @PathVariable String studentId) {
+        return ResponseEntity.ok(submissionService.getSolvedCropIdsForAssignment(assignmentId, studentId));
+    }
+
+    @GetMapping("/assignments/{assignmentId}/my-results/{studentId}")
+    public ResponseEntity<MyResultsResponse> getMyResultsForAssignment(
+            @PathVariable Long assignmentId,
+            @PathVariable String studentId) {
+        return ResponseEntity.ok(submissionService.getMyResultsForAssignment(assignmentId, studentId));
+    }
 }

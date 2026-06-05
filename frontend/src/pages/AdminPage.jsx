@@ -73,6 +73,45 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState(1);
   const [tasks, setTasks] = useState([]);
 
+  /* ── Tab 4: User Management ── */
+  const [users, setUsers] = useState([]);
+  const [userLoading, setUserLoading] = useState(false);
+  const [newUser, setNewUser] = useState({ username: '', name: '', password: '', role: 'EXPERT' });
+
+  const fetchUsers = useCallback(() => {
+    setUserLoading(true);
+    adminApi.getUsers()
+      .then(({ data }) => setUsers(data || []))
+      .catch(() => setUsers([]))
+      .finally(() => setUserLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 4) return;
+    fetchUsers();
+  }, [activeTab, fetchUsers]);
+
+  const handleCreateUser = async () => {
+    if (!newUser.username || !newUser.password) return alert('아이디와 비밀번호를 입력하세요.');
+    try {
+      await adminApi.createUser(newUser);
+      setNewUser({ username: '', name: '', password: '', role: 'EXPERT' });
+      fetchUsers();
+    } catch (e) {
+      alert(e?.response?.data?.message || '계정 생성에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteUser = async (username) => {
+    if (!window.confirm(`'${username}' 계정을 삭제하시겠습니까?`)) return;
+    try {
+      await adminApi.deleteUser(username);
+      fetchUsers();
+    } catch {
+      alert('계정 삭제에 실패했습니다.');
+    }
+  };
+
   /* ── Tab 1: Smear List ── */
   const [smears, setSmears] = useState([]);
   const [smearLoading, setSmearLoading] = useState(false);
@@ -315,6 +354,7 @@ export default function AdminPage() {
         <button onClick={() => setActiveTab(1)} style={activeTab === 1 ? tabActive : tabInactive}>1. Smear Images</button>
         <button onClick={() => setActiveTab(2)} style={activeTab === 2 ? tabActive : tabInactive}>2. Cell (Crop) Images</button>
         <button onClick={() => setActiveTab(3)} style={activeTab === 3 ? tabActive : tabInactive}>3. Analytics &amp; Feedback</button>
+        <button onClick={() => setActiveTab(4)} style={activeTab === 4 ? tabActive : tabInactive}>4. User Management</button>
       </div>
 
       {activeTab === 1 && (
@@ -786,6 +826,7 @@ export default function AdminPage() {
           )}
 
           {analyticsSubTab === 'reports' && (
+
             <div>
               <h3 style={sectionHeader}>Crop Issue Reports</h3>
               <div style={{ marginBottom: '15px' }}>
@@ -864,6 +905,80 @@ export default function AdminPage() {
           )}
         </div>
       )}
+      {activeTab === 4 && (
+        <div style={boxStyle}>
+          <h2 style={sectionHeader}>사용자 관리</h2>
+
+          <div style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px', marginBottom: '25px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#495057', marginBottom: '15px' }}>새 계정 생성</h3>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div>
+                <div style={fieldLabel}>아이디 *</div>
+                <input value={newUser.username} onChange={e => setNewUser(p => ({ ...p, username: e.target.value }))} placeholder="username" style={fieldInput} />
+              </div>
+              <div>
+                <div style={fieldLabel}>이름</div>
+                <input value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} placeholder="홍길동" style={fieldInput} />
+              </div>
+              <div>
+                <div style={fieldLabel}>비밀번호 *</div>
+                <input type="password" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} placeholder="password" style={fieldInput} />
+              </div>
+              <div>
+                <div style={fieldLabel}>역할</div>
+                <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))} style={{ ...fieldInput, width: '130px' }}>
+                  <option value="EXPERT">EXPERT (교수)</option>
+                  <option value="STUDENT">STUDENT (학생)</option>
+                </select>
+              </div>
+              <button onClick={handleCreateUser} style={{ padding: '9px 20px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', height: '38px' }}>
+                생성
+              </button>
+            </div>
+          </div>
+
+          {userLoading ? (
+            <div style={{ color: '#6c757d' }}>불러오는 중...</div>
+          ) : users.length === 0 ? (
+            <div style={{ color: '#adb5bd' }}>등록된 사용자가 없습니다.</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeadStyle}>ID</th>
+                    <th style={tableHeadStyle}>아이디</th>
+                    <th style={tableHeadStyle}>이름</th>
+                    <th style={tableHeadStyle}>역할</th>
+                    <th style={tableHeadStyle}>생성일</th>
+                    <th style={tableHeadStyle}>삭제</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(user => (
+                    <tr key={user.id}>
+                      <td style={tableCellStyle}>#{user.id}</td>
+                      <td style={tableCellStyle}>{user.username}</td>
+                      <td style={tableCellStyle}>{user.name || '-'}</td>
+                      <td style={tableCellStyle}>
+                        <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: user.role === 'EXPERT' ? '#e7f3ff' : '#f8f9fa', color: user.role === 'EXPERT' ? '#0056b3' : '#495057' }}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td style={tableCellStyle}>{user.createdAt ? new Date(user.createdAt).toLocaleDateString('ko-KR') : '-'}</td>
+                      <td style={tableCellStyle}>
+                        <button onClick={() => handleDeleteUser(user.username)} style={{ padding: '5px 10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -902,3 +1017,6 @@ const inventoryCropThumbStyle = { width: '64px', height: '64px', objectFit: 'con
 const reportHeadStyle = { borderBottom: '2px solid #dee2e6', padding: '10px', background: '#f8f9fa', fontWeight: '600', color: '#495057' };
 const reportCellStyle = { borderBottom: '1px solid #dee2e6', padding: '10px', color: '#495057' };
 const reportThumbStyle = { width: '48px', height: '48px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' };
+
+const fieldLabel = { fontSize: '12px', color: '#6c757d', marginBottom: '4px', fontWeight: '500' };
+const fieldInput = { padding: '8px 10px', border: '1px solid #ced4da', borderRadius: '6px', width: '160px', fontSize: '14px' };

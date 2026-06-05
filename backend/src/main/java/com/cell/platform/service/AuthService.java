@@ -57,6 +57,9 @@ public class AuthService {
         if (role == Role.ADMIN) {
             throw new BadRequestException("관리자 계정은 회원가입으로 생성할 수 없습니다.", ErrorCode.U003);
         }
+        if (role == Role.EXPERT) {
+            throw new BadRequestException("교수/전문가 계정은 관리자에게 문의하세요.", ErrorCode.U003);
+        }
     }
 
     private String normalizeName(String name) {

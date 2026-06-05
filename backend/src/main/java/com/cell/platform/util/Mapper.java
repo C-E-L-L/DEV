@@ -46,6 +46,8 @@ public final class Mapper {
                 .status(entity.getStatus())
                 .originalFilename(entity.getOriginalFilename())
                 .uploadedFilename(entity.getUploadedFilename())
+                .assignmentId(entity.getAssignmentId())
+                .title(entity.getTitle())
                 .createdAt(entity.getCreatedAt())
                 .crops(new ArrayList<>())
                 .build();
@@ -64,6 +66,8 @@ public final class Mapper {
                 .status(task.getStatus())
                 .originalFilename(task.getOriginalFilename())
                 .uploadedFilename(task.getUploadedFilename())
+                .assignmentId(task.getAssignmentId())
+                .title(task.getTitle())
                 .createdAt(task.getCreatedAt())
                 .build();
     }

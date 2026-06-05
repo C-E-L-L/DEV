@@ -1,12 +1,20 @@
 package com.cell.platform.service;
 
+import com.cell.platform.domain.user.Role;
+import com.cell.platform.domain.user.User;
+import com.cell.platform.domain.user.UserRepository;
+import com.cell.platform.dto.request.RegisterRequest;
 import com.cell.platform.dto.response.AdminCropResponse;
 import com.cell.platform.dto.response.AdminSmearResponse;
+import com.cell.platform.dto.response.UserResponse;
 import com.cell.platform.entity.CropEntity;
 import com.cell.platform.entity.TaskEntity;
+import com.cell.platform.exception.BadRequestException;
+import com.cell.platform.exception.ErrorCode;
 import com.cell.platform.infra.crop.CropJpaRepository;
 import com.cell.platform.infra.task.TaskJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +29,8 @@ public class AdminService {
 
     private final TaskJpaRepository taskJpaRepository;
     private final CropJpaRepository cropJpaRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public List<AdminSmearResponse> getSmears() {
         List<TaskEntity> tasks = taskJpaRepository.findAllUploadedSmearsOrderByIdDesc();
@@ -66,6 +76,36 @@ public class AdminService {
                     );
                 })
                 .toList();
+    }
+
+    public List<UserResponse> getUsers() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getRole() != Role.ADMIN)
+                .map(u -> new UserResponse(u.getId(), u.getUsername(), u.getName(), u.getRole().name(), u.getCreatedAt()))
+                .toList();
+    }
+
+    @Transactional
+    public void createUser(RegisterRequest request) {
+        if (userRepository.existsByUsername(request.username())) {
+            throw new BadRequestException("이미 존재하는 아이디입니다: " + request.username(), ErrorCode.U000);
+        }
+        Role role = Role.find(request.role());
+        if (role == Role.ADMIN) {
+            throw new BadRequestException("관리자 계정은 생성할 수 없습니다.", ErrorCode.U003);
+        }
+        String hashedPassword = passwordEncoder.encode(request.password());
+        userRepository.save(User.create(request.username(), request.name(), hashedPassword, role));
+    }
+
+    @Transactional
+    public void deleteUser(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("존재하지 않는 사용자입니다.", ErrorCode.U001));
+        if (user.getRole() == Role.ADMIN) {
+            throw new BadRequestException("관리자 계정은 삭제할 수 없습니다.", ErrorCode.U003);
+        }
+        userRepository.deleteByUsername(username);
     }
 
     private Map<Long, Long> toCountMap(List<Object[]> rows) {

@@ -9,4 +9,10 @@ export const submissionApi = {
 
   getMyResults: (taskId, studentId) =>
     api.get(`/tasks/${taskId}/my-results/${studentId}`),
+
+  getSolvedCropsForAssignment: (assignmentId, studentId) =>
+    api.get(`/assignments/${assignmentId}/submissions/${studentId}`),
+
+  getMyResultsForAssignment: (assignmentId, studentId) =>
+    api.get(`/assignments/${assignmentId}/my-results/${studentId}`),
 };

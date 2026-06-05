@@ -2,6 +2,18 @@
 *.env
 *.env.local
 .env.*
+.env
+
+# --- SSL Certificates ---
+ssl/
+
+# --- AI Model Weights ---
+ai-server/weights/
+
+# --- DB Backups & Data Archives ---
+*.sql
+*.zip
+data/
 
 # --- Backend (Spring Boot / Gradle) ---
 backend/.gradle/

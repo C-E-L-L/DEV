@@ -16,4 +16,8 @@ public interface CropRepository {
     List<Long> findDistinctTaskIdsByFinalLabelIsNotNull();
 
     List<Crop> findAll();
+
+    List<Crop> findAllByTaskIdIn(List<Long> taskIds);
+
+    List<Crop> findGtCropsFromDiagnosticTasks();
 }

@@ -27,6 +27,12 @@ public class TaskEntity {
     @Column
     private String uploadedFilename;
 
+    @Column
+    private Long assignmentId;
+
+    @Column
+    private String title;
+
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -39,11 +45,14 @@ public class TaskEntity {
 
     @Builder
     private TaskEntity(Long id, TaskStatus status, String originalFilename,
-                       String uploadedFilename, LocalDateTime createdAt) {
+                       String uploadedFilename, Long assignmentId, String title,
+                       LocalDateTime createdAt) {
         this.id = id;
         this.status = status;
         this.originalFilename = originalFilename;
         this.uploadedFilename = uploadedFilename;
+        this.assignmentId = assignmentId;
+        this.title = title;
         this.createdAt = createdAt;
     }
 

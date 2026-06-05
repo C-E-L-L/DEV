@@ -3,6 +3,7 @@ package com.cell.platform.service;
 import com.cell.platform.domain.crop.CellType;
 import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CropRepository;
+import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.dto.response.CropResponse;
 import com.cell.platform.dto.response.TrainingDataResponse;
 import com.cell.platform.entity.CropEntity;
@@ -23,9 +24,18 @@ public class CropService {
 
     private final CropRepository cropRepository;
     private final CropCoreRepository cropCoreRepository;
+    private final TaskRepository taskRepository;
 
     public List<CropResponse> getCropsByTaskId(Long taskId) {
         return cropRepository.findAllByTaskId(taskId).stream()
+                .map(CropResponse::from)
+                .toList();
+    }
+
+    public List<CropResponse> getCropsByAssignmentId(Long assignmentId) {
+        List<Long> taskIds = taskRepository.findByAssignmentId(assignmentId)
+                .stream().map(t -> t.getId()).toList();
+        return cropRepository.findAllByTaskIdIn(taskIds).stream()
                 .map(CropResponse::from)
                 .toList();
     }
