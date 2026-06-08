@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-export default function AuthImage({ src, alt, style, onLoad, className, ...props }) {
+export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, className, ...props }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const currentBlobUrl = useRef(null);
 
@@ -16,20 +16,28 @@ export default function AuthImage({ src, alt, style, onLoad, className, ...props
 
     let cancelled = false;
     const token = localStorage.getItem('token');
+    const authHeaders = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
-    fetch(src, token ? { headers: { Authorization: `Bearer ${token}` } } : {})
-      .then(res => res.ok ? res.blob() : Promise.reject(res.status))
-      .then(blob => {
-        if (cancelled) return;
-        if (currentBlobUrl.current) URL.revokeObjectURL(currentBlobUrl.current);
-        const url = URL.createObjectURL(blob);
-        currentBlobUrl.current = url;
-        setBlobUrl(url);
-      })
-      .catch(() => {});
+    const load = (url, allowFallback) => {
+      fetch(url, authHeaders)
+        .then(res => res.ok ? res.blob() : Promise.reject(res.status))
+        .then(blob => {
+          if (cancelled) return;
+          if (currentBlobUrl.current) URL.revokeObjectURL(currentBlobUrl.current);
+          const objectUrl = URL.createObjectURL(blob);
+          currentBlobUrl.current = objectUrl;
+          setBlobUrl(objectUrl);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (allowFallback && fallbackSrc) load(fallbackSrc, false);
+        });
+    };
+
+    load(src, true);
 
     return () => { cancelled = true; };
-  }, [src]);
+  }, [src, fallbackSrc]);
 
   useEffect(() => {
     return () => {

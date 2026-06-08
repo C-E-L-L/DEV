@@ -23,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -83,7 +82,7 @@ public class TaskService {
 
     @Transactional
     public AssignmentResponse createAssignment(String title, String expertUsername,
-                                               List<MultipartFile> files, boolean mixGt) {
+                                               List<MultipartFile> files) {
         AssignmentEntity assignment = assignmentJpaRepository.save(
                 AssignmentEntity.builder()
                         .title(title)
@@ -108,34 +107,8 @@ public class TaskService {
             taskResponses.add(TaskUploadResponse.of(savedTask.getId(), filename, cropResponses));
         }
 
-        int embeddedGt = 0;
-        if (mixGt && totalCrops > 0) {
-            embeddedGt = embedGtCrops(taskResponses, totalCrops);
-        }
-
         return new AssignmentResponse(assignment.getId(), title, expertUsername,
-                assignment.getCreatedAt(), taskResponses, totalCrops, embeddedGt);
-    }
-
-    private int embedGtCrops(List<TaskUploadResponse> taskResponses, int totalCrops) {
-        List<Crop> gtPool = new ArrayList<>(cropRepository.findGtCropsFromDiagnosticTasks());
-        if (gtPool.isEmpty() || taskResponses.isEmpty()) return 0;
-
-        int target = Math.max(1, (int) Math.round(totalCrops * 0.10));
-        Collections.shuffle(gtPool);
-        List<Crop> selected = gtPool.subList(0, Math.min(target, gtPool.size()));
-
-        Long firstTaskId = taskResponses.get(0).taskId();
-        Task firstTask = getTaskById(firstTaskId);
-        selected.forEach(gtCrop -> {
-            Crop embedded = Crop.create(
-                    gtCrop.getCropFilename(), null,
-                    gtCrop.getGtLabel(), null, null, null
-            );
-            firstTask.getCrops().add(embedded);
-        });
-        taskRepository.save(firstTask);
-        return selected.size();
+                assignment.getCreatedAt(), taskResponses, totalCrops);
     }
 
     @Transactional

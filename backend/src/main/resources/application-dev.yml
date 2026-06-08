@@ -42,4 +42,5 @@ ai-server:
 file:
   upload-dir: ${FILE_UPLOAD_DIR:../data/originals}
   crop-dir: ${FILE_CROP_DIR:../data/crops}
+  thumbnail-dir: ${FILE_THUMBNAIL_DIR:../data/thumbnails}
 

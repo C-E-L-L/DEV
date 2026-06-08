@@ -7,5 +7,6 @@ public record UserResponse(
         String username,
         String name,
         String role,
+        String status,
         LocalDateTime createdAt
 ) {}

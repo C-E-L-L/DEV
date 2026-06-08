@@ -71,13 +71,6 @@ public class CropCoreRepository implements CropRepository {
                 .toList();
     }
 
-    @Override
-    public List<Crop> findGtCropsFromDiagnosticTasks() {
-        return cropJpaRepository.findGtCropsFromDiagnosticTasks().stream()
-                .map(Mapper::convertToCrop)
-                .toList();
-    }
-
     public CropEntity findEntityById(Long id) {
         return cropJpaRepository.findById(id).orElse(null);
     }

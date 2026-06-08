@@ -24,6 +24,7 @@ public final class Mapper {
                 .name(entity.getName())
                 .password(entity.getPassword())
                 .role(entity.getRole())
+                .status(entity.getStatus())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }
@@ -35,6 +36,7 @@ public final class Mapper {
                 .name(user.getName())
                 .password(user.getPassword())
                 .role(user.getRole())
+                .status(user.getStatus())
                 .createdAt(user.getCreatedAt())
                 .build();
     }
@@ -77,7 +79,7 @@ public final class Mapper {
         return Crop.builder()
                 .id(entity.getId())
                 .taskId(entity.getTaskId())
-                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getUploadedFilename() : null)
+                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getOriginalFilename() : null)
                 .cropFilename(entity.getCropFilename())
                 .bbox(entity.getBbox())
                 .gtLabel(entity.getGtLabel())

@@ -8,6 +8,7 @@ import com.cell.platform.dto.request.LoginRequest;
 import com.cell.platform.dto.request.RegisterRequest;
 import com.cell.platform.dto.response.LoginResponse;
 import com.cell.platform.exception.BadRequestException;
+import com.cell.platform.infra.user.StudentRosterJpaRepository;
 import com.cell.platform.service.AuthService;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class AuthServiceTest {
 
     @InjectMocks private AuthService authService;
     @Mock private UserRepository userRepository;
+    @Mock private StudentRosterJpaRepository studentRosterJpaRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtTokenProvider jwtTokenProvider;
 

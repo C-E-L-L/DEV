@@ -6,4 +6,7 @@ export const adminApi = {
   getUsers: () => api.get('/admin/users'),
   createUser: (data) => api.post('/admin/users', data),
   deleteUser: (username) => api.delete(`/admin/users/${username}`),
+  updateUserStatus: (userId, status) => api.put(`/admin/users/${userId}/status`, { status }),
+  getStudentRoster: () => api.get('/admin/student-roster'),
+  addStudentRoster: (studentIds) => api.post('/admin/student-roster', { studentIds }),
 };

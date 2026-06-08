@@ -4,15 +4,21 @@ import com.cell.platform.config.JwtTokenProvider;
 import com.cell.platform.domain.user.Role;
 import com.cell.platform.domain.user.User;
 import com.cell.platform.domain.user.UserRepository;
+import com.cell.platform.domain.user.UserStatus;
 import com.cell.platform.dto.request.LoginRequest;
 import com.cell.platform.dto.request.RegisterRequest;
 import com.cell.platform.dto.response.LoginResponse;
+import com.cell.platform.dto.response.RegisterResponse;
+import com.cell.platform.entity.StudentRosterEntity;
 import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.exception.ErrorCode;
+import com.cell.platform.infra.user.StudentRosterJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -20,25 +26,57 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final StudentRosterJpaRepository studentRosterJpaRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
     @Transactional
-    public void register(RegisterRequest request) {
+    public RegisterResponse register(RegisterRequest request) {
         validateUniqueUsername(request.username());
         Role role = Role.find(request.role());
         validateRegisterRole(role);
         validateStudentName(role, request.name());
+
+        UserStatus status = resolveSignupStatus(role, request.username());
         String hashedPassword = passwordEncoder.encode(request.password());
-        User user = User.create(request.username(), normalizeName(request.name()), hashedPassword, role);
-        userRepository.save(user);
+        User user = User.create(request.username(), normalizeName(request.name()), hashedPassword, role, status);
+        User savedUser = userRepository.save(user);
+
+        if (status == UserStatus.ACTIVE) {
+            studentRosterJpaRepository.findByStudentId(request.username())
+                    .ifPresent(roster -> roster.claim(savedUser.getId()));
+            return RegisterResponse.active();
+        }
+        return RegisterResponse.pending();
     }
 
     public LoginResponse login(LoginRequest request) {
         User user = findUserByUsername(request.username());
         validatePassword(request.password(), user.getPassword());
+        validateLoginStatus(user);
         String token = jwtTokenProvider.generateToken(user.getUsername(), user.getRole().name());
         return LoginResponse.of(token, user.getRole().name(), user.getUsername(), user.getName());
+    }
+
+    private UserStatus resolveSignupStatus(Role role, String username) {
+        if (role != Role.STUDENT) {
+            return UserStatus.ACTIVE;
+        }
+        Optional<StudentRosterEntity> roster = studentRosterJpaRepository.findByStudentId(username);
+        return roster.isPresent() ? UserStatus.ACTIVE : UserStatus.PENDING;
+    }
+
+    private void validateLoginStatus(User user) {
+        UserStatus status = user.getStatus();
+        if (status == UserStatus.PENDING) {
+            throw new BadRequestException("관리자 승인 대기 중인 계정입니다.", ErrorCode.U001);
+        }
+        if (status == UserStatus.REJECTED) {
+            throw new BadRequestException("관리자가 가입을 거절한 계정입니다.", ErrorCode.U001);
+        }
+        if (status == UserStatus.INACTIVE) {
+            throw new BadRequestException("비활성화된 계정입니다. 관리자에게 문의하세요.", ErrorCode.U001);
+        }
     }
 
     private void validateUniqueUsername(String username) {

@@ -455,7 +455,6 @@ export default function ExpertPage() {
       const formData = new FormData();
       formData.append('title', assignmentTitle.trim());
       files.forEach(f => formData.append('files', f));
-      formData.append('mixGt', 'true');
       const { data } = await taskApi.createAssignment(formData);
       setUploadResult(data);
       setSelectedResultTaskIndex(0);
@@ -574,9 +573,6 @@ export default function ExpertPage() {
             <button onClick={handleUpload} disabled={uploading || files.length === 0 || !assignmentTitle.trim()} style={files.length > 0 && assignmentTitle.trim() && !uploading ? btnActive : btnDisabled}>
               {uploading ? `분석 중 (${uploadingImageIndex}/${files.length})...` : `🔬 Analyze & Create Assignment (${files.length}장)`}
             </button>
-            <div style={{ fontSize: '13px', color: '#6c757d' }}>
-              GT 세포 10% 자동 삽입 활성화
-            </div>
           </div>
 
           {uploading && (
@@ -614,11 +610,6 @@ export default function ExpertPage() {
                 ✅ <strong>"{uploadResult.title}"</strong> 과제 생성 완료 —{' '}
                 <strong>{uploadResult.tasks?.length}</strong>장 도말, 총{' '}
                 <strong>{uploadResult.totalCrops}</strong>개 세포
-                {uploadResult.embeddedGtCrops > 0 && (
-                  <span style={{ marginLeft: '8px', color: '#0056b3' }}>
-                    (GT {uploadResult.embeddedGtCrops}개 삽입됨)
-                  </span>
-                )}
               </div>
 
               <div style={{ marginTop: '20px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '10px', padding: '20px' }}>
@@ -693,7 +684,7 @@ export default function ExpertPage() {
                         Diagnostic Task
                       </div>
                     ) : (
-                      <AuthImage src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                      <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                     )}
                     <div style={{ fontWeight: '600', fontSize: '14px' }}>{diagnostic ? `Diagnostic #${diagnosticNumber || task.id}` : `Task #${task.id}`}</div>
                     <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>

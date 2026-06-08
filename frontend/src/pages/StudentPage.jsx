@@ -37,7 +37,7 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
   return (
     <div style={taskCardStyle} onClick={onClick}>
       {task.originalFilename ? (
-        <AuthImage src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
+        <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
       ) : diagnostic ? (
         <div style={noImageStyle}>Diagnostic Task</div>
       ) : (
@@ -98,7 +98,7 @@ function AssignmentCard({ assignment, username, onClick }) {
   return (
     <div style={taskCardStyle} onClick={onClick}>
       {assignment.tasks[0]?.originalFilename ? (
-        <AuthImage src={imageUrl.original(assignment.tasks[0].originalFilename)} alt="smear" style={thumbnailStyle} />
+        <AuthImage src={imageUrl.thumbnail(assignment.tasks[0].originalFilename)} fallbackSrc={imageUrl.original(assignment.tasks[0].originalFilename)} alt="smear" style={thumbnailStyle} />
       ) : (
         <div style={noImageStyle}>No Image</div>
       )}
@@ -255,7 +255,32 @@ export default function StudentPage() {
 
   const currentCrop = crops[currentCropIndex];
   const allCompleted = crops.length > 0 && solvedCrops.size >= crops.length;
-  const isDiagnosticMode = isDiagnosticTask(selectedTask);
+  const isDiagnosticMode = !selectedAssignment && isDiagnosticTask(selectedTask);
+  const activeSmearFilename = currentCrop?.originalSmearFilename || selectedTask?.originalFilename;
+
+  // 과제(assignment) 내 도말 이미지별로 세포를 그룹화 (도말 간 이동 내비게이션용)
+  const smearGroups = useMemo(() => {
+    const order = [];
+    const map = {};
+    crops.forEach((crop, idx) => {
+      const filename = crop.originalSmearFilename || selectedTask?.originalFilename;
+      if (!map[filename]) {
+        map[filename] = { filename, indices: [] };
+        order.push(filename);
+      }
+      map[filename].indices.push(idx);
+    });
+    return order.map((filename) => map[filename]);
+  }, [crops, selectedTask]);
+
+  const currentSmearGroupIndex = smearGroups.findIndex((g) => g.filename === activeSmearFilename);
+
+  const goToSmearGroup = (groupIndex) => {
+    if (groupIndex < 0 || groupIndex >= smearGroups.length) return;
+    const group = smearGroups[groupIndex];
+    const targetIdx = group.indices.find((i) => !solvedCrops.has(crops[i].id));
+    setCurrentCropIndex(targetIdx !== undefined ? targetIdx : group.indices[0]);
+  };
   const diagnosticTasks = tasks.filter((task) => isDiagnosticTask(task));
   const diagnosticTasksOrdered = [...diagnosticTasks].sort((a, b) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -439,7 +464,7 @@ export default function StudentPage() {
       {/* 상단 바 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #dee2e6', paddingBottom: '15px' }}>
         <h2 style={{ margin: 0 }}>
-          Task #{selectedTask.id} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
+          {selectedAssignment ? selectedAssignment.title : `Task #${selectedTask.id}`} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
           {isDiagnosticMode && <span style={{ marginLeft: '10px', fontSize: '14px', color: '#856404', background: '#fff3cd', padding: '3px 8px', borderRadius: '5px' }}>GT Scoring</span>}
         </h2>
         <button onClick={() => setSelectedTask(null)} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>← 목록으로 돌아가기</button>
@@ -450,20 +475,41 @@ export default function StudentPage() {
         {/* 왼쪽: 혈액 도말 이미지 + 바운딩 박스 */}
         {!isDiagnosticMode && (
         <div style={{ flex: '2 1 720px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
-          <div style={sectionHeaderStyle}>🔬 혈액 도말 이미지</div>
+          <div style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>🔬 혈액 도말 이미지</span>
+            {smearGroups.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => goToSmearGroup(currentSmearGroupIndex - 1)}
+                  disabled={currentSmearGroupIndex <= 0}
+                  style={{ ...smearNavBtnStyle, opacity: currentSmearGroupIndex <= 0 ? 0.4 : 1 }}
+                >◀ 이전 도말</button>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#495057' }}>
+                  도말 {currentSmearGroupIndex + 1} / {smearGroups.length}
+                </span>
+                <button
+                  onClick={() => goToSmearGroup(currentSmearGroupIndex + 1)}
+                  disabled={currentSmearGroupIndex >= smearGroups.length - 1}
+                  style={{ ...smearNavBtnStyle, opacity: currentSmearGroupIndex >= smearGroups.length - 1 ? 0.4 : 1 }}
+                >다음 도말 ▶</button>
+              </div>
+            )}
+          </div>
           <div style={{ padding: '15px', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', background: '#f8f9fa' }}>
             <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
               <span style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(220,53,69,0.9)', color: '#fff', padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', zIndex: 10 }}>x40</span>
-              {selectedTask.originalFilename && (
+              {activeSmearFilename && (
                 <AuthImage
-                  src={imageUrl.original(selectedTask.originalFilename)}
+                  key={activeSmearFilename}
+                  src={imageUrl.original(activeSmearFilename)}
                   alt="Blood Smear"
                   onLoad={handleImageLoad}
                   style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 300px)', height: 'auto', objectFit: 'contain', display: 'block' }}
                 />
               )}
-              {/* 바운딩 박스 오버레이 */}
+              {/* 바운딩 박스 오버레이 (현재 표시 중인 도말의 세포만) */}
               {crops.map((crop, idx) => {
+                if ((crop.originalSmearFilename || selectedTask?.originalFilename) !== activeSmearFilename) return null;
                 const bbox = getScaledBbox(crop.bbox);
                 const isSelected = idx === currentCropIndex;
                 const isSolved = solvedCrops.has(crop.id);
@@ -614,6 +660,7 @@ export default function StudentPage() {
 const containerStyle = { maxWidth: '1800px', width: '98%', margin: '0 auto', padding: '20px', fontFamily: 'Inter, sans-serif', color: '#343a40' };
 const sectionHeaderStyle = { background: '#495057', color: '#fff', padding: '12px 20px', fontSize: '15px', fontWeight: '600' };
 const navBtnStyle = { width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const smearNavBtnStyle = { padding: '6px 12px', borderRadius: '6px', border: '1px solid #ced4da', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#495057' };
 const resultStatStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center' };
 const taskCardStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'transform 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' };
 const thumbnailStyle = { width: '100%', height: '180px', objectFit: 'cover', borderBottom: '1px solid #dee2e6' };

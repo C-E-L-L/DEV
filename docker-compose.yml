@@ -42,6 +42,7 @@ services:
       AI_SERVER_URL: http://ai-server:8001
       FILE_UPLOAD_DIR: /data/originals
       FILE_CROP_DIR: /data/crops
+      FILE_THUMBNAIL_DIR: /data/thumbnails
     volumes:
       - ./data:/data
     depends_on:

@@ -9,6 +9,5 @@ public record AssignmentResponse(
         String expertUsername,
         LocalDateTime createdAt,
         List<TaskUploadResponse> tasks,
-        int totalCrops,
-        int embeddedGtCrops
+        int totalCrops
 ) {}

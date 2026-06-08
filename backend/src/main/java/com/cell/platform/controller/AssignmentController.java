@@ -27,10 +27,9 @@ public class AssignmentController {
     public ResponseEntity<AssignmentResponse> createAssignment(
             @RequestParam("title") String title,
             @RequestParam("files") List<MultipartFile> files,
-            @RequestParam(value = "mixGt", defaultValue = "true") boolean mixGt,
             @AuthenticationPrincipal String username) {
         return ResponseEntity.ok(
-                taskService.createAssignment(title, username, files, mixGt)
+                taskService.createAssignment(title, username, files)
         );
     }
 

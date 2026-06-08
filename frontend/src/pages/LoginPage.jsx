@@ -23,8 +23,8 @@ export default function LoginPage() {
       if (isLoginMode) {
         await login(username, password);
       } else {
-        await authApi.register(username, password, role, isStudentSignup ? name : undefined);
-        setSuccess('회원가입 성공! 이제 로그인해 주세요.');
+        const { data } = await authApi.register(username, password, role, isStudentSignup ? name : undefined);
+        setSuccess(data?.message || '회원가입이 완료되었습니다. 이제 로그인해 주세요.');
         setIsLoginMode(true);
         setName('');
         setPassword('');
@@ -32,9 +32,9 @@ export default function LoginPage() {
     } catch (err) {
       setError(
         isLoginMode
-          ? '아이디 또는 비밀번호가 올바르지 않습니다.'
+          ? (err.response?.data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.')
           : err.response?.status === 400
-            ? '입력 정보를 확인해 주세요. 이미 사용 중인 아이디일 수 있습니다.'
+            ? (err.response?.data?.message || '입력 정보를 확인해 주세요. 이미 사용 중인 아이디일 수 있습니다.')
             : '회원가입에 실패했습니다.'
       );
     }
