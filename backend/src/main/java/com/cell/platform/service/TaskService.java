@@ -118,7 +118,7 @@ public class TaskService {
     }
 
     private int embedGtCrops(List<TaskUploadResponse> taskResponses, int totalCrops) {
-        List<Crop> gtPool = cropRepository.findGtCropsFromDiagnosticTasks();
+        List<Crop> gtPool = new ArrayList<>(cropRepository.findGtCropsFromDiagnosticTasks());
         if (gtPool.isEmpty() || taskResponses.isEmpty()) return 0;
 
         int target = Math.max(1, (int) Math.round(totalCrops * 0.10));

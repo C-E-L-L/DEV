@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
+import AuthImage from '../components/AuthImage';
+import { fetchAuthImage } from '../utils/fetchAuthImage';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -130,36 +132,48 @@ export default function ExpertPage() {
     const taskResult = tasks[selectedResultTaskIndex] || tasks[0];
     const canvas = resultCanvasRef.current;
     const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      const maxWidth = 860;
-      const scale = maxWidth / img.width;
-      canvas.width = maxWidth;
-      canvas.height = img.height * scale;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      (taskResult.crops || []).forEach((crop) => {
-        if (!crop.bbox) return;
-        const bbox = JSON.parse(crop.bbox.replace(/'/g, '"'));
-        const [x1, y1, x2, y2] = bbox;
-        const color = CLASS_COLORS[crop.pseudoLabel] || '#adb5bd';
-        const sx = x1 * scale, sy = y1 * scale;
-        const sw = (x2 - x1) * scale, sh = (y2 - y1) * scale;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(sx, sy, sw, sh);
-        const label = crop.pseudoLabel || '?';
-        const conf = crop.aiClassificationConfidence != null
-          ? ` ${Math.round(crop.aiClassificationConfidence * 100)}%` : '';
-        const text = label + conf;
-        ctx.font = 'bold 12px Arial';
-        const tw = ctx.measureText(text).width;
-        ctx.fillStyle = color;
-        ctx.fillRect(sx, sy - 17, tw + 8, 17);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(text, sx + 4, sy - 4);
-      });
-    };
-    img.src = imageUrl.original(taskResult.originalImage);
+    let cancelled = false;
+
+    fetchAuthImage(imageUrl.original(taskResult.originalImage))
+      .then(url => {
+        if (cancelled) { URL.revokeObjectURL(url); return; }
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          if (cancelled) return;
+          const maxWidth = 860;
+          const scale = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = img.height * scale;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          (taskResult.crops || []).forEach((crop) => {
+            if (!crop.bbox) return;
+            const bbox = JSON.parse(crop.bbox.replace(/'/g, '"'));
+            const [x1, y1, x2, y2] = bbox;
+            const color = CLASS_COLORS[crop.pseudoLabel] || '#adb5bd';
+            const sx = x1 * scale, sy = y1 * scale;
+            const sw = (x2 - x1) * scale, sh = (y2 - y1) * scale;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx, sy, sw, sh);
+            const label = crop.pseudoLabel || '?';
+            const conf = crop.aiClassificationConfidence != null
+              ? ` ${Math.round(crop.aiClassificationConfidence * 100)}%` : '';
+            const text = label + conf;
+            ctx.font = 'bold 12px Arial';
+            const tw = ctx.measureText(text).width;
+            ctx.fillStyle = color;
+            ctx.fillRect(sx, sy - 17, tw + 8, 17);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(text, sx + 4, sy - 4);
+          });
+        };
+        img.onerror = () => URL.revokeObjectURL(url);
+        img.src = url;
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
   }, [uploadResult, selectedResultTaskIndex]);
 
   const UPLOAD_STEPS = [
@@ -288,9 +302,15 @@ export default function ExpertPage() {
 
     const task = tasks.find(t => t.id === taskId) || (await taskApi.getAll()).data.find(t => t.id === taskId);
     if (task?.originalFilename) {
-      const img = new Image();
-      img.onload = () => { setOriginalImage(img); setImageLoaded(true); };
-      img.src = imageUrl.original(task.originalFilename);
+      setImageLoaded(false);
+      fetchAuthImage(imageUrl.original(task.originalFilename))
+        .then(url => {
+          const img = new Image();
+          img.onload = () => { URL.revokeObjectURL(url); setOriginalImage(img); setImageLoaded(true); };
+          img.onerror = () => URL.revokeObjectURL(url);
+          img.src = url;
+        })
+        .catch(() => {});
     }
   }, [tasks]);
 
@@ -673,7 +693,7 @@ export default function ExpertPage() {
                         Diagnostic Task
                       </div>
                     ) : (
-                      <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                      <AuthImage src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                     )}
                     <div style={{ fontWeight: '600', fontSize: '14px' }}>{diagnostic ? `Diagnostic #${diagnosticNumber || task.id}` : `Task #${task.id}`}</div>
                     <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
@@ -755,7 +775,7 @@ export default function ExpertPage() {
                       <div style={cellPanelStyle}>
                         {/* 셀 이미지 */}
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                          <img src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
+                          <AuthImage src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
                           </div>
@@ -852,7 +872,7 @@ export default function ExpertPage() {
                       setSelectedCrop(item);
                     }}>
                       <div style={{ display: 'flex', gap: '12px' }}>
-                        <img src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
+                        <AuthImage src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '5px' }}>
                             Crop #{item.cropId}
@@ -1048,7 +1068,7 @@ export default function ExpertPage() {
                         <tr key={item.id}>
                           <td style={reportCellStyle}>
                             {item.cropFilename ? (
-                              <img
+                              <AuthImage
                                 src={imageUrl.crop(item.cropFilename)}
                                 alt={`Crop ${item.cropId}`}
                                 style={reportThumbStyle}

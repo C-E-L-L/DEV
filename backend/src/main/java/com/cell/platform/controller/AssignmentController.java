@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,9 +28,9 @@ public class AssignmentController {
             @RequestParam("title") String title,
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "mixGt", defaultValue = "true") boolean mixGt,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal String username) {
         return ResponseEntity.ok(
-                taskService.createAssignment(title, userDetails.getUsername(), files, mixGt)
+                taskService.createAssignment(title, username, files, mixGt)
         );
     }
 

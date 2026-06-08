@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { taskApi, cropApi, submissionApi, reportApi } from '../api';
 import { CELL_TYPES, REPORT_REASONS, imageUrl } from '../constants';
+import AuthImage from '../components/AuthImage';
 
 function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
@@ -36,7 +37,7 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
   return (
     <div style={taskCardStyle} onClick={onClick}>
       {task.originalFilename ? (
-        <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
+        <AuthImage src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
       ) : diagnostic ? (
         <div style={noImageStyle}>Diagnostic Task</div>
       ) : (
@@ -97,7 +98,7 @@ function AssignmentCard({ assignment, username, onClick }) {
   return (
     <div style={taskCardStyle} onClick={onClick}>
       {assignment.tasks[0]?.originalFilename ? (
-        <img src={imageUrl.original(assignment.tasks[0].originalFilename)} alt="smear" style={thumbnailStyle} />
+        <AuthImage src={imageUrl.original(assignment.tasks[0].originalFilename)} alt="smear" style={thumbnailStyle} />
       ) : (
         <div style={noImageStyle}>No Image</div>
       )}
@@ -379,7 +380,7 @@ export default function StudentPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px', marginTop: '15px' }}>
                 {resultData.details.map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', padding: '10px', border: `2px solid ${item.isCorrect === null ? '#adb5bd' : item.isCorrect ? '#28a745' : '#dc3545'}`, borderRadius: '8px', background: '#fff' }}>
-                    <img src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
+                    <AuthImage src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
                     <div style={{ flex: 1, marginLeft: '10px' }}>
                       <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{item.studentLabel}</strong></div>
                       <div style={{ fontSize: '13px' }}>
@@ -454,7 +455,7 @@ export default function StudentPage() {
             <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
               <span style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(220,53,69,0.9)', color: '#fff', padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', zIndex: 10 }}>x40</span>
               {selectedTask.originalFilename && (
-                <img
+                <AuthImage
                   src={imageUrl.original(selectedTask.originalFilename)}
                   alt="Blood Smear"
                   onLoad={handleImageLoad}
@@ -501,7 +502,7 @@ export default function StudentPage() {
                     marginBottom: '5px', border: '1px solid #eee', background: isSelected ? '#f0f4f8' : '#fff',
                     borderLeft: isSelected ? '4px solid #495057' : '4px solid transparent',
                   }}>
-                    <img src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa' }} />
+                    <AuthImage src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: '600', fontSize: '14px' }}>#{idx + 1}</div>
                       <div style={{ fontSize: '12px', color: isSolved ? '#28a745' : '#6c757d' }}>{isSolved ? (label || '분류완료') : '미분류'}</div>
@@ -521,7 +522,7 @@ export default function StudentPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '10px' }}>
                   <button onClick={() => currentCropIndex > 0 && setCurrentCropIndex(currentCropIndex - 1)} disabled={currentCropIndex === 0} style={{ ...navBtnStyle, opacity: currentCropIndex === 0 ? 0.3 : 1 }}>◀</button>
                   <div style={{ width: '180px', height: '180px', border: '2px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#f8f9fa' }}>
-                    <img src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <AuthImage src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   </div>
                   <button onClick={() => currentCropIndex < crops.length - 1 && setCurrentCropIndex(currentCropIndex + 1)} disabled={currentCropIndex === crops.length - 1} style={{ ...navBtnStyle, opacity: currentCropIndex === crops.length - 1 ? 0.3 : 1 }}>▶</button>
                 </div>

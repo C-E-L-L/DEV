@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { adminApi, taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
+import AuthImage from '../components/AuthImage';
+import { fetchAuthImage } from '../utils/fetchAuthImage';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -256,9 +258,15 @@ export default function AdminPage() {
 
     const task = tasks.find(t => t.id === taskId) || (await taskApi.getAll()).data.find(t => t.id === taskId);
     if (task?.originalFilename) {
-      const img = new Image();
-      img.onload = () => { setOriginalImage(img); setImageLoaded(true); };
-      img.src = imageUrl.original(task.originalFilename);
+      setImageLoaded(false);
+      fetchAuthImage(imageUrl.original(task.originalFilename))
+        .then(url => {
+          const img = new Image();
+          img.onload = () => { URL.revokeObjectURL(url); setOriginalImage(img); setImageLoaded(true); };
+          img.onerror = () => URL.revokeObjectURL(url);
+          img.src = url;
+        })
+        .catch(() => {});
     }
   }, [tasks]);
 
@@ -397,7 +405,7 @@ export default function AdminPage() {
                   {filteredSmears.map((item) => (
                     <tr key={item.taskId}>
                       <td style={tableCellStyle}>
-                        <img
+                        <AuthImage
                           src={imageUrl.original(item.originalFilename)}
                           alt={`Smear ${item.taskId}`}
                           style={inventorySmearThumbStyle}
@@ -476,7 +484,7 @@ export default function AdminPage() {
                   {filteredCrops.map((item) => (
                     <tr key={item.cropId}>
                       <td style={tableCellStyle}>
-                        <img
+                        <AuthImage
                           src={imageUrl.crop(item.cropFilename)}
                           alt={`Crop ${item.cropId}`}
                           style={inventoryCropThumbStyle}
@@ -527,7 +535,7 @@ export default function AdminPage() {
                         Diagnostic Task
                       </div>
                     ) : (
-                      <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                      <AuthImage src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                     )}
                     <div style={{ fontWeight: '600', fontSize: '14px' }}>{diagnostic ? `Diagnostic #${diagnosticNumber || task.id}` : `Task #${task.id}`}</div>
                     <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
@@ -598,7 +606,7 @@ export default function AdminPage() {
                     {selectedCrop ? (
                       <div style={cellPanelStyle}>
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                          <img src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
+                          <AuthImage src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
                           </div>
@@ -689,7 +697,7 @@ export default function AdminPage() {
                       setSelectedCrop(item);
                     }}>
                       <div style={{ display: 'flex', gap: '12px' }}>
-                        <img src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
+                        <AuthImage src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '5px' }}>
                             Crop #{item.cropId}
@@ -879,7 +887,7 @@ export default function AdminPage() {
                         <tr key={item.id}>
                           <td style={reportCellStyle}>
                             {item.cropFilename ? (
-                              <img
+                              <AuthImage
                                 src={imageUrl.crop(item.cropFilename)}
                                 alt={`Crop ${item.cropId}`}
                                 style={reportThumbStyle}
