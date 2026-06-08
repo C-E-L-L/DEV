@@ -19,8 +19,18 @@ public class SubmissionEntity {
     @JoinColumn(name = "crop_id", nullable = false)
     private CropEntity crop;
 
-    @Column(nullable = false)
+    @Column(name = "student_id", nullable = false)
     private String studentId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "student_id",
+            referencedColumnName = "student_id",
+            insertable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_submission_student")
+    )
+    private StudentRosterEntity student;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
