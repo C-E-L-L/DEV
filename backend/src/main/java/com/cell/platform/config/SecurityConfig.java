@@ -37,6 +37,7 @@ public class SecurityConfig {
                 .requestMatchers("/data/**").authenticated()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/game/**").hasRole("ADMIN")
                 .requestMatchers("/api/labeling/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/all-stats").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/reports").hasAnyRole("EXPERT", "ADMIN")
