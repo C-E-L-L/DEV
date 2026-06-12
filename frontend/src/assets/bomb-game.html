@@ -384,6 +384,7 @@
       <div class="players" id="players"></div>
       <div class="setup-actions">
         <button class="btn btn--gold" id="start-btn" type="button">게임 시작 →</button>
+        <button class="btn btn--ghost" id="solo-btn" type="button" style="color:var(--pink);box-shadow:inset 0 0 0 2px var(--pink)">🎮 혼자하기</button>
         <button class="btn btn--ghost" id="mode-btn" type="button" style="color:var(--lime);box-shadow:inset 0 0 0 2px var(--lime)">😊 이지 모드</button>
         <div class="sound-toggles">
           <label class="mute-toggle"><input type="checkbox" id="music-on" checked /> 배경음악</label>
@@ -523,6 +524,30 @@
     </div>
   </section>
 
+  <!-- ============ SOLO RESULT ============ -->
+  <section class="screen" id="screen-solo-result">
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:22px;text-align:center;padding:16px 0">
+      <div id="solo-res-icon" style="font-size:4rem;line-height:1"></div>
+      <div>
+        <div class="eyebrow" id="solo-res-label">결과</div>
+        <div class="title" id="solo-res-name" style="font-size:clamp(2rem,9vw,3.8rem);margin-top:4px"></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--surface-line);border-radius:22px;padding:26px 44px">
+        <div style="color:var(--muted);font-weight:800;font-size:.76rem;letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px">획득 점수</div>
+        <div class="pot" id="solo-res-score" style="font-size:clamp(3rem,13vw,5.5rem)">0<span class="pt">점</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:300px">
+        <button class="btn btn--gold" id="solo-replay-btn" type="button" style="text-align:center">다시 하기 🎮</button>
+        <button class="btn btn--ghost" id="solo-lb-btn" type="button" style="text-align:center">🏆 랭킹 보기</button>
+        <button class="btn btn--ghost" id="solo-home-btn" type="button" style="text-align:center;padding:10px 16px;font-size:.9rem">처음으로</button>
+      </div>
+      <div class="lb-panel-inline" id="solo-lb-panel" style="display:none;width:100%;max-width:480px">
+        <div class="lb-head"><span class="lb-title">🏆 명예의 전당</span></div>
+        <div id="solo-lb-inner"></div>
+      </div>
+    </div>
+  </section>
+
 </div>
 
 <!-- next player gate -->
@@ -531,6 +556,20 @@
   <div class="gname" id="gate-name">—</div>
   <div class="sub" id="gate-sub"></div>
   <button class="btn btn--gold" id="gate-go" type="button">시작하기</button>
+</div>
+
+<!-- solo name-entry gate -->
+<div class="gate" id="solo-gate">
+  <div class="small">솔로 도전</div>
+  <div class="gname" style="font-size:clamp(2.2rem,10vw,4rem)">혼자하기 🎮</div>
+  <p class="sub" style="margin-bottom:18px">닉네임을 입력하고 도전해보세요</p>
+  <input type="text" id="solo-name-input" placeholder="닉네임 (비워두면 도전자)" maxlength="12"
+    style="background:var(--surface);border:2px solid var(--surface-line);border-radius:14px;
+           padding:14px 18px;font-size:1.1rem;font-family:var(--body);font-weight:700;
+           color:var(--cream);text-align:center;outline:none;width:min(280px,90vw);
+           transition:border-color .15s;margin-bottom:4px" />
+  <button class="btn btn--gold" id="solo-start-btn" type="button" style="width:min(280px,90vw);text-align:center;margin-top:10px">시작하기 →</button>
+  <button class="btn btn--ghost" id="solo-cancel-btn" type="button" style="width:min(280px,90vw);text-align:center;padding:10px 16px;font-size:.9rem;margin-top:8px">← 돌아가기</button>
 </div>
 
 <script>
@@ -749,6 +788,7 @@
 
   /* ---------------- state ---------------- */
   let hardMode=false;
+  let soloMode=false, soloNickname='';
   const S={
     players:[],        // {name, score, done, tiebreak}
     idx:0,
@@ -761,7 +801,7 @@
 
   /* ---------------- elements ---------------- */
   const $=s=>document.querySelector(s);
-  const screens={setup:$("#screen-setup"),play:$("#screen-play"),results:$("#screen-results")};
+  const screens={setup:$("#screen-setup"),play:$("#screen-play"),results:$("#screen-results"),soloResult:$("#screen-solo-result")};
   function show(name){ Object.values(screens).forEach(s=>s.classList.remove("active")); screens[name].classList.add("active"); }
 
   const playersEl=$("#players");
@@ -1023,7 +1063,7 @@
     renderBoard();
     setTimeout(()=>{
       S.idx++;
-      if(S.idx>=S.players.length){ showResults(); }
+      if(S.idx>=S.players.length){ soloMode?showSoloResult(score,busted):showResults(); }
       else openGate();
     }, busted?700:1100);
   }
@@ -1031,13 +1071,13 @@
   function openGate(){
     const p=S.players[S.idx];
     gateName.textContent=p.name;
-    gateSub.textContent=`${S.idx+1}번째 도전자 · 준비되면 시작하세요`;
+    gateSub.textContent=soloMode?'준비되면 시작하세요':`${S.idx+1}번째 도전자 · 준비되면 시작하세요`;
     gate.classList.add("show");
     const progress=S.idx/Math.max(1,S.players.length);
     music.setGameProgress(progress);
     music.setIntensity(0.22+0.30*progress);
     flashEl.textContent=""; flashEl.className="flash-msg"; actionRow.innerHTML=""; hintEl.textContent="";
-    turnWho.textContent=p.name; turnCount.textContent=`${S.idx+1} / ${S.players.length}`;
+    turnWho.textContent=p.name; turnCount.textContent=soloMode?'':`${S.idx+1} / ${S.players.length}`;
     S.bombPct=CFG.startBomb; setBombWidth(); S.pot=0; S.stops=0; updateHud(); marker.style.left="0%";
     gauge.classList.remove("frozen");
   }
@@ -1170,6 +1210,53 @@
   });
   $("#new-btn").addEventListener("click",()=>{ music.stop(); show("setup"); });
   $("#quit-btn").addEventListener("click",()=>{ if(S.raf)cancelAnimationFrame(S.raf); S.running=false; music.stop(); gate.classList.remove("show"); show("setup"); });
+
+  /* ─────── SOLO MODE ─────── */
+  const soloGateEl=document.getElementById("solo-gate");
+
+  function startSoloPlay(){
+    S.players=[{name:soloNickname,score:null,done:false,tiebreak:Math.random()}];
+    S.idx=0; ac(); music.start();
+    show("play"); syncPlayControls();
+    $("#mode-badge").style.display=hardMode?"":"none";
+    renderBoard(); openGate();
+  }
+
+  async function showSoloResult(score,busted){
+    document.getElementById("solo-res-icon").textContent=busted?'💥':'🏆';
+    document.getElementById("solo-res-label").textContent=busted?'BOOM! 폭탄 터짐':'점수 확보!';
+    document.getElementById("solo-res-name").textContent=soloNickname;
+    document.getElementById("solo-res-score").innerHTML=score+'<span class="pt">점</span>';
+    document.getElementById("solo-lb-panel").style.display="none";
+    show("soloResult"); music.stop();
+    if(!busted && score>0){ sfx.win(); burstConfetti(); }
+    if(score>0) await lbRecord([{name:soloNickname,score}],hardMode);
+  }
+
+  $("#solo-replay-btn").addEventListener("click",()=>startSoloPlay());
+  $("#solo-lb-btn").addEventListener("click",()=>{
+    const panel=document.getElementById("solo-lb-panel");
+    const visible=panel.style.display!=="none";
+    panel.style.display=visible?"none":"block";
+    if(!visible) lbRender(document.getElementById("solo-lb-inner"), hardMode?'hard':'easy');
+  });
+  $("#solo-home-btn").addEventListener("click",()=>{ soloMode=false; music.stop(); show("setup"); });
+
+  /* solo gate: nickname entry */
+  document.getElementById("solo-btn").addEventListener("click",()=>{
+    soloGateEl.classList.add("show");
+    setTimeout(()=>document.getElementById("solo-name-input").focus(),120);
+  });
+  document.getElementById("solo-cancel-btn").addEventListener("click",()=>soloGateEl.classList.remove("show"));
+  function launchSolo(){
+    const val=document.getElementById("solo-name-input").value.trim();
+    soloNickname=val||"도전자"; soloMode=true;
+    soloGateEl.classList.remove("show");
+    document.getElementById("solo-name-input").value="";
+    startSoloPlay();
+  }
+  document.getElementById("solo-start-btn").addEventListener("click",launchSolo);
+  document.getElementById("solo-name-input").addEventListener("keydown",e=>{ if(e.key==="Enter") launchSolo(); });
 
   /* ---------------- confetti ---------------- */
   const cv=$("#confetti"), cx=cv.getContext("2d"); let parts=[],confRaf=null;
