@@ -397,11 +397,14 @@ export default function AdminPage() {
 
   return (
     <div style={containerStyle}>
-      <div style={tabBar}>
-        <button onClick={() => setActiveTab(1)} style={activeTab === 1 ? tabActive : tabInactive}>1. Smear Images</button>
-        <button onClick={() => setActiveTab(2)} style={activeTab === 2 ? tabActive : tabInactive}>2. Cell (Crop) Images</button>
-        <button onClick={() => setActiveTab(3)} style={activeTab === 3 ? tabActive : tabInactive}>3. Analytics &amp; Feedback</button>
-        <button onClick={() => setActiveTab(4)} style={activeTab === 4 ? tabActive : tabInactive}>4. User Management</button>
+      <div style={{ ...tabBar, justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex' }}>
+          <button onClick={() => setActiveTab(1)} style={activeTab === 1 ? tabActive : tabInactive}>1. Smear Images</button>
+          <button onClick={() => setActiveTab(2)} style={activeTab === 2 ? tabActive : tabInactive}>2. Cell (Crop) Images</button>
+          <button onClick={() => setActiveTab(3)} style={activeTab === 3 ? tabActive : tabInactive}>3. Analytics &amp; Feedback</button>
+          <button onClick={() => setActiveTab(4)} style={activeTab === 4 ? tabActive : tabInactive}>4. User Management</button>
+        </div>
+        <a href="/game" target="_blank" rel="noopener noreferrer" title="관리자 전용 게임" style={{ fontSize: '18px', opacity: 0.25, textDecoration: 'none', paddingBottom: '4px', transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0.25}>🎮</a>
       </div>
 
       {activeTab === 1 && (
