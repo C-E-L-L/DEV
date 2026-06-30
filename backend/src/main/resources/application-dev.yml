@@ -29,7 +29,7 @@ server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET:cell-dev-jwt-secret-key-change-me-please-32bytes}
+  secret: ${JWT_SECRET}
   expiration-hours: ${JWT_EXPIRATION_HOURS:24}
 
 admin:
@@ -42,4 +42,5 @@ ai-server:
 file:
   upload-dir: ${FILE_UPLOAD_DIR:../data/originals}
   crop-dir: ${FILE_CROP_DIR:../data/crops}
+  thumbnail-dir: ${FILE_THUMBNAIL_DIR:../data/thumbnails}
 

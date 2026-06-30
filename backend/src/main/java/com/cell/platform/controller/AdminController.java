@@ -1,19 +1,18 @@
 package com.cell.platform.controller;
 
+import com.cell.platform.dto.request.AdminStatusRequest;
+import com.cell.platform.dto.request.RegisterRequest;
+import com.cell.platform.dto.request.StudentRosterRequest;
 import com.cell.platform.dto.response.AdminCropResponse;
 import com.cell.platform.dto.response.AdminSmearResponse;
-import com.cell.platform.dto.response.AdminUserResponse;
 import com.cell.platform.dto.response.RosterImportResponse;
 import com.cell.platform.dto.response.StudentRosterResponse;
-import com.cell.platform.dto.request.AdminPasswordResetRequest;
-import com.cell.platform.dto.request.AdminProfessorRequest;
-import com.cell.platform.dto.request.AdminStatusRequest;
-import com.cell.platform.dto.request.StudentRosterRequest;
+import com.cell.platform.dto.response.UserResponse;
 import com.cell.platform.service.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,30 +34,29 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getCrops());
     }
 
-    @GetMapping("/professors")
-    public ResponseEntity<List<AdminUserResponse>> getProfessors() {
-        return ResponseEntity.ok(adminService.getProfessors());
+    @GetMapping("/users")
+    public ResponseEntity<List<UserResponse>> getUsers() {
+        return ResponseEntity.ok(adminService.getUsers());
     }
 
-    @PostMapping("/professors")
-    public ResponseEntity<AdminUserResponse> createProfessor(@Valid @RequestBody AdminProfessorRequest request) {
-        return ResponseEntity.ok(adminService.createProfessor(request));
+    @PostMapping("/users")
+    public ResponseEntity<Void> createUser(@RequestBody RegisterRequest request) {
+        adminService.createUser(request);
+        return ResponseEntity.ok().build();
     }
 
-    @PutMapping("/professors/{userId}/password")
-    public ResponseEntity<AdminUserResponse> resetProfessorPassword(
-            @PathVariable Long userId,
-            @Valid @RequestBody AdminPasswordResetRequest request
-    ) {
-        return ResponseEntity.ok(adminService.resetProfessorPassword(userId, request.password()));
+    @DeleteMapping("/users/{username}")
+    public ResponseEntity<Void> deleteUser(@PathVariable String username) {
+        adminService.deleteUser(username);
+        return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/professors/{userId}/status")
-    public ResponseEntity<AdminUserResponse> updateProfessorStatus(
+    @PutMapping("/users/{userId}/status")
+    public ResponseEntity<UserResponse> updateUserStatus(
             @PathVariable Long userId,
             @Valid @RequestBody AdminStatusRequest request
     ) {
-        return ResponseEntity.ok(adminService.updateProfessorStatus(userId, request));
+        return ResponseEntity.ok(adminService.updateUserStatus(userId, request));
     }
 
     @GetMapping("/student-roster")
@@ -73,41 +71,5 @@ public class AdminController {
     ) {
         String adminUsername = authentication != null ? authentication.getName() : null;
         return ResponseEntity.ok(adminService.addStudentRoster(request, adminUsername));
-    }
-
-    @GetMapping("/student-signups")
-    public ResponseEntity<List<AdminUserResponse>> getStudentSignupRequests(
-            @RequestParam(defaultValue = "PENDING") String status
-    ) {
-        return ResponseEntity.ok(adminService.getStudentSignupRequests(status));
-    }
-
-    @GetMapping("/students")
-    public ResponseEntity<List<AdminUserResponse>> getStudents(
-            @RequestParam(defaultValue = "ALL") String status
-    ) {
-        return ResponseEntity.ok(adminService.getStudents(status));
-    }
-
-    @PutMapping("/students/{userId}/status")
-    public ResponseEntity<AdminUserResponse> updateStudentStatus(
-            @PathVariable Long userId,
-            @Valid @RequestBody AdminStatusRequest request
-    ) {
-        return ResponseEntity.ok(adminService.updateStudentStatus(userId, request));
-    }
-
-    @PutMapping("/student-signups/{userId}/approve")
-    public ResponseEntity<AdminUserResponse> approveStudent(
-            @PathVariable Long userId,
-            Authentication authentication
-    ) {
-        String adminUsername = authentication != null ? authentication.getName() : null;
-        return ResponseEntity.ok(adminService.approveStudent(userId, adminUsername));
-    }
-
-    @PutMapping("/student-signups/{userId}/reject")
-    public ResponseEntity<AdminUserResponse> rejectStudent(@PathVariable Long userId) {
-        return ResponseEntity.ok(adminService.rejectStudent(userId));
     }
 }

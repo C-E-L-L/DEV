@@ -5,6 +5,7 @@ import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CropRepository;
 import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.submission.SubmissionRepository;
+import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.domain.user.Role;
 import com.cell.platform.domain.user.User;
@@ -48,8 +49,6 @@ public class SubmissionService {
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
     private final DiagnosticDatasetService diagnosticDatasetService;
-
-    // 혼동행렬 레포지토리 주입
     private final ConfusionMatrixRepository confusionMatrixRepository;
 
     @Transactional
@@ -69,6 +68,58 @@ public class SubmissionService {
     }
 
     // --- 여기서부터 원래 주훈님이 가지고 계시던 소중한 코드들 복구 --- //
+
+    public List<Long> getSolvedCropIdsForAssignment(Long assignmentId, String studentId) {
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        List<Long> allCropIds = tasks.stream()
+                .flatMap(task -> cropRepository.findAllByTaskId(task.getId()).stream())
+                .map(crop -> crop.getId())
+                .toList();
+        return submissionRepository.findAllByCropIdInAndStudentId(allCropIds, studentId)
+                .stream().map(sub -> sub.getCropId()).toList();
+    }
+
+    public MyResultsResponse getMyResultsForAssignment(Long assignmentId, String studentId) {
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        List<Crop> allCrops = new ArrayList<>();
+        for (Task task : tasks) {
+            allCrops.addAll(cropRepository.findAllByTaskId(task.getId()));
+        }
+        List<Long> cropIds = allCrops.stream().map(Crop::getId).toList();
+        Map<Long, Crop> cropMap = allCrops.stream()
+                .collect(Collectors.toMap(Crop::getId, c -> c));
+        List<Submission> submissions = submissionRepository
+                .findAllByCropIdInAndStudentId(cropIds, studentId);
+
+        int correct = 0, wrong = 0;
+        List<MyResultsResponse.Detail> details = new ArrayList<>();
+        List<String> labels = Arrays.stream(CellType.values()).map(Enum::name).toList();
+        Map<String, Map<String, Integer>> confusionMatrix = initConfusionMatrix(labels);
+
+        for (Submission sub : submissions) {
+            Crop crop = cropMap.get(sub.getCropId());
+            if (crop == null) continue;
+            CellType resolvedLabel = resolveCorrectLabel(crop, false);
+            String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
+            Boolean isCorrect = null;
+            if (correctLabel != null) {
+                isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+                if (isCorrect) correct++; else wrong++;
+                confusionMatrix.get(correctLabel)
+                        .compute(sub.getStudentLabel().name(), (k, v) -> v == null ? 1 : v + 1);
+            }
+            details.add(MyResultsResponse.Detail.builder()
+                    .cropId(crop.getId()).cropFilename(crop.getCropFilename())
+                    .studentLabel(sub.getStudentLabel().name())
+                    .correctLabel(correctLabel).isCorrect(isCorrect).build());
+        }
+
+        int total = correct + wrong;
+        int accuracy = total > 0 ? Math.round((float) correct / total * 100) : 0;
+        return MyResultsResponse.builder().total(total).correct(correct).wrong(wrong)
+                .accuracy(accuracy).details(details).labels(labels)
+                .confusionMatrix(confusionMatrix).build();
+    }
 
     public List<Long> getSolvedCropIds(Long taskId, String studentId) {
         List<Crop> crops = cropRepository.findAllByTaskId(taskId);

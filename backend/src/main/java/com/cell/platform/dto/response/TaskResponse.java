@@ -8,6 +8,8 @@ public record TaskResponse(
         String status,
         String originalFilename,
         String uploadedFilename,
+        Long assignmentId,
+        String title,
         LocalDateTime createdAt,
         int cropCount
 ) {
@@ -17,6 +19,8 @@ public record TaskResponse(
                 task.getStatus().name(),
                 task.getOriginalFilename(),
                 task.getUploadedFilename(),
+                task.getAssignmentId(),
+                task.getTitle(),
                 task.getCreatedAt(),
                 task.getCrops().size()
         );

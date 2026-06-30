@@ -1,7 +1,21 @@
 # --- Security & Secrets ---
-*.env
-*.env.local
-.env.*
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+!.env.example
+
+# --- SSL Certificates ---
+ssl/
+
+# --- AI Model Weights ---
+ai-server/weights/
+
+# --- DB Backups & Data Archives ---
+*.sql
+*.zip
+data/
 
 # --- Backend (Spring Boot / Gradle) ---
 backend/.gradle/

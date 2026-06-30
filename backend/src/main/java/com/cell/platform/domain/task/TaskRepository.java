@@ -13,5 +13,7 @@ public interface TaskRepository {
 
     List<Long> findIdsByUploadedFilenameStartingWith(String prefix);
 
+    List<Task> findByAssignmentId(Long assignmentId);
+
     void deleteById(Long id);
 }

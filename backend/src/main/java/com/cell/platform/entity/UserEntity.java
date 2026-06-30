@@ -29,6 +29,7 @@ public class UserEntity {
     private Role role;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private UserStatus status;
 
     private LocalDateTime createdAt;
@@ -50,14 +51,6 @@ public class UserEntity {
         this.role = role;
         this.status = status == null ? UserStatus.ACTIVE : status;
         this.createdAt = createdAt;
-    }
-
-    public UserStatus getStatus() {
-        return status == null ? UserStatus.ACTIVE : status;
-    }
-
-    public void changePassword(String password) {
-        this.password = password;
     }
 
     public void changeStatus(UserStatus status) {

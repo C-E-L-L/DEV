@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
+import AuthImage from '../components/AuthImage';
+import { fetchAuthImage } from '../utils/fetchAuthImage';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -110,54 +112,69 @@ export default function ExpertPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(1);
 
-  /* ── Tab 1: Upload ── */
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  /* ── Tab 1: Assignment Creation ── */
+  const [assignmentTitle, setAssignmentTitle] = useState('');
+  const [files, setFiles] = useState([]);
+  const [previews, setPreviews] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStep, setUploadStep] = useState(0);
+  const [uploadingImageIndex, setUploadingImageIndex] = useState(0);
   const fileInputRef = useRef(null);
+
+  const [selectedResultTaskIndex, setSelectedResultTaskIndex] = useState(0);
 
   useEffect(() => {
     if (!uploadResult || !resultCanvasRef.current) return;
+    const tasks = uploadResult.tasks || [];
+    if (tasks.length === 0) return;
+    const taskResult = tasks[selectedResultTaskIndex] || tasks[0];
     const canvas = resultCanvasRef.current;
     const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      const maxWidth = 860;
-      const scale = maxWidth / img.width;
-      canvas.width = maxWidth;
-      canvas.height = img.height * scale;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    let cancelled = false;
 
-      (uploadResult.crops || []).forEach((crop) => {
-        if (!crop.bbox) return;
-        const bbox = JSON.parse(crop.bbox.replace(/'/g, '"'));
-        const [x1, y1, x2, y2] = bbox;
-        const color = CLASS_COLORS[crop.pseudoLabel] || '#adb5bd';
-        const sx = x1 * scale, sy = y1 * scale;
-        const sw = (x2 - x1) * scale, sh = (y2 - y1) * scale;
+    fetchAuthImage(imageUrl.original(taskResult.originalImage))
+      .then(url => {
+        if (cancelled) { URL.revokeObjectURL(url); return; }
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          if (cancelled) return;
+          const maxWidth = 860;
+          const scale = maxWidth / img.width;
+          canvas.width = maxWidth;
+          canvas.height = img.height * scale;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          (taskResult.crops || []).forEach((crop) => {
+            if (!crop.bbox) return;
+            const bbox = JSON.parse(crop.bbox.replace(/'/g, '"'));
+            const [x1, y1, x2, y2] = bbox;
+            const color = CLASS_COLORS[crop.pseudoLabel] || '#adb5bd';
+            const sx = x1 * scale, sy = y1 * scale;
+            const sw = (x2 - x1) * scale, sh = (y2 - y1) * scale;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(sx, sy, sw, sh);
+            const label = crop.pseudoLabel || '?';
+            const conf = crop.aiClassificationConfidence != null
+              ? ` ${Math.round(crop.aiClassificationConfidence * 100)}%` : '';
+            const text = label + conf;
+            ctx.font = 'bold 12px Arial';
+            const tw = ctx.measureText(text).width;
+            ctx.fillStyle = color;
+            ctx.fillRect(sx, sy - 17, tw + 8, 17);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(text, sx + 4, sy - 4);
+          });
+        };
+        img.onerror = () => URL.revokeObjectURL(url);
+        img.src = url;
+      })
+      .catch(() => {});
 
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(sx, sy, sw, sh);
-
-        const label = crop.pseudoLabel || '?';
-        const conf = crop.aiClassificationConfidence != null
-          ? ` ${Math.round(crop.aiClassificationConfidence * 100)}%` : '';
-        const text = label + conf;
-        ctx.font = 'bold 12px Arial';
-        const tw = ctx.measureText(text).width;
-
-        ctx.fillStyle = color;
-        ctx.fillRect(sx, sy - 17, tw + 8, 17);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(text, sx + 4, sy - 4);
-      });
-    };
-    img.src = imageUrl.original(uploadResult.originalImage);
-  }, [uploadResult]);
+    return () => { cancelled = true; };
+  }, [uploadResult, selectedResultTaskIndex]);
 
   const UPLOAD_STEPS = [
     { icon: '📤', label: '이미지 서버에 전송 중...' },
@@ -285,9 +302,15 @@ export default function ExpertPage() {
 
     const task = tasks.find(t => t.id === taskId) || (await taskApi.getAll()).data.find(t => t.id === taskId);
     if (task?.originalFilename) {
-      const img = new Image();
-      img.onload = () => { setOriginalImage(img); setImageLoaded(true); };
-      img.src = imageUrl.original(task.originalFilename);
+      setImageLoaded(false);
+      fetchAuthImage(imageUrl.original(task.originalFilename))
+        .then(url => {
+          const img = new Image();
+          img.onload = () => { URL.revokeObjectURL(url); setOriginalImage(img); setImageLoaded(true); };
+          img.onerror = () => URL.revokeObjectURL(url);
+          img.src = url;
+        })
+        .catch(() => {});
     }
   }, [tasks]);
 
@@ -341,15 +364,26 @@ export default function ExpertPage() {
     }
   };
 
-  /* ── Delete Task ── */
-  const handleDeleteTask = async (taskId, e) => {
+  /* ── Delete Task / Assignment ── */
+  const handleDeleteTask = async (task, e) => {
     e.stopPropagation();
-    if (!window.confirm(`Task #${taskId}를 삭제하시겠습니까?\n관련 제출 기록과 혼동행렬도 모두 삭제됩니다.`)) return;
-    try {
-      await taskApi.delete(taskId);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
-      if (selectedTaskId === taskId) { setSelectedTaskId(null); setStats([]); }
-    } catch { alert('삭제에 실패했습니다.'); }
+    if (task.assignmentId) {
+      if (!window.confirm(`과제 "${task.title}"를 전체 삭제하시겠습니까?\n(모든 도말 이미지, 제출 기록이 삭제됩니다.)`)) return;
+      try {
+        await taskApi.deleteAssignment(task.assignmentId);
+        setTasks(prev => prev.filter(t => t.assignmentId !== task.assignmentId));
+        if (tasks.find(t => t.assignmentId === task.assignmentId && t.id === selectedTaskId)) {
+          setSelectedTaskId(null); setStats([]);
+        }
+      } catch { alert('삭제에 실패했습니다.'); }
+    } else {
+      if (!window.confirm(`Task #${task.id}를 삭제하시겠습니까?\n관련 제출 기록과 혼동행렬도 모두 삭제됩니다.`)) return;
+      try {
+        await taskApi.delete(task.id);
+        setTasks(prev => prev.filter(t => t.id !== task.id));
+        if (selectedTaskId === task.id) { setSelectedTaskId(null); setStats([]); }
+      } catch { alert('삭제에 실패했습니다.'); }
+    }
   };
 
   /* ── Confirm Label ── */
@@ -388,28 +422,44 @@ export default function ExpertPage() {
     }
   };
 
-  /* ── Upload 핸들러 ── */
+  /* ── Assignment Upload 핸들러 ── */
   const handleFileChange = (e) => {
-    const f = e.target.files[0];
-    if (f) { setFile(f); setPreview(URL.createObjectURL(f)); setUploadResult(null); }
+    const newFiles = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+    if (newFiles.length > 0) {
+      setFiles(prev => [...prev, ...newFiles]);
+      setPreviews(prev => [...prev, ...newFiles.map(f => URL.createObjectURL(f))]);
+      setUploadResult(null);
+    }
+  };
+  const handleRemoveFile = (idx) => {
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+    setPreviews(prev => prev.filter((_, i) => i !== idx));
   };
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop = (e) => {
     e.preventDefault(); setIsDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f?.type.startsWith('image/')) { setFile(f); setPreview(URL.createObjectURL(f)); setUploadResult(null); }
+    const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (dropped.length > 0) {
+      setFiles(prev => [...prev, ...dropped]);
+      setPreviews(prev => [...prev, ...dropped.map(f => URL.createObjectURL(f))]);
+      setUploadResult(null);
+    }
   };
   const handleUpload = async () => {
-    if (!file) return;
+    if (!assignmentTitle.trim()) return alert('과제 이름을 입력하세요.');
+    if (files.length === 0) return alert('도말 이미지를 최소 1장 선택하세요.');
     setUploading(true);
+    setUploadingImageIndex(0);
     try {
       const formData = new FormData();
-      formData.append("file", file);
-      const { data } = await taskApi.upload(formData);
+      formData.append('title', assignmentTitle.trim());
+      files.forEach(f => formData.append('files', f));
+      const { data } = await taskApi.createAssignment(formData);
       setUploadResult(data);
-      setFile(null); setPreview(null);
-    } catch { alert("Upload failed"); }
+      setSelectedResultTaskIndex(0);
+      setFiles([]); setPreviews([]); setAssignmentTitle('');
+    } catch { alert('업로드에 실패했습니다.'); }
     finally { setUploading(false); }
   };
 
@@ -467,32 +517,61 @@ export default function ExpertPage() {
       {/* ============= Tab 1: Task Management ============= */}
       {activeTab === 1 && (
         <div style={boxStyle}>
-          <h2 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>Upload New Slide for Task Creation</h2>
+          <h2 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>Create New Assignment</h2>
 
-          {/* 드래그 앤 드롭 */}
+          {/* 과제 이름 입력 */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontWeight: '600', color: '#495057', marginBottom: '6px' }}>
+              과제 이름 *
+            </label>
+            <input
+              value={assignmentTitle}
+              onChange={e => setAssignmentTitle(e.target.value)}
+              placeholder="예: Week 3 혈액도말 분류 과제"
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '15px', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* 드래그 앤 드롭 — 다중 파일 */}
           <div
             onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             style={{ ...dropZoneStyle, borderColor: isDragging ? '#0056b3' : '#ced4da', background: isDragging ? '#e7f3ff' : '#fff' }}
           >
-            <input type="file" ref={fileInputRef} accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+            <input type="file" ref={fileInputRef} accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '48px', marginBottom: '10px' }}>📁</div>
-              <div style={{ fontSize: '16px', color: '#495057', marginBottom: '5px' }}><strong>Drag &amp; Drop</strong> your blood smear image here</div>
-              <div style={{ fontSize: '14px', color: '#6c757d' }}>or click to browse files</div>
+              <div style={{ fontSize: '16px', color: '#495057', marginBottom: '5px' }}><strong>Drag &amp; Drop</strong> 혈액도말 이미지 (여러 장 가능)</div>
+              <div style={{ fontSize: '14px', color: '#6c757d' }}>or click to browse</div>
             </div>
           </div>
 
-          {preview && (
-            <div style={{ marginTop: '20px', textAlign: 'center' }}>
-              <img src={preview} alt="preview" style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', border: '1px solid #dee2e6' }} />
-              <div style={{ marginTop: '10px', color: '#495057' }}><strong>Selected:</strong> {file?.name}</div>
+          {/* 선택된 파일 목록 */}
+          {previews.length > 0 && (
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ fontWeight: '600', color: '#495057', marginBottom: '10px' }}>
+                선택된 도말 이미지 ({previews.length}장)
+              </div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {previews.map((src, idx) => (
+                  <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                    <img src={src} alt={`preview-${idx}`} style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dee2e6' }} />
+                    <button
+                      onClick={() => handleRemoveFile(idx)}
+                      style={{ position: 'absolute', top: '-6px', right: '-6px', width: '20px', height: '20px', borderRadius: '50%', background: '#dc3545', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', lineHeight: '20px', textAlign: 'center', padding: 0 }}
+                    >✕</button>
+                    <div style={{ fontSize: '10px', color: '#6c757d', textAlign: 'center', marginTop: '2px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {files[idx]?.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          <div style={{ marginTop: '20px' }}>
-            <button onClick={handleUpload} disabled={uploading || !file} style={file && !uploading ? btnActive : btnDisabled}>
-              {uploading ? '분석 중...' : '🔬 Analyze & Create Task'}
+          <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button onClick={handleUpload} disabled={uploading || files.length === 0 || !assignmentTitle.trim()} style={files.length > 0 && assignmentTitle.trim() && !uploading ? btnActive : btnDisabled}>
+              {uploading ? `분석 중 (${uploadingImageIndex}/${files.length})...` : `🔬 Analyze & Create Assignment (${files.length}장)`}
             </button>
           </div>
 
@@ -528,14 +607,30 @@ export default function ExpertPage() {
           {uploadResult && (
             <>
               <div style={successBox}>
-                ✅ <strong>Task #{uploadResult.taskId}</strong> 생성 완료 —{' '}
-                <strong>{uploadResult.crops?.length || uploadResult.totalDetected}</strong>개 세포 탐지됨
+                ✅ <strong>"{uploadResult.title}"</strong> 과제 생성 완료 —{' '}
+                <strong>{uploadResult.tasks?.length}</strong>장 도말, 총{' '}
+                <strong>{uploadResult.totalCrops}</strong>개 세포
               </div>
 
               <div style={{ marginTop: '20px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '10px', padding: '20px' }}>
                 <div style={{ fontWeight: '600', color: '#495057', marginBottom: '14px', fontSize: '15px' }}>
-                  탐지 결과 — AI 예측 클래스
+                  탐지 결과 — 도말 이미지 선택
                 </div>
+
+                {/* 도말 선택 탭 */}
+                {uploadResult.tasks?.length > 1 && (
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                    {uploadResult.tasks.map((t, idx) => (
+                      <button key={idx} onClick={() => setSelectedResultTaskIndex(idx)} style={{
+                        padding: '6px 12px', fontSize: '12px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #dee2e6',
+                        background: selectedResultTaskIndex === idx ? '#495057' : '#f8f9fa',
+                        color: selectedResultTaskIndex === idx ? '#fff' : '#495057', fontWeight: selectedResultTaskIndex === idx ? '600' : 'normal',
+                      }}>
+                        이미지 {idx + 1} ({t.totalDetected}개)
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* 범례 */}
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
@@ -547,12 +642,7 @@ export default function ExpertPage() {
                   ))}
                 </div>
 
-                {/* 결과 이미지 */}
-                <canvas
-                  ref={resultCanvasRef}
-                  style={{ width: '100%', borderRadius: '6px', border: '1px solid #dee2e6' }}
-                />
-
+                <canvas ref={resultCanvasRef} style={{ width: '100%', borderRadius: '6px', border: '1px solid #dee2e6' }} />
                 <div style={{ marginTop: '10px', fontSize: '12px', color: '#6c757d' }}>
                   바운딩 박스 위: 예측 클래스 + 분류 신뢰도(%)
                 </div>
@@ -594,7 +684,7 @@ export default function ExpertPage() {
                         Diagnostic Task
                       </div>
                     ) : (
-                      <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                      <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                     )}
                     <div style={{ fontWeight: '600', fontSize: '14px' }}>{diagnostic ? `Diagnostic #${diagnosticNumber || task.id}` : `Task #${task.id}`}</div>
                     <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
@@ -602,7 +692,7 @@ export default function ExpertPage() {
                     </div>
                   </button>
                   <button
-                    onClick={(e) => handleDeleteTask(task.id, e)}
+                    onClick={(e) => handleDeleteTask(task, e)}
                     title="과제 삭제"
                     style={{ position: 'absolute', top: '4px', right: '4px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', width: '22px', height: '22px', cursor: 'pointer', fontSize: '12px', lineHeight: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >✕</button>
@@ -676,7 +766,7 @@ export default function ExpertPage() {
                       <div style={cellPanelStyle}>
                         {/* 셀 이미지 */}
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                          <img src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
+                          <AuthImage src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
                           </div>
@@ -773,7 +863,7 @@ export default function ExpertPage() {
                       setSelectedCrop(item);
                     }}>
                       <div style={{ display: 'flex', gap: '12px' }}>
-                        <img src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
+                        <AuthImage src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '5px' }}>
                             Crop #{item.cropId}
@@ -969,7 +1059,7 @@ export default function ExpertPage() {
                         <tr key={item.id}>
                           <td style={reportCellStyle}>
                             {item.cropFilename ? (
-                              <img
+                              <AuthImage
                                 src={imageUrl.crop(item.cropFilename)}
                                 alt={`Crop ${item.cropId}`}
                                 style={reportThumbStyle}

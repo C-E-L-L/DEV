@@ -47,6 +47,17 @@ public class TaskCoreRepository implements TaskRepository {
     }
 
     @Override
+    public List<Task> findByAssignmentId(Long assignmentId) {
+        return taskJpaRepository.findAllByAssignmentId(assignmentId).stream()
+                .map(Mapper::convertToTask)
+                .toList();
+    }
+
+    public List<Long> findIdsByAssignmentId(Long assignmentId) {
+        return taskJpaRepository.findIdsByAssignmentId(assignmentId);
+    }
+
+    @Override
     public void deleteById(Long id) {
         taskJpaRepository.deleteById(id);
     }

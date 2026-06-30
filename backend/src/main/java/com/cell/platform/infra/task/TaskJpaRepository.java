@@ -21,4 +21,9 @@ public interface TaskJpaRepository extends JpaRepository<TaskEntity, Long> {
 
     @Query("select t.id from TaskEntity t where t.uploadedFilename like concat(:prefix, '%')")
     List<Long> findIdsByUploadedFilenameStartingWith(@Param("prefix") String prefix);
+
+    List<TaskEntity> findAllByAssignmentId(Long assignmentId);
+
+    @Query("select t.id from TaskEntity t where t.assignmentId = :assignmentId")
+    List<Long> findIdsByAssignmentId(@Param("assignmentId") Long assignmentId);
 }

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { taskApi, cropApi, submissionApi, reportApi } from '../api';
 import { CELL_TYPES, REPORT_REASONS, imageUrl } from '../constants';
+import AuthImage from '../components/AuthImage';
 
 function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
@@ -36,7 +37,7 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
   return (
     <div style={taskCardStyle} onClick={onClick}>
       {task.originalFilename ? (
-        <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
+        <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
       ) : diagnostic ? (
         <div style={noImageStyle}>Diagnostic Task</div>
       ) : (
@@ -79,6 +80,50 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
   );
 }
 
+/* ──────────────── Assignment Card ──────────────── */
+function AssignmentCard({ assignment, username, onClick }) {
+  const [progress, setProgress] = useState({ total: 0, solved: 0 });
+
+  useEffect(() => {
+    const total = assignment.tasks.reduce((sum, t) => sum + (t.cropCount || 0), 0);
+    if (total === 0) { setProgress({ total: 0, solved: 0 }); return; }
+    submissionApi.getSolvedCropsForAssignment(assignment.id, username)
+      .then(({ data }) => setProgress({ total, solved: data.length }))
+      .catch(() => setProgress({ total, solved: 0 }));
+  }, [assignment, username]);
+
+  const percent = progress.total === 0 ? 0 : Math.round((progress.solved / progress.total) * 100);
+  const isCompleted = progress.total > 0 && progress.solved >= progress.total;
+
+  return (
+    <div style={taskCardStyle} onClick={onClick}>
+      {assignment.tasks[0]?.originalFilename ? (
+        <AuthImage src={imageUrl.thumbnail(assignment.tasks[0].originalFilename)} fallbackSrc={imageUrl.original(assignment.tasks[0].originalFilename)} alt="smear" style={thumbnailStyle} />
+      ) : (
+        <div style={noImageStyle}>No Image</div>
+      )}
+      <div style={{ padding: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontWeight: '700', fontSize: '16px', color: '#343a40' }}>{assignment.title}</span>
+          <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isCompleted ? '#d4edda' : '#e9ecef', color: isCompleted ? '#155724' : '#495057' }}>
+            {isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
+          </span>
+        </div>
+        <div style={{ color: '#6c757d', fontSize: '12px', marginBottom: '12px' }}>
+          도말 {assignment.tasks.length}장 · 총 {progress.total}개 세포
+        </div>
+        <div style={{ background: '#e9ecef', borderRadius: '4px', height: '8px', overflow: 'hidden', marginBottom: '6px' }}>
+          <div style={{ background: isCompleted ? '#28a745' : '#0056b3', height: '100%', width: `${percent}%`, transition: 'width 0.5s ease' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6c757d', fontWeight: '600' }}>
+          <span>{progress.solved} / {progress.total}</span>
+          <span style={{ color: isCompleted ? '#28a745' : '#0056b3' }}>{percent}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ──────────────── Main StudentPage ──────────────── */
 export default function StudentPage() {
   const { user } = useAuth();
@@ -88,6 +133,7 @@ export default function StudentPage() {
   const [tasks, setTasks] = useState([]);
   const [taskTab, setTaskTab] = useState('practice');
   const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [crops, setCrops] = useState([]);
   const [currentCropIndex, setCurrentCropIndex] = useState(0);
   const [solvedCrops, setSolvedCrops] = useState(new Set());
@@ -112,6 +158,7 @@ export default function StudentPage() {
 
   const handleSelectTask = async (task) => {
     setSelectedTask(task);
+    setSelectedAssignment(null);
     setCurrentCropIndex(0);
     setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
     setSolvedLabels({});
@@ -120,6 +167,20 @@ export default function StudentPage() {
     const cropsRes = await cropApi.getByTaskId(task.id);
     setCrops(cropsRes.data);
     const solvedRes = await submissionApi.getSolvedCrops(task.id, username);
+    setSolvedCrops(new Set(solvedRes.data));
+  };
+
+  const handleSelectAssignment = async (assignment) => {
+    setSelectedAssignment(assignment);
+    setSelectedTask({ id: null, assignmentId: assignment.id, title: assignment.title });
+    setCurrentCropIndex(0);
+    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    setSolvedLabels({});
+    setShowResult(false);
+    setResultData(null);
+    const cropsRes = await cropApi.getByAssignmentId(assignment.id);
+    setCrops(cropsRes.data);
+    const solvedRes = await submissionApi.getSolvedCropsForAssignment(assignment.id, username);
     setSolvedCrops(new Set(solvedRes.data));
   };
 
@@ -153,7 +214,12 @@ export default function StudentPage() {
 
   const handleFinalSubmit = async () => {
     try {
-      const { data } = await submissionApi.getMyResults(selectedTask.id, username);
+      let data;
+      if (selectedAssignment) {
+        ({ data } = await submissionApi.getMyResultsForAssignment(selectedAssignment.id, username));
+      } else {
+        ({ data } = await submissionApi.getMyResults(selectedTask.id, username));
+      }
       setResultData(data);
       setShowResult(true);
     } catch { alert("결과를 불러오는데 실패했습니다."); }
@@ -189,8 +255,32 @@ export default function StudentPage() {
 
   const currentCrop = crops[currentCropIndex];
   const allCompleted = crops.length > 0 && solvedCrops.size >= crops.length;
-  const isDiagnosticMode = isDiagnosticTask(selectedTask);
-  const practiceTasks = tasks.filter((task) => !isDiagnosticTask(task));
+  const isDiagnosticMode = !selectedAssignment && isDiagnosticTask(selectedTask);
+  const activeSmearFilename = currentCrop?.originalSmearFilename || selectedTask?.originalFilename;
+
+  // 과제(assignment) 내 도말 이미지별로 세포를 그룹화 (도말 간 이동 내비게이션용)
+  const smearGroups = useMemo(() => {
+    const order = [];
+    const map = {};
+    crops.forEach((crop, idx) => {
+      const filename = crop.originalSmearFilename || selectedTask?.originalFilename;
+      if (!map[filename]) {
+        map[filename] = { filename, indices: [] };
+        order.push(filename);
+      }
+      map[filename].indices.push(idx);
+    });
+    return order.map((filename) => map[filename]);
+  }, [crops, selectedTask]);
+
+  const currentSmearGroupIndex = smearGroups.findIndex((g) => g.filename === activeSmearFilename);
+
+  const goToSmearGroup = (groupIndex) => {
+    if (groupIndex < 0 || groupIndex >= smearGroups.length) return;
+    const group = smearGroups[groupIndex];
+    const targetIdx = group.indices.find((i) => !solvedCrops.has(crops[i].id));
+    setCurrentCropIndex(targetIdx !== undefined ? targetIdx : group.indices[0]);
+  };
   const diagnosticTasks = tasks.filter((task) => isDiagnosticTask(task));
   const diagnosticTasksOrdered = [...diagnosticTasks].sort((a, b) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -198,7 +288,23 @@ export default function StudentPage() {
     if (aTime !== bTime) return aTime - bTime;
     return (a.id || 0) - (b.id || 0);
   });
-  const visibleTasks = taskTab === 'diagnostic' ? diagnosticTasksOrdered : practiceTasks;
+
+  // 일반 과제를 assignment별로 그룹화
+  const { assignments, individualTasks } = useMemo(() => {
+    const assignmentMap = {};
+    const individual = [];
+    tasks.filter(t => !isDiagnosticTask(t)).forEach(task => {
+      if (task.assignmentId) {
+        if (!assignmentMap[task.assignmentId]) {
+          assignmentMap[task.assignmentId] = { id: task.assignmentId, title: task.title || `Assignment #${task.assignmentId}`, tasks: [] };
+        }
+        assignmentMap[task.assignmentId].tasks.push(task);
+      } else {
+        individual.push(task);
+      }
+    });
+    return { assignments: Object.values(assignmentMap), individualTasks: individual };
+  }, [tasks]);
 
   /* ====== 화면 1: 과제 목록 ====== */
   if (!selectedTask) {
@@ -218,22 +324,48 @@ export default function StudentPage() {
           <button onClick={() => setTaskTab('diagnostic')} style={taskTab === 'diagnostic' ? tabActive : tabInactive}>진단평가</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-          {visibleTasks.map((task, index) => (
-            <TaskCardItem
-              key={task.id}
-              task={task}
-              username={username}
-              diagnostic={isDiagnosticTask(task)}
-              displayNumber={taskTab === 'diagnostic' ? index + 1 : null}
-              onClick={() => handleSelectTask(task)}
-            />
-          ))}
-        </div>
-        {visibleTasks.length === 0 && (
-          <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>
-            {taskTab === 'diagnostic' ? 'No diagnostic tasks available.' : 'No practice tasks available.'}
-          </p>
+        {taskTab === 'practice' ? (
+          <>
+            {assignments.length === 0 && individualTasks.length === 0 && (
+              <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>No practice tasks available.</p>
+            )}
+            {assignments.length > 0 && (
+              <>
+                <div style={{ fontWeight: '600', color: '#495057', marginBottom: '12px', fontSize: '14px' }}>과제 목록</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                  {assignments.map(assignment => (
+                    <AssignmentCard
+                      key={assignment.id}
+                      assignment={assignment}
+                      username={username}
+                      onClick={() => handleSelectAssignment(assignment)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+            {individualTasks.length > 0 && (
+              <>
+                <div style={{ fontWeight: '600', color: '#495057', marginBottom: '12px', fontSize: '14px' }}>개별 과제</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                  {individualTasks.map(task => (
+                    <TaskCardItem key={task.id} task={task} username={username} diagnostic={false} onClick={() => handleSelectTask(task)} />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+              {diagnosticTasksOrdered.map((task, index) => (
+                <TaskCardItem key={task.id} task={task} username={username} diagnostic displayNumber={index + 1} onClick={() => handleSelectTask(task)} />
+              ))}
+            </div>
+            {diagnosticTasksOrdered.length === 0 && (
+              <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>No diagnostic tasks available.</p>
+            )}
+          </>
         )}
       </div>
     );
@@ -273,7 +405,7 @@ export default function StudentPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px', marginTop: '15px' }}>
                 {resultData.details.map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', padding: '10px', border: `2px solid ${item.isCorrect === null ? '#adb5bd' : item.isCorrect ? '#28a745' : '#dc3545'}`, borderRadius: '8px', background: '#fff' }}>
-                    <img src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
+                    <AuthImage src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
                     <div style={{ flex: 1, marginLeft: '10px' }}>
                       <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{item.studentLabel}</strong></div>
                       <div style={{ fontSize: '13px' }}>
@@ -332,7 +464,7 @@ export default function StudentPage() {
       {/* 상단 바 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #dee2e6', paddingBottom: '15px' }}>
         <h2 style={{ margin: 0 }}>
-          Task #{selectedTask.id} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
+          {selectedAssignment ? selectedAssignment.title : `Task #${selectedTask.id}`} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
           {isDiagnosticMode && <span style={{ marginLeft: '10px', fontSize: '14px', color: '#856404', background: '#fff3cd', padding: '3px 8px', borderRadius: '5px' }}>GT Scoring</span>}
         </h2>
         <button onClick={() => setSelectedTask(null)} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>← 목록으로 돌아가기</button>
@@ -343,20 +475,41 @@ export default function StudentPage() {
         {/* 왼쪽: 혈액 도말 이미지 + 바운딩 박스 */}
         {!isDiagnosticMode && (
         <div style={{ flex: '2 1 720px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
-          <div style={sectionHeaderStyle}>🔬 혈액 도말 이미지</div>
+          <div style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>🔬 혈액 도말 이미지</span>
+            {smearGroups.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={() => goToSmearGroup(currentSmearGroupIndex - 1)}
+                  disabled={currentSmearGroupIndex <= 0}
+                  style={{ ...smearNavBtnStyle, opacity: currentSmearGroupIndex <= 0 ? 0.4 : 1 }}
+                >◀ 이전 도말</button>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#495057' }}>
+                  도말 {currentSmearGroupIndex + 1} / {smearGroups.length}
+                </span>
+                <button
+                  onClick={() => goToSmearGroup(currentSmearGroupIndex + 1)}
+                  disabled={currentSmearGroupIndex >= smearGroups.length - 1}
+                  style={{ ...smearNavBtnStyle, opacity: currentSmearGroupIndex >= smearGroups.length - 1 ? 0.4 : 1 }}
+                >다음 도말 ▶</button>
+              </div>
+            )}
+          </div>
           <div style={{ padding: '15px', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', background: '#f8f9fa' }}>
             <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
               <span style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(220,53,69,0.9)', color: '#fff', padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', zIndex: 10 }}>x40</span>
-              {selectedTask.originalFilename && (
-                <img
-                  src={imageUrl.original(selectedTask.originalFilename)}
+              {activeSmearFilename && (
+                <AuthImage
+                  key={activeSmearFilename}
+                  src={imageUrl.original(activeSmearFilename)}
                   alt="Blood Smear"
                   onLoad={handleImageLoad}
                   style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 300px)', height: 'auto', objectFit: 'contain', display: 'block' }}
                 />
               )}
-              {/* 바운딩 박스 오버레이 */}
+              {/* 바운딩 박스 오버레이 (현재 표시 중인 도말의 세포만) */}
               {crops.map((crop, idx) => {
+                if ((crop.originalSmearFilename || selectedTask?.originalFilename) !== activeSmearFilename) return null;
                 const bbox = getScaledBbox(crop.bbox);
                 const isSelected = idx === currentCropIndex;
                 const isSolved = solvedCrops.has(crop.id);
@@ -395,7 +548,7 @@ export default function StudentPage() {
                     marginBottom: '5px', border: '1px solid #eee', background: isSelected ? '#f0f4f8' : '#fff',
                     borderLeft: isSelected ? '4px solid #495057' : '4px solid transparent',
                   }}>
-                    <img src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa' }} />
+                    <AuthImage src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: '600', fontSize: '14px' }}>#{idx + 1}</div>
                       <div style={{ fontSize: '12px', color: isSolved ? '#28a745' : '#6c757d' }}>{isSolved ? (label || '분류완료') : '미분류'}</div>
@@ -415,7 +568,7 @@ export default function StudentPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '10px' }}>
                   <button onClick={() => currentCropIndex > 0 && setCurrentCropIndex(currentCropIndex - 1)} disabled={currentCropIndex === 0} style={{ ...navBtnStyle, opacity: currentCropIndex === 0 ? 0.3 : 1 }}>◀</button>
                   <div style={{ width: '180px', height: '180px', border: '2px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#f8f9fa' }}>
-                    <img src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <AuthImage src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   </div>
                   <button onClick={() => currentCropIndex < crops.length - 1 && setCurrentCropIndex(currentCropIndex + 1)} disabled={currentCropIndex === crops.length - 1} style={{ ...navBtnStyle, opacity: currentCropIndex === crops.length - 1 ? 0.3 : 1 }}>▶</button>
                 </div>
@@ -507,6 +660,7 @@ export default function StudentPage() {
 const containerStyle = { maxWidth: '1800px', width: '98%', margin: '0 auto', padding: '20px', fontFamily: 'Inter, sans-serif', color: '#343a40' };
 const sectionHeaderStyle = { background: '#495057', color: '#fff', padding: '12px 20px', fontSize: '15px', fontWeight: '600' };
 const navBtnStyle = { width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const smearNavBtnStyle = { padding: '6px 12px', borderRadius: '6px', border: '1px solid #ced4da', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#495057' };
 const resultStatStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center' };
 const taskCardStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'transform 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' };
 const thumbnailStyle = { width: '100%', height: '180px', objectFit: 'cover', borderBottom: '1px solid #dee2e6' };

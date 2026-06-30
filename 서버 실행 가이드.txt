@@ -1,0 +1,34 @@
+C.E.L.L. 도커 서버 실행 가이드
+1. 평소에 서버 켤 때 (가장 많이 씀)
+컴퓨터를 켜고 PowerShell을 연 뒤, 아래 명령어를 순서대로 입력합니다.
+
+PowerShell
+# 1. 프로젝트 폴더로 이동
+cd C:\DEV
+
+# 2. 서버 백그라운드에서 실행 (-d를 붙이면 파워쉘 창을 꺼도 서버가 계속 돌아갑니다)
+docker compose up -d
+
+# 3. 서버들이 잘 켜졌는지 상태 확인 (선택 사항)
+docker ps
+2. 서버 끌 때 (퇴근하거나 컴퓨터 끌 때)
+
+PowerShell
+cd C:\DEV
+docker compose down
+(주의: down 뒤에 -v는 절대 붙이지 마세요! -v를 붙이면 애써 살린 DB 데이터 폴더까지 싹 날아갑니다.)
+
+3. 코드를 수정했거나 새로 Git Pull을 받았을 때 켤 때
+프론트엔드나 백엔드 코드가 변경되어서, 기존 찌꺼기를 무시하고 '새로 빌드'해서 켜야 할 때 사용합니다.
+
+PowerShell
+cd C:\DEV
+docker compose up --build -d
+4. 특정 서버가 안 될 때 로그(에러) 확인법
+
+PowerShell
+# 백엔드 로그 확인
+docker logs dev-backend-1
+
+# AI 서버 로그 확인
+docker logs dev-ai-server-1

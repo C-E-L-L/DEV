@@ -22,4 +22,6 @@ public interface CropJpaRepository extends JpaRepository<CropEntity, Long> {
 
     @Query("select c from CropEntity c join fetch c.task t where t.originalFilename is not null")
     List<CropEntity> findAllWithTaskOriginalFilename();
+
+    List<CropEntity> findAllByTask_IdIn(List<Long> taskIds);
 }

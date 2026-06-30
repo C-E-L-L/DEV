@@ -48,6 +48,8 @@ public final class Mapper {
                 .status(entity.getStatus())
                 .originalFilename(entity.getOriginalFilename())
                 .uploadedFilename(entity.getUploadedFilename())
+                .assignmentId(entity.getAssignmentId())
+                .title(entity.getTitle())
                 .createdAt(entity.getCreatedAt())
                 .crops(new ArrayList<>())
                 .build();
@@ -66,6 +68,8 @@ public final class Mapper {
                 .status(task.getStatus())
                 .originalFilename(task.getOriginalFilename())
                 .uploadedFilename(task.getUploadedFilename())
+                .assignmentId(task.getAssignmentId())
+                .title(task.getTitle())
                 .createdAt(task.getCreatedAt())
                 .build();
     }
@@ -75,7 +79,7 @@ public final class Mapper {
         return Crop.builder()
                 .id(entity.getId())
                 .taskId(entity.getTaskId())
-                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getUploadedFilename() : null)
+                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getOriginalFilename() : null)
                 .cropFilename(entity.getCropFilename())
                 .bbox(entity.getBbox())
                 .gtLabel(entity.getGtLabel())

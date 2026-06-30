@@ -2,14 +2,18 @@ package com.cell.platform.service;
 
 import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CellType;
+import com.cell.platform.domain.crop.CropRepository;
 import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.dto.response.AiAnalysisResponse;
+import com.cell.platform.dto.response.AssignmentResponse;
 import com.cell.platform.dto.response.CropResponse;
 import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
+import com.cell.platform.entity.AssignmentEntity;
 import com.cell.platform.exception.ErrorCode;
 import com.cell.platform.exception.NotFoundException;
+import com.cell.platform.infra.assignment.AssignmentJpaRepository;
 import com.cell.platform.infra.matrix.ConfusionMatrixJpaRepository;
 import com.cell.platform.infra.report.CropIssueReportJpaRepository;
 import com.cell.platform.infra.submission.SubmissionJpaRepository;
@@ -18,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -31,6 +36,8 @@ public class TaskService {
     private final SubmissionJpaRepository submissionJpaRepository;
     private final ConfusionMatrixJpaRepository confusionMatrixJpaRepository;
     private final CropIssueReportJpaRepository cropIssueReportJpaRepository;
+    private final AssignmentJpaRepository assignmentJpaRepository;
+    private final CropRepository cropRepository;
 
     public List<TaskResponse> getAllTasks() {
         return taskRepository.findAllByOrderByIdDesc().stream()
@@ -71,6 +78,46 @@ public class TaskService {
             );
             task.getCrops().add(crop);
         });
+    }
+
+    @Transactional
+    public AssignmentResponse createAssignment(String title, String expertUsername,
+                                               List<MultipartFile> files) {
+        AssignmentEntity assignment = assignmentJpaRepository.save(
+                AssignmentEntity.builder()
+                        .title(title)
+                        .expertUsername(expertUsername)
+                        .build()
+        );
+
+        List<TaskUploadResponse> taskResponses = new ArrayList<>();
+        int totalCrops = 0;
+
+        for (MultipartFile file : files) {
+            String filename = fileStorageService.saveOriginal(file);
+            Task task = Task.createForAssignment(filename, file.getOriginalFilename(),
+                    assignment.getId(), title);
+            AiAnalysisResponse aiResult = aiClientService.analyze(file);
+            addCropsToTask(task, aiResult);
+            Task savedTask = taskRepository.save(task);
+            totalCrops += savedTask.getCrops().size();
+
+            List<CropResponse> cropResponses = savedTask.getCrops().stream()
+                    .map(CropResponse::from).toList();
+            taskResponses.add(TaskUploadResponse.of(savedTask.getId(), filename, cropResponses));
+        }
+
+        return new AssignmentResponse(assignment.getId(), title, expertUsername,
+                assignment.getCreatedAt(), taskResponses, totalCrops);
+    }
+
+    @Transactional
+    public void deleteAssignment(Long assignmentId) {
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        for (Task task : tasks) {
+            deleteTask(task.getId());
+        }
+        assignmentJpaRepository.deleteById(assignmentId);
     }
 
     @Transactional
