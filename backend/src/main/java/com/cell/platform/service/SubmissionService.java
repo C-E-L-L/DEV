@@ -56,18 +56,53 @@ public class SubmissionService {
         Crop crop = cropRepository.findById(cropId)
                 .orElseThrow(() -> new NotFoundException(
                         "크롭(Crop)을 찾을 수 없습니다. cropId=" + cropId, ErrorCode.S000));
-        CellType label = parseCellType(studentLabel);
-        Submission submission = Submission.create(crop.getId(), studentId, label);
-        submissionRepository.save(submission);
-
-        // 정답(GT) 판별 및 혼동행렬 실시간 업데이트
+        CellType newLabel = parseCellType(studentLabel);
         CellType correctLabel = resolveCorrectLabel(crop, isDiagnosticTask(crop.getTaskId()));
-        if (correctLabel != null) {
-            updateConfusionMatrix(studentId, crop.getTaskId(), correctLabel.name(), label.name());
-        }
+
+        submissionRepository.findByCropIdAndStudentId(cropId, studentId)
+                .ifPresentOrElse(
+                        existing -> {
+                            CellType oldLabel = existing.getStudentLabel();
+                            submissionRepository.updateLabel(cropId, studentId, newLabel);
+                            if (correctLabel != null) {
+                                subtractConfusionMatrixEntry(studentId, crop.getTaskId(),
+                                        correctLabel.name(), oldLabel.name());
+                                updateConfusionMatrix(studentId, crop.getTaskId(),
+                                        correctLabel.name(), newLabel.name());
+                            }
+                        },
+                        () -> {
+                            submissionRepository.save(Submission.create(cropId, studentId, newLabel));
+                            if (correctLabel != null) {
+                                updateConfusionMatrix(studentId, crop.getTaskId(),
+                                        correctLabel.name(), newLabel.name());
+                            }
+                        }
+                );
     }
 
     // --- 여기서부터 원래 주훈님이 가지고 계시던 소중한 코드들 복구 --- //
+
+    public Map<Long, String> getSolvedCropLabels(Long taskId, String studentId) {
+        List<Crop> crops = cropRepository.findAllByTaskId(taskId);
+        List<Long> cropIds = crops.stream().map(Crop::getId).toList();
+        Map<Long, String> result = new LinkedHashMap<>();
+        submissionRepository.findAllByCropIdInAndStudentId(cropIds, studentId)
+                .forEach(sub -> result.put(sub.getCropId(), sub.getStudentLabel().name()));
+        return result;
+    }
+
+    public Map<Long, String> getSolvedCropLabelsForAssignment(Long assignmentId, String studentId) {
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        List<Long> allCropIds = tasks.stream()
+                .flatMap(task -> cropRepository.findAllByTaskId(task.getId()).stream())
+                .map(Crop::getId)
+                .toList();
+        Map<Long, String> result = new LinkedHashMap<>();
+        submissionRepository.findAllByCropIdInAndStudentId(allCropIds, studentId)
+                .forEach(sub -> result.put(sub.getCropId(), sub.getStudentLabel().name()));
+        return result;
+    }
 
     public List<Long> getSolvedCropIdsForAssignment(Long assignmentId, String studentId) {
         List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
@@ -233,6 +268,33 @@ public class SubmissionService {
     }
 
     // --- 여기서부터 새롭게 추가된 혼동행렬 저장 핵심 로직 --- //
+
+    @Transactional
+    public void backfillConfusionMatrixForCrop(Long cropId, Long taskId, CellType oldFinalLabel, CellType newFinalLabel) {
+        List<Submission> submissions = submissionRepository.findAllByCropId(cropId);
+        for (Submission sub : submissions) {
+            String studentId = sub.getStudentId();
+            String predicted = sub.getStudentLabel().name();
+            if (oldFinalLabel != null) {
+                subtractConfusionMatrixEntry(studentId, taskId, oldFinalLabel.name(), predicted);
+            }
+            updateConfusionMatrix(studentId, taskId, newFinalLabel.name(), predicted);
+        }
+    }
+
+    private void subtractConfusionMatrixEntry(String studentId, Long taskId, String actualLabel, String predictedLabel) {
+        confusionMatrixRepository.findByStudentIdAndTaskId(studentId, taskId).ifPresent(entity -> {
+            Map<String, Map<String, Integer>> data = entity.getMatrixData();
+            if (data == null) return;
+            Map<String, Integer> row = data.get(actualLabel);
+            if (row == null) return;
+            int current = row.getOrDefault(predictedLabel, 0);
+            row.put(predictedLabel, Math.max(0, current - 1));
+            entity.setMatrixData(data);
+            entity.setUpdatedAt(LocalDateTime.now());
+            confusionMatrixRepository.save(entity);
+        });
+    }
 
     private void updateConfusionMatrix(String studentId, Long taskId, String actualLabel, String predictedLabel) {
         // 1. 기존 혼동행렬 조회 또는 빈 행렬 새로 생성

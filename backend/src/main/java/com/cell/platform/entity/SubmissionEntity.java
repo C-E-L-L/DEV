@@ -30,6 +30,11 @@ public class SubmissionEntity {
 
     @PrePersist
     void prePersist() {
+        if (this.submittedAt == null) this.submittedAt = LocalDateTime.now();
+    }
+
+    public void updateLabel(CellType newLabel) {
+        this.studentLabel = newLabel;
         this.submittedAt = LocalDateTime.now();
     }
 

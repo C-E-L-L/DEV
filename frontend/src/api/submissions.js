@@ -13,6 +13,12 @@ export const submissionApi = {
   getSolvedCropsForAssignment: (assignmentId, studentId) =>
     api.get(`/assignments/${assignmentId}/submissions/${studentId}`),
 
+  getSolvedCropLabels: (taskId, studentId) =>
+    api.get(`/tasks/${taskId}/submissions/${studentId}/labels`),
+
+  getSolvedCropLabelsForAssignment: (assignmentId, studentId) =>
+    api.get(`/assignments/${assignmentId}/submissions/${studentId}/labels`),
+
   getMyResultsForAssignment: (assignmentId, studentId) =>
     api.get(`/assignments/${assignmentId}/my-results/${studentId}`),
 };

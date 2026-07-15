@@ -1,5 +1,6 @@
 package com.cell.platform.infra.submission;
 
+import com.cell.platform.domain.crop.CellType;
 import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.submission.SubmissionRepository;
 import com.cell.platform.entity.CropEntity;
@@ -9,6 +10,7 @@ import com.cell.platform.util.Mapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 @RequiredArgsConstructor
@@ -24,6 +26,18 @@ public class SubmissionCoreRepository implements SubmissionRepository {
         SubmissionEntity entity = Mapper.convertToSubmissionEntity(submission, cropEntity);
         SubmissionEntity saved = submissionJpaRepository.save(entity);
         return Mapper.convertToSubmission(saved);
+    }
+
+    @Override
+    public Optional<Submission> findByCropIdAndStudentId(Long cropId, String studentId) {
+        return submissionJpaRepository.findByCrop_IdAndStudentId(cropId, studentId)
+                .map(Mapper::convertToSubmission);
+    }
+
+    @Override
+    public void updateLabel(Long cropId, String studentId, CellType newLabel) {
+        submissionJpaRepository.findByCrop_IdAndStudentId(cropId, studentId)
+                .ifPresent(entity -> entity.updateLabel(newLabel));
     }
 
     @Override

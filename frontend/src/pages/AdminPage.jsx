@@ -225,6 +225,7 @@ export default function AdminPage() {
   /* ── Tab 3: Analytics ── */
   const [analyticsSubTab, setAnalyticsSubTab] = useState('tasks');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
   const [stats, setStats] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [allCellStats, setAllCellStats] = useState([]);
@@ -254,6 +255,26 @@ export default function AdminPage() {
       return acc;
     }, new Map());
   const selectedAnalyticsTask = tasks.find(task => task.id === selectedTaskId);
+
+  const { assignmentGroups, individualTasks } = useMemo(() => {
+    const assignmentMap = {};
+    const individual = [];
+    tasks.filter(t => !isDiagnosticTask(t)).forEach(task => {
+      if (task.assignmentId) {
+        if (!assignmentMap[task.assignmentId]) {
+          assignmentMap[task.assignmentId] = {
+            id: task.assignmentId,
+            title: task.title || `Assignment #${task.assignmentId}`,
+            tasks: [],
+          };
+        }
+        assignmentMap[task.assignmentId].tasks.push(task);
+      } else {
+        individual.push(task);
+      }
+    });
+    return { assignmentGroups: Object.values(assignmentMap), individualTasks: individual };
+  }, [tasks]);
 
   const fetchStudentMatrices = useCallback(async () => {
     setSelectedStudent(null);
@@ -561,34 +582,106 @@ export default function AdminPage() {
 
           {analyticsSubTab === 'tasks' && (
             <div>
-              <h3 style={sectionHeader}>Select a Task</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '25px' }}>
-                {tasks.map(task => (
-                  (() => {
-                    const diagnostic = isDiagnosticTask(task);
-                    const diagnosticNumber = diagnosticTaskOrder.get(task.id);
-                    return (
-                  <button key={task.id} onClick={() => fetchTaskStats(task.id)} style={{
-                    ...taskBtnStyle,
-                    ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
-                  }}>
-                    {diagnostic ? (
-                      <div style={{ width: '160px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6', fontSize: '12px', color: '#6c757d', fontWeight: '700' }}>
-                        Diagnostic Task
-                      </div>
-                    ) : (
-                      <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
-                    )}
-                    <div style={{ fontWeight: '600', fontSize: '14px' }}>{diagnostic ? `Diagnostic #${diagnosticNumber || task.id}` : `Task #${task.id}`}</div>
-                    <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
-                      {task.uploadedFilename || task.originalFilename}
+              {/* ── 과제 내부 뷰: 선택된 assignment의 도말 목록 ── */}
+              {selectedAssignmentId ? (() => {
+                const group = assignmentGroups.find(g => g.id === selectedAssignmentId);
+                if (!group) return null;
+                return (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <button
+                        onClick={() => { setSelectedAssignmentId(null); setSelectedTaskId(null); setStats([]); }}
+                        style={{ background: 'none', border: '1px solid #ced4da', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '13px', color: '#495057' }}
+                      >← 목록으로</button>
+                      <h3 style={{ ...sectionHeader, margin: 0 }}>{group.title}</h3>
+                      <span style={{ fontSize: '13px', color: '#6c757d' }}>({group.tasks.length}개 도말)</span>
                     </div>
-                  </button>
-                    );
-                  })()
-                ))}
-              </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '25px' }}>
+                      {group.tasks.map((task, idx) => (
+                        <button key={task.id} onClick={() => fetchTaskStats(task.id)} style={{
+                          ...taskBtnStyle,
+                          ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
+                        }}>
+                          <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Smear ${idx + 1}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                          <div style={{ fontWeight: '600', fontSize: '14px' }}>도말 #{idx + 1}</div>
+                          <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
+                            {task.uploadedFilename || task.originalFilename}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })() : (
+                /* ── 과제 목록 뷰 ── */
+                <div>
+                  <h3 style={sectionHeader}>Select a Task</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px' }}>
+                    {/* 과제 그룹 카드 */}
+                    {assignmentGroups.map(group => (
+                      <div key={group.id} style={{ border: '1px solid #dee2e6', borderRadius: '8px', padding: '14px 16px', background: '#fff', display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
+                        onClick={() => setSelectedAssignmentId(group.id)}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                      >
+                        <AuthImage src={imageUrl.thumbnail(group.tasks[0]?.originalFilename)} fallbackSrc={imageUrl.original(group.tasks[0]?.originalFilename)} alt={group.title} style={{ width: '72px', height: '56px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dee2e6', flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', fontSize: '15px', color: '#212529' }}>{group.title}</div>
+                          <div style={{ fontSize: '13px', color: '#6c757d', marginTop: '3px' }}>도말 {group.tasks.length}개</div>
+                        </div>
+                        <span style={{ fontSize: '13px', color: '#adb5bd' }}>▶</span>
+                      </div>
+                    ))}
+
+                    {/* 개별 과제 (assignment 없는 것) */}
+                    {individualTasks.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                        {individualTasks.map(task => (
+                          <button key={task.id} onClick={() => fetchTaskStats(task.id)} style={{
+                            ...taskBtnStyle,
+                            ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
+                          }}>
+                            <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
+                            <div style={{ fontWeight: '600', fontSize: '14px' }}>Task #{task.id}</div>
+                            <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
+                              {task.uploadedFilename || task.originalFilename}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Diagnostic Tasks */}
+                    {tasks.filter(isDiagnosticTask).length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6c757d', fontWeight: '600', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Diagnostic Tasks</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                          {tasks.filter(isDiagnosticTask).map(task => {
+                            const diagnosticNumber = diagnosticTaskOrder.get(task.id);
+                            return (
+                              <button key={task.id} onClick={() => fetchTaskStats(task.id)} style={{
+                                ...taskBtnStyle,
+                                ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
+                              }}>
+                                <div style={{ width: '160px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e9ecef', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6', fontSize: '12px', color: '#6c757d', fontWeight: '700' }}>
+                                  Diagnostic Task
+                                </div>
+                                <div style={{ fontWeight: '600', fontSize: '14px' }}>Diagnostic #{diagnosticNumber || task.id}</div>
+                                <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
+                                  {task.uploadedFilename || task.originalFilename}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {selectedTaskId && stats.length > 0 && selectedAnalyticsTask && !isDiagnosticTask(selectedAnalyticsTask) && (
                 <div style={labelingToolsStyle}>

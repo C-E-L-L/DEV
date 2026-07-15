@@ -157,31 +157,69 @@ export default function StudentPage() {
   }, [navigate]);
 
   const handleSelectTask = async (task) => {
-    setSelectedTask(task);
-    setSelectedAssignment(null);
-    setCurrentCropIndex(0);
-    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
-    setSolvedLabels({});
     setShowResult(false);
     setResultData(null);
-    const cropsRes = await cropApi.getByTaskId(task.id);
-    setCrops(cropsRes.data);
-    const solvedRes = await submissionApi.getSolvedCrops(task.id, username);
-    setSolvedCrops(new Set(solvedRes.data));
+    setCrops([]);
+    setSolvedLabels({});
+    setSolvedCrops(new Set());
+    setCurrentCropIndex(0);
+    setSelectedAssignment(null);
+    setSelectedTask(task);
+    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    try {
+      const [cropsRes, labelsRes] = await Promise.all([
+        cropApi.getByTaskId(task.id),
+        submissionApi.getSolvedCropLabels(task.id, username),
+      ]);
+      const cropsData = cropsRes.data;
+      const labels = labelsRes.data;
+      const solvedSet = new Set(Object.keys(labels).map(Number));
+      setCrops(cropsData);
+      setSolvedLabels(labels);
+      setSolvedCrops(solvedSet);
+      const firstUnsolved = cropsData.findIndex(c => !labels[c.id]);
+      setCurrentCropIndex(firstUnsolved !== -1 ? firstUnsolved : Math.max(0, cropsData.length - 1));
+      const allSolved = cropsData.length > 0 && cropsData.every(c => labels[c.id]);
+      if (isDiagnosticTask(task) && allSolved) {
+        const statsRes = await submissionApi.getMyResults(task.id, username);
+        setResultData(statsRes.data);
+        setShowResult(true);
+      }
+    } catch (e) {
+      console.error('과제 로드 실패:', e);
+      setSelectedTask(null);
+      alert('과제를 불러오는데 실패했습니다.');
+    }
   };
 
   const handleSelectAssignment = async (assignment) => {
-    setSelectedAssignment(assignment);
-    setSelectedTask({ id: null, assignmentId: assignment.id, title: assignment.title });
-    setCurrentCropIndex(0);
-    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
-    setSolvedLabels({});
     setShowResult(false);
     setResultData(null);
-    const cropsRes = await cropApi.getByAssignmentId(assignment.id);
-    setCrops(cropsRes.data);
-    const solvedRes = await submissionApi.getSolvedCropsForAssignment(assignment.id, username);
-    setSolvedCrops(new Set(solvedRes.data));
+    setCrops([]);
+    setSolvedLabels({});
+    setSolvedCrops(new Set());
+    setCurrentCropIndex(0);
+    setSelectedAssignment(assignment);
+    setSelectedTask({ id: null, assignmentId: assignment.id, title: assignment.title });
+    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    try {
+      const [cropsRes, labelsRes] = await Promise.all([
+        cropApi.getByAssignmentId(assignment.id),
+        submissionApi.getSolvedCropLabelsForAssignment(assignment.id, username),
+      ]);
+      const cropsData = cropsRes.data;
+      const labels = labelsRes.data;
+      setCrops(cropsData);
+      setSolvedLabels(labels);
+      setSolvedCrops(new Set(Object.keys(labels).map(Number)));
+      const firstUnsolved = cropsData.findIndex(c => !labels[c.id]);
+      setCurrentCropIndex(firstUnsolved !== -1 ? firstUnsolved : Math.max(0, cropsData.length - 1));
+    } catch (e) {
+      console.error('과제 로드 실패:', e);
+      setSelectedAssignment(null);
+      setSelectedTask(null);
+      alert('과제를 불러오는데 실패했습니다.');
+    }
   };
 
   const handleImageLoad = (e) => {
@@ -203,12 +241,15 @@ export default function StudentPage() {
   const handleStudentSubmit = async (label) => {
     const currentCrop = crops[currentCropIndex];
     if (!currentCrop) return;
+    const wasAlreadySolved = solvedCrops.has(currentCrop.id);
     try {
       await submissionApi.submit(currentCrop.id, username, label);
       setSolvedCrops(prev => new Set(prev).add(currentCrop.id));
       setSolvedLabels(prev => ({ ...prev, [currentCrop.id]: label }));
-      const nextIdx = crops.findIndex((c, i) => i > currentCropIndex && !solvedCrops.has(c.id) && c.id !== currentCrop.id);
-      if (nextIdx !== -1) setCurrentCropIndex(nextIdx);
+      if (!wasAlreadySolved) {
+        const nextIdx = crops.findIndex((c, i) => i > currentCropIndex && !solvedCrops.has(c.id) && c.id !== currentCrop.id);
+        if (nextIdx !== -1) setCurrentCropIndex(nextIdx);
+      }
     } catch { alert("제출에 실패했습니다."); }
   };
 
@@ -240,7 +281,7 @@ export default function StudentPage() {
     }
 
     reportApi.create({
-      taskId: selectedTask.id,
+      taskId: currentCrop.taskId,
       cropId: currentCrop.id,
       studentId: username,
       reason,
@@ -421,34 +462,6 @@ export default function StudentPage() {
               </div>
             </div>
           )}
-          {isDiagnosticMode && resultData.confusionMatrix && resultData.labels?.length > 0 && (
-            <div style={{ marginTop: '30px' }}>
-              <h3 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>학생 혼동행렬 (GT x 예측)</h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px', background: '#fff' }}>
-                  <thead>
-                    <tr>
-                      <th style={cmHeadStyle}>GT \ Pred</th>
-                      {resultData.labels.map((label) => (
-                        <th key={label} style={cmHeadStyle}>{label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resultData.labels.map((actual) => (
-                      <tr key={actual}>
-                        <td style={cmRowHeaderStyle}>{actual}</td>
-                        {resultData.labels.map((pred) => {
-                          const value = resultData.confusionMatrix?.[actual]?.[pred] ?? 0;
-                          return <td key={`${actual}_${pred}`} style={cmCellStyle}>{value}</td>;
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
           <button onClick={() => { setSelectedTask(null); setShowResult(false); }} style={{ display: 'block', width: '300px', margin: '30px auto 0', padding: '15px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>
             목록으로 돌아가기
           </button>
@@ -578,15 +591,19 @@ export default function StudentPage() {
                 </div>
                 <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: '600' }}>👆 클래스를 선택하세요</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                  {CELL_TYPES.map((cls) => (
-                    <button key={cls.key} onClick={() => handleStudentSubmit(cls.key)} disabled={solvedCrops.has(currentCrop.id)} style={{
-                      padding: '12px 8px', background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '6px', fontSize: '13px',
-                      fontWeight: '600', cursor: solvedCrops.has(currentCrop.id) ? 'not-allowed' : 'pointer',
-                      opacity: solvedCrops.has(currentCrop.id) ? 0.5 : 1,
-                    }}>
-                      {cls.label}
-                    </button>
-                  ))}
+                  {CELL_TYPES.map((cls) => {
+                    const isSelected = solvedLabels[currentCrop.id] === cls.key;
+                    return (
+                      <button key={cls.key} onClick={() => handleStudentSubmit(cls.key)} style={{
+                        padding: '12px 8px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                        background: isSelected ? '#0d6efd' : '#f8f9fa',
+                        color: isSelected ? '#fff' : 'inherit',
+                        border: isSelected ? '2px solid #0d6efd' : '1px solid #dee2e6',
+                      }}>
+                        {cls.label}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div style={{ marginTop: '12px' }}>
                   <button onClick={() => setShowReportForm(true)} style={reportBtnStyle}>

@@ -12,19 +12,30 @@ import com.cell.platform.exception.ErrorCode;
 import com.cell.platform.exception.NotFoundException;
 import com.cell.platform.infra.crop.CropCoreRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CropService {
 
     private final CropRepository cropRepository;
     private final CropCoreRepository cropCoreRepository;
     private final TaskRepository taskRepository;
+    private final SubmissionService submissionService;
+
+    public CropService(CropRepository cropRepository,
+                       CropCoreRepository cropCoreRepository,
+                       TaskRepository taskRepository,
+                       @Lazy SubmissionService submissionService) {
+        this.cropRepository = cropRepository;
+        this.cropCoreRepository = cropCoreRepository;
+        this.taskRepository = taskRepository;
+        this.submissionService = submissionService;
+    }
 
     public List<CropResponse> getCropsByTaskId(Long taskId) {
         return cropRepository.findAllByTaskId(taskId).stream()
@@ -48,13 +59,16 @@ public class CropService {
 
     @Transactional
     public void confirmLabel(Long cropId, String finalLabel) {
-        CellType cellType = parseCellType(finalLabel);
-        // Entity를 직접 조회하여 JPA dirty checking으로 업데이트
+        CellType newCellType = parseCellType(finalLabel);
         CropEntity entity = cropCoreRepository.findEntityById(cropId);
         if (entity == null) {
             throw new NotFoundException("크롭(Crop)을 찾을 수 없습니다. cropId=" + cropId, ErrorCode.C000);
         }
-        entity.updateFinalLabel(cellType);
+        CellType oldFinalLabel = entity.getFinalLabel();
+        Long taskId = entity.getTaskId();
+        entity.updateFinalLabel(newCellType);
+        // 이미 제출된 학생들의 혼동행렬 소급 업데이트
+        submissionService.backfillConfusionMatrixForCrop(cropId, taskId, oldFinalLabel, newCellType);
     }
 
     public Crop findCropById(Long id) {

@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -33,6 +34,26 @@ public class SubmissionController {
             @AuthenticationPrincipal String username,
             Authentication authentication) {
         return ResponseEntity.ok(submissionService.getSolvedCropIds(taskId,
+                resolveStudentId(studentId, username, authentication)));
+    }
+
+    @GetMapping("/tasks/{taskId}/submissions/{studentId}/labels")
+    public ResponseEntity<Map<Long, String>> getSolvedCropLabels(
+            @PathVariable Long taskId,
+            @PathVariable String studentId,
+            @AuthenticationPrincipal String username,
+            Authentication authentication) {
+        return ResponseEntity.ok(submissionService.getSolvedCropLabels(taskId,
+                resolveStudentId(studentId, username, authentication)));
+    }
+
+    @GetMapping("/assignments/{assignmentId}/submissions/{studentId}/labels")
+    public ResponseEntity<Map<Long, String>> getSolvedCropLabelsForAssignment(
+            @PathVariable Long assignmentId,
+            @PathVariable String studentId,
+            @AuthenticationPrincipal String username,
+            Authentication authentication) {
+        return ResponseEntity.ok(submissionService.getSolvedCropLabelsForAssignment(assignmentId,
                 resolveStudentId(studentId, username, authentication)));
     }
 

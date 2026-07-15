@@ -6,8 +6,11 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
+import java.util.Optional;
 
 public interface SubmissionJpaRepository extends JpaRepository<SubmissionEntity, Long> {
+
+    Optional<SubmissionEntity> findByCrop_IdAndStudentId(Long cropId, String studentId);
 
     List<SubmissionEntity> findAllByCrop_Id(Long cropId);
 

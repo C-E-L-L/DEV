@@ -7,12 +7,12 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('student');
+  const role = 'student';
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const { login } = useAuth();
 
-  const isStudentSignup = !isLoginMode && role === 'student';
+  const isStudentSignup = !isLoginMode;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,12 +59,9 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {!isLoginMode && (
-            <div>
-              <label style={labelStyle}>가입 유형 (Role)</label>
-              <select value={role} onChange={(e) => setRole(e.target.value)} style={inputStyle}>
-                <option value="student">학생 (Student)</option>
-                <option value="expert">교수/전문가 (Expert)</option>
-              </select>
+            <div style={{ background: '#e7f3ff', border: '1px solid #b6d4fe', borderRadius: '4px', padding: '10px 12px', fontSize: '13px', color: '#0056b3', textAlign: 'left' }}>
+              학생 계정 전용 회원가입입니다.<br />
+              교수/전문가 계정은 <strong>관리자에게 문의</strong>하세요.
             </div>
           )}
 
