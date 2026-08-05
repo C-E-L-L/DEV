@@ -228,6 +228,7 @@ export default function AdminPage() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
   const [stats, setStats] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState(null);
+  const [editingGt, setEditingGt] = useState(false);
   const [allCellStats, setAllCellStats] = useState([]);
   const [reportItems, setReportItems] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
@@ -378,10 +379,17 @@ export default function AdminPage() {
     }
   };
 
+  /* ── 다른 셀로 옮기면 GT 수정 모드는 닫는다 ── */
+  useEffect(() => { setEditingGt(false); }, [selectedCrop?.cropId]);
+
   const handleConfirmLabel = async (cropId, finalLabel) => {
     try {
       await cropApi.confirm(cropId, finalLabel);
-      fetchTaskStats(selectedTaskId);
+      setEditingGt(false);
+      /* 확정/수정 후에도 같은 셀을 계속 보고 있도록 선택을 유지한다 */
+      const { data } = await statsApi.getByTaskId(selectedTaskId);
+      setStats(data);
+      setSelectedCrop(data.find(c => c.cropId === cropId) || null);
     } catch { alert('Confirmation failed.'); }
   };
 
@@ -780,18 +788,29 @@ export default function AdminPage() {
                           <div style={{ fontSize: '14px', fontWeight: '600', color: '#856404', marginBottom: '10px' }}>
                             🎯 Set Ground Truth
                           </div>
-                          {selectedCrop.finalLabel ? (
-                            <div style={{ color: '#155724', background: '#d4edda', padding: '10px', borderRadius: '6px' }}>
-                              ✅ Confirmed: <strong>{selectedCrop.finalLabel}</strong>
+                          {selectedCrop.finalLabel && !editingGt ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ flex: 1, color: '#155724', background: '#d4edda', padding: '10px', borderRadius: '6px' }}>
+                                ✅ Confirmed: <strong>{selectedCrop.finalLabel}</strong>
+                              </div>
+                              <button onClick={() => setEditingGt(true)} style={editGtBtn}>수정</button>
                             </div>
                           ) : (
                             <div style={{ display: 'flex', gap: '10px' }}>
-                              <select id={`gt_${selectedCrop.cropId}`} defaultValue={selectedCrop.gtLabel || CELL_KEYS[0]} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ced4da' }}>
+                              <select id={`gt_${selectedCrop.cropId}`} defaultValue={selectedCrop.finalLabel || selectedCrop.gtLabel || CELL_KEYS[0]} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ced4da' }}>
                                 {CELL_KEYS.map(label => <option key={label} value={label}>{label}</option>)}
                               </select>
                               <button onClick={() => handleConfirmLabel(selectedCrop.cropId, document.getElementById(`gt_${selectedCrop.cropId}`).value)} style={confirmBtn}>
-                                Confirm
+                                {selectedCrop.finalLabel ? '저장' : 'Confirm'}
                               </button>
+                              {selectedCrop.finalLabel && (
+                                <button onClick={() => setEditingGt(false)} style={cancelGtBtn}>취소</button>
+                              )}
+                            </div>
+                          )}
+                          {selectedCrop.finalLabel && editingGt && (
+                            <div style={{ marginTop: '10px', fontSize: '12px', color: '#856404' }}>
+                              정답을 바꾸면 이미 제출한 학생들의 채점 결과와 혼동행렬도 함께 갱신됩니다.
                             </div>
                           )}
                         </div>
@@ -1218,6 +1237,8 @@ const taskBtnStyle = { padding: '12px 18px', background: '#fff', border: '2px so
 const cellPanelStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' };
 const infoBadge = { background: '#e7f3ff', padding: '12px 15px', borderRadius: '8px', fontSize: '14px' };
 const confirmBtn = { background: '#495057', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' };
+const editGtBtn = { background: '#fff', color: '#856404', padding: '8px 16px', border: '1px solid #ffc107', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', flexShrink: 0 };
+const cancelGtBtn = { background: '#fff', color: '#6c757d', padding: '8px 14px', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', flexShrink: 0 };
 const labelingToolsStyle = { marginBottom: '18px', padding: '14px 16px', border: '1px solid #b6d4fe', borderRadius: '8px', background: '#eef6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' };
 const labelingActionStyle = { display: 'inline-flex', alignItems: 'center', padding: '9px 13px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' };
 
