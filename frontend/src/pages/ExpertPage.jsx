@@ -128,7 +128,16 @@ export default function ExpertPage() {
 
   const [selectedResultTaskIndex, setSelectedResultTaskIndex] = useState(0);
 
+  /* 다른 탭에 갔다 오면 이전 분석 결과는 지우고 초기 화면으로 되돌린다 */
   useEffect(() => {
+    if (activeTab === 1) return;
+    setUploadResult(null);
+    setSelectedResultTaskIndex(0);
+    setFormErrors({ title: false, files: false });
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 1) return;
     if (!uploadResult || !resultCanvasRef.current) return;
     const tasks = uploadResult.tasks || [];
     if (tasks.length === 0) return;
@@ -177,7 +186,7 @@ export default function ExpertPage() {
       .catch(() => {});
 
     return () => { cancelled = true; };
-  }, [uploadResult, selectedResultTaskIndex]);
+  }, [activeTab, uploadResult, selectedResultTaskIndex]);
 
   const UPLOAD_STEPS = [
     { icon: '📤', label: '이미지 서버에 전송 중...' },
