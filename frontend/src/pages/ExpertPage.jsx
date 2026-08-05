@@ -121,7 +121,10 @@ export default function ExpertPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStep, setUploadStep] = useState(0);
   const [uploadingImageIndex, setUploadingImageIndex] = useState(0);
+  const [formErrors, setFormErrors] = useState({ title: false, files: false });
   const fileInputRef = useRef(null);
+  const titleInputRef = useRef(null);
+  const dropZoneRef = useRef(null);
 
   const [selectedResultTaskIndex, setSelectedResultTaskIndex] = useState(0);
 
@@ -454,6 +457,7 @@ export default function ExpertPage() {
       setFiles(prev => [...prev, ...newFiles]);
       setPreviews(prev => [...prev, ...newFiles.map(f => URL.createObjectURL(f))]);
       setUploadResult(null);
+      setFormErrors(prev => ({ ...prev, files: false }));
     }
   };
   const handleRemoveFile = (idx) => {
@@ -469,11 +473,20 @@ export default function ExpertPage() {
       setFiles(prev => [...prev, ...dropped]);
       setPreviews(prev => [...prev, ...dropped.map(f => URL.createObjectURL(f))]);
       setUploadResult(null);
+      setFormErrors(prev => ({ ...prev, files: false }));
     }
   };
   const handleUpload = async () => {
-    if (!assignmentTitle.trim()) return alert('과제 이름을 입력하세요.');
-    if (files.length === 0) return alert('도말 이미지를 최소 1장 선택하세요.');
+    /* 필수 항목 검증 — 버튼을 막는 대신 어디를 채워야 하는지 표시한다 */
+    const nextErrors = { title: !assignmentTitle.trim(), files: files.length === 0 };
+    if (nextErrors.title || nextErrors.files) {
+      setFormErrors(nextErrors);
+      const target = nextErrors.title ? titleInputRef.current : dropZoneRef.current;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (nextErrors.title) titleInputRef.current?.focus();
+      return;
+    }
+    setFormErrors({ title: false, files: false });
     setUploading(true);
     setUploadingImageIndex(0);
     try {
@@ -550,18 +563,36 @@ export default function ExpertPage() {
               과제 이름 *
             </label>
             <input
+              ref={titleInputRef}
               value={assignmentTitle}
-              onChange={e => setAssignmentTitle(e.target.value)}
+              onChange={e => {
+                setAssignmentTitle(e.target.value);
+                if (e.target.value.trim()) setFormErrors(prev => ({ ...prev, title: false }));
+              }}
               placeholder="예: Week 3 혈액도말 분류 과제"
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '15px', boxSizing: 'border-box' }}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: '6px', fontSize: '15px', boxSizing: 'border-box',
+                border: `1px solid ${formErrors.title ? '#dc3545' : '#ced4da'}`,
+                background: formErrors.title ? '#fff5f5' : '#fff',
+                outline: 'none',
+                boxShadow: formErrors.title ? '0 0 0 3px rgba(220,53,69,0.15)' : 'none',
+              }}
             />
+            {formErrors.title && (
+              <div style={fieldErrorStyle}>⚠️ 과제 이름을 입력해 주세요.</div>
+            )}
           </div>
 
           {/* 드래그 앤 드롭 — 다중 파일 */}
           <div
+            ref={dropZoneRef}
             onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            style={{ ...dropZoneStyle, borderColor: isDragging ? '#0056b3' : '#ced4da', background: isDragging ? '#e7f3ff' : '#fff' }}
+            style={{
+              ...dropZoneStyle,
+              borderColor: isDragging ? '#0056b3' : formErrors.files ? '#dc3545' : '#ced4da',
+              background: isDragging ? '#e7f3ff' : formErrors.files ? '#fff5f5' : '#fff',
+            }}
           >
             <input type="file" ref={fileInputRef} accept="image/*" multiple onChange={handleFileChange} style={{ display: 'none' }} />
             <div style={{ textAlign: 'center' }}>
@@ -570,6 +601,9 @@ export default function ExpertPage() {
               <div style={{ fontSize: '14px', color: '#6c757d' }}>or click to browse</div>
             </div>
           </div>
+          {formErrors.files && (
+            <div style={fieldErrorStyle}>⚠️ 도말 이미지를 최소 1장 선택해 주세요.</div>
+          )}
 
           {/* 선택된 파일 목록 */}
           {previews.length > 0 && (
@@ -595,9 +629,15 @@ export default function ExpertPage() {
           )}
 
           <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button onClick={handleUpload} disabled={uploading || files.length === 0 || !assignmentTitle.trim()} style={files.length > 0 && assignmentTitle.trim() && !uploading ? btnActive : btnDisabled}>
+            <button onClick={handleUpload} disabled={uploading} style={uploading ? btnDisabled : btnActive}>
               {uploading ? `분석 중 (${uploadingImageIndex}/${files.length})...` : `🔬 Analyze & Create Assignment (${files.length}장)`}
             </button>
+            {!uploading && (!assignmentTitle.trim() || files.length === 0) && (
+              <span style={{ fontSize: '13px', color: formErrors.title || formErrors.files ? '#dc3545' : '#6c757d' }}>
+                {[!assignmentTitle.trim() && '과제 이름', files.length === 0 && '도말 이미지'].filter(Boolean).join(', ')}
+                {' '}입력이 필요합니다
+              </span>
+            )}
           </div>
 
           {uploading && (
@@ -1333,6 +1373,7 @@ const boxStyle = { background: '#f8f9fa', border: '1px solid #dee2e6', padding: 
 const successBox = { background: '#d4edda', color: '#155724', padding: '10px', marginTop: '15px', border: '1px solid #c3e6cb', fontSize: '14px' };
 const btnActive = { padding: '8px 16px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' };
 const btnDisabled = { padding: '8px 16px', background: '#adb5bd', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'not-allowed', fontWeight: '600' };
+const fieldErrorStyle = { marginTop: '6px', fontSize: '13px', color: '#dc3545', fontWeight: '500' };
 
 const subTabBar = { display: 'flex', gap: '10px', marginBottom: '25px', borderBottom: '2px solid #dee2e6', paddingBottom: '15px' };
 const subTabActive = { padding: '10px 20px', background: '#495057', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '14px' };
