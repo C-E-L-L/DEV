@@ -700,7 +700,7 @@ export default function ExpertPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <button
-                          onClick={() => { setSelectedAssignmentId(null); setSelectedTaskId(null); setStats([]); }}
+                          onClick={() => { setSelectedAssignmentId(null); setSelectedTaskId(null); setStats([]); setSelectedCrop(null); }}
                           style={{ background: 'none', border: '1px solid #ced4da', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '13px', color: '#495057', display: 'flex', alignItems: 'center', gap: '4px' }}
                         >← 목록으로</button>
                         <h3 style={{ ...sectionHeader, margin: 0 }}>{group.title}</h3>
@@ -738,7 +738,7 @@ export default function ExpertPage() {
                     {/* 과제 그룹 카드 */}
                     {assignmentGroups.map(group => (
                       <div key={group.id} style={{ border: '1px solid #dee2e6', borderRadius: '8px', padding: '14px 16px', background: '#fff', display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', transition: 'box-shadow 0.15s' }}
-                        onClick={() => setSelectedAssignmentId(group.id)}
+                        onClick={() => { setSelectedAssignmentId(group.id); setSelectedTaskId(null); setStats([]); setSelectedCrop(null); }}
                         onMouseEnter={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
                         onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
                       >
@@ -847,7 +847,7 @@ export default function ExpertPage() {
               )}
 
               {/* ── 이미지/셀목록 + 셀 패널 ── */}
-              {selectedTaskId && stats.length > 0 && (
+              {selectedTaskId && stats.length > 0 && selectedAnalyticsTask && (
                 <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
                   {isDiagnosticTask(selectedAnalyticsTask) ? (
                     /* 진단평가: 셀 목록 */
