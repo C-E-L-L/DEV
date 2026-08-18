@@ -276,6 +276,12 @@ export default function ExpertPage() {
   );
   const displaySmearFilename = (item) =>
     taskFilenameById.get(item.taskId) || item.originalSmearFilename || '-';
+  const selectedCropIndex = stats.findIndex(crop => crop.cropId === selectedCrop?.cropId);
+
+  const selectCropAt = (index) => {
+    if (index < 0 || index >= stats.length) return;
+    setSelectedCrop(stats[index]);
+  };
 
   const fetchStudentMatrices = useCallback(async () => {
     setSelectedStudent(null);
@@ -328,11 +334,12 @@ export default function ExpertPage() {
   }, [activeTab]);
 
   /* ── Task 선택 → stats + 원본 이미지 로드 ── */
-  const fetchTaskStats = useCallback(async (taskId) => {
+  const fetchTaskStats = useCallback(async (taskId, preferredCropId = null) => {
     setSelectedTaskId(taskId);
     setSelectedCrop(null);
     const { data } = await statsApi.getByTaskId(taskId);
     setStats(data);
+    setSelectedCrop(data.find(crop => crop.cropId === preferredCropId) || data[0] || null);
 
     const task = tasks.find(t => t.id === taskId) || (await taskApi.getAll()).data.find(t => t.id === taskId);
     if (task?.originalFilename) {
@@ -967,16 +974,79 @@ export default function ExpertPage() {
                   </div>
                   )}
 
-                  {/* 오른쪽: Cell Classification Panel */}
-                  <div style={{ flex: 1, minWidth: '350px' }}>
+                  {/* 오른쪽: 감지된 세포 목록 + Cell Classification Panel */}
+                  <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    {!isDiagnosticTask(selectedAnalyticsTask) && (
+                      <div style={{ border: '1px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+                        <div style={professorPanelHeader}>🔍 감지된 세포 목록</div>
+                        <div style={{ maxHeight: '280px', overflowY: 'auto', padding: '8px' }}>
+                          {stats.map((crop, index) => {
+                            const isSelected = crop.cropId === selectedCrop?.cropId;
+                            const hasGroundTruth = Boolean(crop.finalLabel);
+                            return (
+                              <button
+                                type="button"
+                                key={crop.cropId}
+                                onClick={() => setSelectedCrop(crop)}
+                                style={{
+                                  width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                                  padding: '8px', marginBottom: '6px', textAlign: 'left', cursor: 'pointer',
+                                  border: isSelected ? '2px solid #495057' : '1px solid #e9ecef',
+                                  borderRadius: '6px', background: isSelected ? '#f0f4f8' : '#fff',
+                                }}
+                              >
+                                <AuthImage
+                                  src={imageUrl.crop(crop.filename)}
+                                  alt={`Cell ${index + 1}`}
+                                  style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #dee2e6', background: '#f8f9fa', flexShrink: 0 }}
+                                />
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#343a40' }}>Cell #{index + 1}</div>
+                                  <div style={{ marginTop: '3px', fontSize: '11px', color: '#6c757d' }}>{crop.totalAnswers}개 학생 응답</div>
+                                </div>
+                                <div style={{
+                                  flexShrink: 0, padding: '4px 7px', borderRadius: '999px', fontSize: '11px', fontWeight: '700',
+                                  color: hasGroundTruth ? '#155724' : '#6c757d',
+                                  background: hasGroundTruth ? '#d4edda' : '#e9ecef',
+                                }}>
+                                  {hasGroundTruth ? `GT: ${crop.finalLabel}` : 'GT 미설정'}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
                     <h3 style={sectionHeader}>Cell Classification Panel</h3>
                     {selectedCrop ? (
                       <div style={cellPanelStyle}>
                         {/* 셀 이미지 */}
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                          <AuthImage src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '18px' }}>
+                            <button
+                              type="button"
+                              aria-label="이전 세포"
+                              onClick={() => selectCropAt(selectedCropIndex - 1)}
+                              disabled={selectedCropIndex <= 0}
+                              style={{ ...professorCellNavBtn, opacity: selectedCropIndex <= 0 ? 0.3 : 1, cursor: selectedCropIndex <= 0 ? 'not-allowed' : 'pointer' }}
+                            >
+                              ◀
+                            </button>
+                            <AuthImage src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
+                            <button
+                              type="button"
+                              aria-label="다음 세포"
+                              onClick={() => selectCropAt(selectedCropIndex + 1)}
+                              disabled={selectedCropIndex < 0 || selectedCropIndex >= stats.length - 1}
+                              style={{ ...professorCellNavBtn, opacity: selectedCropIndex < 0 || selectedCropIndex >= stats.length - 1 ? 0.3 : 1, cursor: selectedCropIndex < 0 || selectedCropIndex >= stats.length - 1 ? 'not-allowed' : 'pointer' }}
+                            >
+                              ▶
+                            </button>
+                          </div>
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
-                            Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
+                            Cell #{selectedCropIndex + 1} / {stats.length}
                           </div>
                           {displaySmearFilename(selectedCrop) !== '-' && (
                             <div style={{ marginTop: '6px', fontSize: '12px', color: '#6c757d', wordBreak: 'break-all' }}>
@@ -985,13 +1055,13 @@ export default function ExpertPage() {
                           )}
                         </div>
 
-                        {/* AI 예측 */}
-                        {selectedCrop.gtLabel && (
-                          <div style={infoBadge}>
-                            <span style={{ color: '#6c757d' }}>정답(GT):</span>
-                            <span style={{ fontWeight: '700', color: '#0056b3', marginLeft: '10px', fontSize: '16px' }}>{selectedCrop.gtLabel}</span>
-                          </div>
-                        )}
+                        {/* 교수 GT 설정 상태 */}
+                        <div style={{ ...infoBadge, background: selectedCrop.finalLabel ? '#d4edda' : '#e9ecef' }}>
+                          <span style={{ color: selectedCrop.finalLabel ? '#155724' : '#6c757d', fontWeight: '600' }}>GT 상태:</span>
+                          <span style={{ fontWeight: '700', color: selectedCrop.finalLabel ? '#155724' : '#6c757d', marginLeft: '10px', fontSize: '16px' }}>
+                            {selectedCrop.finalLabel ? `설정됨 · ${selectedCrop.finalLabel}` : '미설정'}
+                          </span>
+                        </div>
 
                         {/* 투표 분포 */}
                         <div style={{ marginTop: '20px' }}>
@@ -1051,6 +1121,7 @@ export default function ExpertPage() {
                         </div>
                       </div>
                     )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1078,8 +1149,7 @@ export default function ExpertPage() {
                     }} onClick={() => {
                       // Tasks 탭으로 전환 + 해당 Task의 해당 셀 선택
                       setAnalyticsSubTab('tasks');
-                      fetchTaskStats(item.taskId || selectedTaskId);
-                      setSelectedCrop(item);
+                      fetchTaskStats(item.taskId || selectedTaskId, item.cropId);
                     }}>
                       <div style={{ display: 'flex', gap: '12px' }}>
                         <AuthImage src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
@@ -1415,6 +1485,8 @@ const infoBadge = { background: '#e7f3ff', padding: '12px 15px', borderRadius: '
 const confirmBtn = { background: '#495057', color: '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' };
 const editGtBtn = { background: '#fff', color: '#856404', padding: '8px 16px', border: '1px solid #ffc107', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', flexShrink: 0 };
 const cancelGtBtn = { background: '#fff', color: '#6c757d', padding: '8px 14px', border: '1px solid #ced4da', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', flexShrink: 0 };
+const professorPanelHeader = { background: '#495057', color: '#fff', padding: '12px 16px', fontSize: '15px', fontWeight: '600' };
+const professorCellNavBtn = { width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
 const labelingToolsStyle = { marginBottom: '18px', padding: '14px 16px', border: '1px solid #b6d4fe', borderRadius: '8px', background: '#eef6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' };
 const labelingActionStyle = { display: 'inline-flex', alignItems: 'center', padding: '9px 13px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' };
 
