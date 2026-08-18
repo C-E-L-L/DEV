@@ -3,10 +3,17 @@ import { useAuth } from '../context/AuthContext';
 import { authApi } from '../api';
 
 export default function LoginPage() {
+  const isMockMode = import.meta.env.MODE === 'mock';
+  const mockAccounts = {
+    EXPERT: { username: 'professor', label: '교수' },
+    STUDENT: { username: 'student', label: '학생' },
+    ADMIN: { username: 'admin', label: '관리자' },
+  };
   const [isLoginMode, setIsLoginMode] = useState(true);
-  const [username, setUsername] = useState('');
+  const [mockRole, setMockRole] = useState('EXPERT');
+  const [username, setUsername] = useState(isMockMode ? 'professor' : '');
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(isMockMode ? 'local' : '');
   const role = 'student';
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -54,10 +61,35 @@ export default function LoginPage() {
           {isLoginMode ? '계정으로 로그인하세요' : '새 계정을 생성하세요'}
         </p>
 
+        {isMockMode && (
+          <div style={{ background: '#e7f3ff', border: '1px solid #b6d4fe', borderRadius: '6px', padding: '10px 12px', marginBottom: '15px', fontSize: '13px', color: '#0056b3' }}>
+            로컬 테스트 모드입니다. 역할을 선택하고 로그인하세요.
+          </div>
+        )}
+
         {error && <div style={errorStyle}>{error}</div>}
         {success && <div style={successStyle}>{success}</div>}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {isMockMode && isLoginMode && (
+            <div>
+              <label style={labelStyle}>테스트할 계정</label>
+              <select
+                value={mockRole}
+                onChange={(e) => {
+                  const nextRole = e.target.value;
+                  setMockRole(nextRole);
+                  setUsername(mockAccounts[nextRole].username);
+                  setPassword('local');
+                }}
+                style={inputStyle}
+              >
+                {Object.entries(mockAccounts).map(([value, account]) => (
+                  <option key={value} value={value}>{account.label} 계정</option>
+                ))}
+              </select>
+            </div>
+          )}
           {!isLoginMode && (
             <div style={{ background: '#e7f3ff', border: '1px solid #b6d4fe', borderRadius: '4px', padding: '10px 12px', fontSize: '13px', color: '#0056b3', textAlign: 'left' }}>
               학생 계정 전용 회원가입입니다.<br />

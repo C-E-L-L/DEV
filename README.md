@@ -2,6 +2,19 @@
 
 **Hierarchical Human-in-the-Loop (HITL) Labeling Platform for WBC Dataset Construction and Education**
 
+## 가장 간단한 로컬 화면 테스트
+
+백엔드, DB, Docker 없이 프런트엔드 화면만 안전하게 확인할 수 있습니다.
+
+```powershell
+cd frontend
+npm ci
+npm run dev:mock
+```
+
+브라우저에서 `http://localhost:5173`을 열고 교수·학생·관리자 중 테스트할 계정을 선택해 로그인합니다.
+모든 변경 내용은 실행 중인 로컬 메모리에만 저장되며 실제 서버에는 반영되지 않습니다.
+
 ## Architecture
 
 ```
