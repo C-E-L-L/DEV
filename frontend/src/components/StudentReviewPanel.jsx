@@ -52,6 +52,10 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
   const activeSmearIndex = Math.max(0, smearGroups.findIndex(([name]) => name === activeSmearFilename));
   const activeSmearCells = smearGroups[activeSmearIndex]?.[1] || [];
 
+  useEffect(() => {
+    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+  }, [activeSmearFilename]);
+
   const selectSmear = (index) => {
     const target = smearGroups[index]?.[1]?.[0];
     if (target) onSelectIndex(target.index);
@@ -105,6 +109,9 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
                     alt="Blood Smear"
                     onLoad={(event) => setImageSize({ width: event.target.clientWidth, height: event.target.clientHeight, naturalWidth: event.target.naturalWidth, naturalHeight: event.target.naturalHeight })}
                     style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 320px)', height: 'auto', objectFit: 'contain', display: 'block' }}
+                    loadingText="도말 이미지를 불러오는 중..."
+                    errorText="도말 이미지를 불러오지 못했습니다."
+                    placeholderStyle={{ minWidth: '620px', minHeight: '420px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', color: '#6c757d', fontSize: '14px', fontWeight: '600' }}
                   />
                 )}
                 {activeSmearCells.map(({ item, index }) => {
@@ -170,7 +177,14 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
               <div style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
                   <button type="button" disabled={selectedIndex <= 0} onClick={() => onSelectIndex(selectedIndex - 1)} style={{ ...circleButtonStyle, opacity: selectedIndex <= 0 ? 0.35 : 1 }}>◀</button>
-                  <AuthImage src={imageUrl.crop(cell.cropFilename)} alt="selected cell" style={{ width: '180px', height: '180px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }} />
+                  <AuthImage
+                    src={imageUrl.crop(cell.cropFilename)}
+                    alt="selected cell"
+                    style={{ width: '180px', height: '180px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}
+                    loadingText="세포 이미지 로딩 중..."
+                    errorText="세포 이미지를 불러오지 못했습니다."
+                    placeholderStyle={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6c757d', fontSize: '11px', textAlign: 'center', padding: '10px', boxSizing: 'border-box' }}
+                  />
                   <button type="button" disabled={selectedIndex >= review.cells.length - 1} onClick={() => onSelectIndex(selectedIndex + 1)} style={{ ...circleButtonStyle, opacity: selectedIndex >= review.cells.length - 1 ? 0.35 : 1 }}>▶</button>
                 </div>
                 <div style={{ textAlign: 'center', marginBottom: '13px' }}>

@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 
-export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, className, ...props }) {
+export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, className, loadingText, errorText, placeholderStyle, ...props }) {
   const [blobUrl, setBlobUrl] = useState(null);
+  const [loadError, setLoadError] = useState(false);
   const currentBlobUrl = useRef(null);
 
   useEffect(() => {
+    setLoadError(false);
+    if (currentBlobUrl.current) {
+      URL.revokeObjectURL(currentBlobUrl.current);
+      currentBlobUrl.current = null;
+    }
+    setBlobUrl(null);
+
     if (!src) {
-      if (currentBlobUrl.current) {
-        URL.revokeObjectURL(currentBlobUrl.current);
-        currentBlobUrl.current = null;
-      }
-      setBlobUrl(null);
       return;
     }
 
@@ -31,6 +34,7 @@ export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, classN
         .catch(() => {
           if (cancelled) return;
           if (allowFallback && fallbackSrc) load(fallbackSrc, false);
+          else setLoadError(true);
         });
     };
 
@@ -45,6 +49,13 @@ export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, classN
     };
   }, []);
 
-  if (!blobUrl) return <div style={style} className={className} />;
+  if (!blobUrl) {
+    const message = loadError ? (errorText || loadingText) : loadingText;
+    return (
+      <div style={{ ...style, ...placeholderStyle }} className={className}>
+        {message && <span>{message}</span>}
+      </div>
+    );
+  }
   return <img src={blobUrl} alt={alt} style={style} onLoad={onLoad} className={className} {...props} />;
 }
