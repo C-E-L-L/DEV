@@ -41,6 +41,36 @@ function VoteBar({ voteDistribution, totalAnswers }) {
   );
 }
 
+function GtProgressBadge({ progress, completeLabel = '✓ 완료', incompleteLabel = 'GT' }) {
+  const baseStyle = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    padding: '5px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap',
+  };
+
+  if (!progress || progress.status === 'idle' || progress.status === 'loading') {
+    return <span style={{ ...baseStyle, background: '#e9ecef', color: '#6c757d' }}>GT 확인 중...</span>;
+  }
+  if (progress.status === 'error') {
+    return <span style={{ ...baseStyle, background: '#e9ecef', color: '#6c757d' }}>GT 확인 불가</span>;
+  }
+  if (progress.total <= 0) {
+    return <span style={{ ...baseStyle, background: '#e9ecef', color: '#6c757d' }}>세포 없음</span>;
+  }
+
+  const complete = progress.completed === progress.total;
+  return (
+    <span style={{
+      ...baseStyle,
+      background: complete ? '#d4edda' : '#f8d7da',
+      color: complete ? '#155724' : '#842029',
+    }}>
+      {complete
+        ? `${completeLabel} · ${progress.completed}/${progress.total}`
+        : `${incompleteLabel} ${progress.completed}/${progress.total}`}
+    </span>
+  );
+}
+
 const CLASS_COLORS = {
   Segment:     '#4dabf7',
   Band:        '#ff922b',
@@ -213,6 +243,7 @@ export default function ExpertPage() {
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [editingGt, setEditingGt] = useState(false);
   const [allCellStats, setAllCellStats] = useState([]);
+  const [gtProgressStatus, setGtProgressStatus] = useState('idle');
   const [reportItems, setReportItems] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportFilters, setReportFilters] = useState(
@@ -271,17 +302,67 @@ export default function ExpertPage() {
     });
     return { assignmentGroups: Object.values(assignmentMap), individualTasks: individual };
   }, [tasks]);
+  const gtSummaryByTaskId = useMemo(() => {
+    const summary = new Map();
+    allCellStats.forEach((crop) => {
+      const current = summary.get(crop.taskId) || { total: 0, completed: 0 };
+      current.total += 1;
+      if (crop.finalLabel) current.completed += 1;
+      summary.set(crop.taskId, current);
+    });
+    return summary;
+  }, [allCellStats]);
+
+  const getTaskGtProgress = (task) => {
+    const summary = gtSummaryByTaskId.get(task.id);
+    return {
+      status: gtProgressStatus,
+      total: summary?.total ?? Number(task.cropCount || 0),
+      completed: summary?.completed ?? 0,
+    };
+  };
+
+  const getAssignmentGtProgress = (groupTasks) => groupTasks.reduce(
+    (progress, task) => {
+      const taskProgress = getTaskGtProgress(task);
+      return {
+        status: gtProgressStatus,
+        total: progress.total + taskProgress.total,
+        completed: progress.completed + taskProgress.completed,
+      };
+    },
+    { status: gtProgressStatus, total: 0, completed: 0 }
+  );
   const taskFilenameById = new Map(
     tasks.map(task => [task.id, task.uploadedFilename || task.originalFilename])
   );
   const displaySmearFilename = (item) =>
     taskFilenameById.get(item.taskId) || item.originalSmearFilename || '-';
   const selectedCropIndex = stats.findIndex(crop => crop.cropId === selectedCrop?.cropId);
+  const selectedTaskGtProgress = {
+    status: 'ready',
+    total: stats.length,
+    completed: stats.filter(crop => Boolean(crop.finalLabel)).length,
+  };
 
   const selectCropAt = (index) => {
     if (index < 0 || index >= stats.length) return;
     setSelectedCrop(stats[index]);
   };
+
+  const refreshAllCellStats = useCallback(async () => {
+    setGtProgressStatus('loading');
+    try {
+      const { data } = await statsApi.getAll();
+      setAllCellStats(data || []);
+      setGtProgressStatus('ready');
+      return data;
+    } catch (error) {
+      console.error('GT 진행 상태 조회 실패:', error);
+      setGtProgressStatus('error');
+      return null;
+    }
+  }, []);
 
   const fetchStudentMatrices = useCallback(async () => {
     setSelectedStudent(null);
@@ -302,8 +383,8 @@ export default function ExpertPage() {
   useEffect(() => {
     if (activeTab !== 2) return;
     taskApi.getAll().then(({ data }) => setTasks(data)).catch(console.error);
-    statsApi.getAll().then(({ data }) => setAllCellStats(data)).catch(console.error);
-  }, [activeTab]);
+    refreshAllCellStats();
+  }, [activeTab, refreshAllCellStats]);
 
   useEffect(() => {
     if (activeTab !== 2 || analyticsSubTab !== 'students') return;
@@ -443,6 +524,7 @@ export default function ExpertPage() {
       const { data } = await statsApi.getByTaskId(selectedTaskId);
       setStats(data);
       setSelectedCrop(data.find(c => c.cropId === cropId) || null);
+      await refreshAllCellStats();
     } catch { alert("Confirmation failed."); }
   };
 
@@ -466,8 +548,7 @@ export default function ExpertPage() {
       const manifest = JSON.parse(await file.text());
       const { data } = await labelingApi.importTask(taskId, manifest);
       await fetchTaskStats(taskId);
-      const allStats = await statsApi.getAll();
-      setAllCellStats(allStats.data);
+      await refreshAllCellStats();
       alert(`${data.updated}개 세포의 GT 라벨을 반영했습니다.`);
     } catch {
       alert('annotations.json 형식 또는 라벨 값을 확인해 주세요.');
@@ -788,6 +869,9 @@ export default function ExpertPage() {
                             <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                               {task.uploadedFilename || task.originalFilename}
                             </div>
+                            <div style={{ marginTop: '8px' }}>
+                              <GtProgressBadge progress={getTaskGtProgress(task)} completeLabel="✓ GT 완료" />
+                            </div>
                           </button>
                         </div>
                       ))}
@@ -811,6 +895,7 @@ export default function ExpertPage() {
                           <div style={{ fontWeight: '600', fontSize: '15px', color: '#212529' }}>{group.title}</div>
                           <div style={{ fontSize: '13px', color: '#6c757d', marginTop: '3px' }}>도말 {group.tasks.length}개</div>
                         </div>
+                        <GtProgressBadge progress={getAssignmentGtProgress(group.tasks)} completeLabel="✓ COMPLETE" />
                         <span style={{ fontSize: '13px', color: '#adb5bd' }}>▶</span>
                         <button
                           onClick={(e) => handleDeleteTask(group.tasks[0], e)}
@@ -834,6 +919,9 @@ export default function ExpertPage() {
                               <div style={{ fontWeight: '600', fontSize: '14px' }}>Task #{task.id}</div>
                               <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                                 {task.uploadedFilename || task.originalFilename}
+                              </div>
+                              <div style={{ marginTop: '8px' }}>
+                                <GtProgressBadge progress={getTaskGtProgress(task)} completeLabel="✓ COMPLETE" />
                               </div>
                             </button>
                             <button
@@ -973,7 +1061,10 @@ export default function ExpertPage() {
                     </div>
 
                     <div style={{ marginTop: '18px', border: '1px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
-                      <div style={professorPanelHeader}>🔍 감지된 세포 목록</div>
+                      <div style={{ ...professorPanelHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                        <span>🔍 감지된 세포 목록</span>
+                        <GtProgressBadge progress={selectedTaskGtProgress} incompleteLabel="GT 설정" />
+                      </div>
                       <div style={{ maxHeight: '280px', overflowY: 'auto', padding: '8px' }}>
                         {stats.map((crop, index) => {
                           const isSelected = crop.cropId === selectedCrop?.cropId;

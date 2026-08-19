@@ -21,7 +21,7 @@ function makeVotes(index) {
 }
 
 function makeCrop(taskId, index) {
-  const finalLabel = labelsByIndex[index];
+  const finalLabel = taskId === 102 ? CELL_LABELS[index % CELL_LABELS.length] : labelsByIndex[index];
   const voteDistribution = makeVotes(index);
   const totalAnswers = Object.values(voteDistribution).reduce((sum, count) => sum + count, 0);
   const correctAnswers = finalLabel ? voteDistribution[finalLabel] || 0 : 0;
