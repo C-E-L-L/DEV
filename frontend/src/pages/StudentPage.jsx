@@ -5,6 +5,7 @@ import { taskApi, cropApi, submissionApi, reportApi } from '../api';
 import { CELL_TYPES, REPORT_REASONS, imageUrl } from '../constants';
 import AuthImage from '../components/AuthImage';
 import StudentReviewPanel from '../components/StudentReviewPanel';
+import ImageDisplayControls, { useImageDisplaySettings } from '../components/ImageDisplayControls';
 
 function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
@@ -334,6 +335,7 @@ export default function StudentPage() {
   const allCompleted = crops.length > 0 && solvedCrops.size >= crops.length;
   const isDiagnosticMode = !selectedAssignment && isDiagnosticTask(selectedTask);
   const activeSmearFilename = currentCrop?.originalSmearFilename || selectedTask?.originalFilename;
+  const imageDisplay = useImageDisplaySettings(activeSmearFilename || `task-${selectedTask?.id || 'none'}`);
 
   // 과제(assignment) 내 도말 이미지별로 세포를 그룹화 (도말 간 이동 내비게이션용)
   const smearGroups = useMemo(() => {
@@ -532,8 +534,9 @@ export default function StudentPage() {
         <div style={{ flex: '2 1 720px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
           <div style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>🔬 혈액 도말 이미지</span>
-            {smearGroups.length > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {smearGroups.length > 1 && (
+                <>
                 <button
                   onClick={() => goToSmearGroup(currentSmearGroupIndex - 1)}
                   disabled={currentSmearGroupIndex <= 0}
@@ -547,8 +550,10 @@ export default function StudentPage() {
                   disabled={currentSmearGroupIndex >= smearGroups.length - 1}
                   style={{ ...smearNavBtnStyle, opacity: currentSmearGroupIndex >= smearGroups.length - 1 ? 0.4 : 1 }}
                 >다음 도말 ▶</button>
-              </div>
-            )}
+                </>
+              )}
+              <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />
+            </div>
           </div>
           <div style={{ padding: '15px', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', background: '#f8f9fa' }}>
             <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
@@ -559,7 +564,7 @@ export default function StudentPage() {
                   src={imageUrl.original(activeSmearFilename)}
                   alt="Blood Smear"
                   onLoad={handleImageLoad}
-                  style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 300px)', height: 'auto', objectFit: 'contain', display: 'block' }}
+                  style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 300px)', height: 'auto', objectFit: 'contain', display: 'block', filter: imageDisplay.filter }}
                 />
               )}
               {/* 바운딩 박스 오버레이 (현재 표시 중인 도말의 세포만) */}
@@ -603,7 +608,7 @@ export default function StudentPage() {
                     marginBottom: '5px', border: '1px solid #eee', background: isSelected ? '#f0f4f8' : '#fff',
                     borderLeft: isSelected ? '4px solid #495057' : '4px solid transparent',
                   }}>
-                    <AuthImage src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa' }} />
+                    <AuthImage src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa', filter: (crop.originalSmearFilename || selectedTask?.originalFilename) === activeSmearFilename ? imageDisplay.filter : 'none' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: '600', fontSize: '14px' }}>#{idx + 1}</div>
                       <div style={{ fontSize: '12px', color: isSolved ? '#28a745' : '#6c757d' }}>{isSolved ? (label || '분류완료') : '미분류'}</div>
@@ -617,13 +622,16 @@ export default function StudentPage() {
 
           {/* 세포 분류 패널 */}
           <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
-            <div style={sectionHeaderStyle}>🏷️ 세포 분류</div>
+            <div style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+              <span>🏷️ 세포 분류</span>
+              {isDiagnosticMode && <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />}
+            </div>
             {currentCrop && (
               <div style={{ padding: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '10px' }}>
                   <button onClick={() => currentCropIndex > 0 && setCurrentCropIndex(currentCropIndex - 1)} disabled={currentCropIndex === 0} style={{ ...navBtnStyle, opacity: currentCropIndex === 0 ? 0.3 : 1 }}>◀</button>
                   <div style={{ width: '180px', height: '180px', border: '2px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#f8f9fa' }}>
-                    <AuthImage src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <AuthImage src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: imageDisplay.filter }} />
                   </div>
                   <button onClick={() => currentCropIndex < crops.length - 1 && setCurrentCropIndex(currentCropIndex + 1)} disabled={currentCropIndex === crops.length - 1} style={{ ...navBtnStyle, opacity: currentCropIndex === crops.length - 1 ? 0.3 : 1 }}>▶</button>
                 </div>

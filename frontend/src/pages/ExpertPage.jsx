@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
 import AuthImage from '../components/AuthImage';
+import ImageDisplayControls, { useImageDisplaySettings } from '../components/ImageDisplayControls';
 import { fetchAuthImage } from '../utils/fetchAuthImage';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
@@ -391,6 +392,7 @@ export default function ExpertPage() {
       return acc;
     }, new Map());
   const selectedAnalyticsTask = tasks.find(task => task.id === selectedTaskId);
+  const expertImageDisplay = useImageDisplaySettings(selectedAnalyticsTask?.originalFilename || `task-${selectedTaskId || 'none'}`);
 
   const { assignmentGroups, individualTasks } = useMemo(() => {
     const assignmentMap = {};
@@ -558,7 +560,9 @@ export default function ExpertPage() {
     canvas.width = maxWidth;
     canvas.height = originalImage.height * scale;
 
+    ctx.filter = expertImageDisplay.filter;
     ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+    ctx.filter = 'none';
 
     stats.forEach((crop, index) => {
       if (!crop.bbox) return;
@@ -574,7 +578,7 @@ export default function ExpertPage() {
       ctx.font = 'bold 12px Arial';
       ctx.fillText(`${index + 1}`, x1 * scale + 2, y1 * scale - 4);
     });
-  }, [originalImage, imageLoaded, stats, selectedCrop]);
+  }, [originalImage, imageLoaded, stats, selectedCrop, expertImageDisplay.filter]);
 
   /* ── 다른 셀로 옮기면 GT 수정 모드는 닫는다 ── */
   useEffect(() => { setEditingGt(false); }, [selectedCrop?.cropId]);
@@ -1193,7 +1197,10 @@ export default function ExpertPage() {
                   ) : (
                     /* 일반 과제: 혈액도말 이미지 + 바운딩 박스 */
                     <div style={{ flex: '0 0 720px' }}>
-                    <h3 style={sectionHeader}>Blood Smear Image</h3>
+                    <div style={{ ...sectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <span>Blood Smear Image</span>
+                      <ImageDisplayControls settings={expertImageDisplay.settings} onChange={expertImageDisplay.updateSetting} onReset={expertImageDisplay.resetSettings} />
+                    </div>
                     <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', border: '1px solid #dee2e6' }}>
                       <canvas ref={canvasRef} onClick={handleCanvasClick} style={{ width: '100%', cursor: 'pointer', borderRadius: '4px' }} />
                       {/* 범례 */}
@@ -1242,7 +1249,7 @@ export default function ExpertPage() {
                               <AuthImage
                                 src={imageUrl.crop(crop.filename)}
                                 alt={`Cell ${index + 1}`}
-                                style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #dee2e6', background: '#f8f9fa', flexShrink: 0 }}
+                                style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '4px', border: '1px solid #dee2e6', background: '#f8f9fa', flexShrink: 0, filter: expertImageDisplay.filter }}
                               />
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div style={{ fontSize: '13px', fontWeight: '700', color: '#343a40' }}>Cell #{index + 1}</div>
@@ -1280,7 +1287,7 @@ export default function ExpertPage() {
                             >
                               ◀
                             </button>
-                            <AuthImage src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff' }} />
+                            <AuthImage src={imageUrl.crop(selectedCrop.filename)} alt="Selected Cell" style={{ width: '150px', height: '150px', objectFit: 'contain', borderRadius: '8px', border: '2px solid #dee2e6', background: '#fff', filter: expertImageDisplay.filter }} />
                             <button
                               type="button"
                               aria-label="다음 세포"

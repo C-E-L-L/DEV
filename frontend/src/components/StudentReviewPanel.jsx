@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { submissionApi } from '../api';
 import { imageUrl } from '../constants';
 import AuthImage from './AuthImage';
+import ImageDisplayControls, { useImageDisplaySettings } from './ImageDisplayControls';
 
 const STATUS_META = {
   GRADED: { label: '채점 완료', background: '#d4edda', color: '#155724' },
@@ -49,6 +50,7 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
     return [...groups.entries()];
   }, [review]);
   const activeSmearFilename = review.scopeType === 'DIAGNOSTIC' ? null : cell?.originalSmearFilename;
+  const imageDisplay = useImageDisplaySettings(activeSmearFilename || `${review.scopeType}-${review.scopeId}`);
   const activeSmearIndex = Math.max(0, smearGroups.findIndex(([name]) => name === activeSmearFilename));
   const activeSmearCells = smearGroups[activeSmearIndex]?.[1] || [];
 
@@ -92,13 +94,16 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
           <div style={{ flex: '2 1 720px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
             <div style={{ ...darkHeaderStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
               <span>🔬 혈액 도말 이미지</span>
-              {smearGroups.length > 1 && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {smearGroups.length > 1 && (
+                  <>
                   <button type="button" onClick={() => selectSmear(activeSmearIndex - 1)} disabled={activeSmearIndex <= 0} style={{ ...smearNavButtonStyle, opacity: activeSmearIndex <= 0 ? 0.4 : 1 }}>◀ 이전 도말</button>
                   <span style={{ fontSize: '12px' }}>도말 {activeSmearIndex + 1} / {smearGroups.length}</span>
                   <button type="button" onClick={() => selectSmear(activeSmearIndex + 1)} disabled={activeSmearIndex >= smearGroups.length - 1} style={{ ...smearNavButtonStyle, opacity: activeSmearIndex >= smearGroups.length - 1 ? 0.4 : 1 }}>다음 도말 ▶</button>
-                </span>
-              )}
+                  </>
+                )}
+                <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />
+              </span>
             </div>
             <div style={{ padding: '15px', overflow: 'auto', maxHeight: 'calc(100vh - 280px)', background: '#f8f9fa' }}>
               <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
@@ -108,7 +113,7 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
                     src={imageUrl.original(activeSmearFilename)}
                     alt="Blood Smear"
                     onLoad={(event) => setImageSize({ width: event.target.clientWidth, height: event.target.clientHeight, naturalWidth: event.target.naturalWidth, naturalHeight: event.target.naturalHeight })}
-                    style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 320px)', height: 'auto', objectFit: 'contain', display: 'block' }}
+                    style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 320px)', height: 'auto', objectFit: 'contain', display: 'block', filter: imageDisplay.filter }}
                     loadingText="도말 이미지를 불러오는 중..."
                     errorText="도말 이미지를 불러오지 못했습니다."
                     placeholderStyle={{ minWidth: '620px', minHeight: '420px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', color: '#6c757d', fontSize: '14px', fontWeight: '600' }}
@@ -156,7 +161,7 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
                         border: `1px solid ${index === selectedIndex ? '#495057' : '#e9ecef'}`, borderLeft: `4px solid ${index === selectedIndex ? '#495057' : 'transparent'}`,
                         borderRadius: '6px', background: index === selectedIndex ? '#f1f3f5' : '#fff', cursor: 'pointer', textAlign: 'left',
                       }}>
-                        <AuthImage src={imageUrl.crop(item.cropFilename)} alt={`Cell ${index + 1}`} style={{ width: '46px', height: '46px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa', flexShrink: 0 }} />
+                        <AuthImage src={imageUrl.crop(item.cropFilename)} alt={`Cell ${index + 1}`} style={{ width: '46px', height: '46px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa', flexShrink: 0, filter: review.scopeType === 'DIAGNOSTIC' || item.originalSmearFilename === activeSmearFilename ? imageDisplay.filter : 'none' }} />
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <strong style={{ display: 'block', fontSize: '13px' }}>Cell #{index + 1}</strong>
                           <span style={{ display: 'block', marginTop: '3px', fontSize: '11px', color: '#495057' }}>내 답: <strong>{item.studentLabel}</strong></span>
@@ -173,14 +178,17 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
 
           {cell && (
             <div style={{ background: '#fff', border: `2px solid ${meta.border}`, borderRadius: '8px', overflow: 'hidden' }}>
-              <div style={darkHeaderStyle}>🏷️ 세포 분류 결과</div>
+              <div style={{ ...darkHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                <span>🏷️ 세포 분류 결과</span>
+                {review.scopeType === 'DIAGNOSTIC' && <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />}
+              </div>
               <div style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
                   <button type="button" disabled={selectedIndex <= 0} onClick={() => onSelectIndex(selectedIndex - 1)} style={{ ...circleButtonStyle, opacity: selectedIndex <= 0 ? 0.35 : 1 }}>◀</button>
                   <AuthImage
                     src={imageUrl.crop(cell.cropFilename)}
                     alt="selected cell"
-                    style={{ width: '180px', height: '180px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}
+                    style={{ width: '180px', height: '180px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6', filter: imageDisplay.filter }}
                     loadingText="세포 이미지 로딩 중..."
                     errorText="세포 이미지를 불러오지 못했습니다."
                     placeholderStyle={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6c757d', fontSize: '11px', textAlign: 'center', padding: '10px', boxSizing: 'border-box' }}

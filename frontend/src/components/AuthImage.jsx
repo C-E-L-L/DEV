@@ -52,7 +52,7 @@ export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, classN
   if (!blobUrl) {
     const message = loadError ? (errorText || loadingText) : loadingText;
     return (
-      <div style={{ ...style, ...placeholderStyle }} className={className}>
+      <div style={{ ...style, filter: 'none', ...placeholderStyle }} className={className}>
         {message && <span>{message}</span>}
       </div>
     );
