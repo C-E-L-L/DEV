@@ -12,6 +12,7 @@ import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
 import com.cell.platform.entity.AssignmentEntity;
 import com.cell.platform.exception.ErrorCode;
+import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.exception.NotFoundException;
 import com.cell.platform.infra.assignment.AssignmentJpaRepository;
 import com.cell.platform.infra.matrix.ConfusionMatrixJpaRepository;
@@ -24,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -53,8 +55,14 @@ public class TaskService {
 
     @Transactional
     public TaskUploadResponse createTask(MultipartFile file) {
+        return createTask(file, null);
+    }
+
+    @Transactional
+    public TaskUploadResponse createTask(MultipartFile file, LocalDateTime deadlineAt) {
+        validateFutureDeadline(deadlineAt);
         String filename = fileStorageService.saveOriginal(file);
-        Task task = Task.create(filename, file.getOriginalFilename());
+        Task task = Task.create(filename, file.getOriginalFilename(), deadlineAt);
         AiAnalysisResponse aiResult = aiClientService.analyze(file);
         addCropsToTask(task, aiResult);
 
@@ -83,6 +91,13 @@ public class TaskService {
     @Transactional
     public AssignmentResponse createAssignment(String title, String expertUsername,
                                                List<MultipartFile> files) {
+        return createAssignment(title, expertUsername, files, null);
+    }
+
+    @Transactional
+    public AssignmentResponse createAssignment(String title, String expertUsername,
+                                               List<MultipartFile> files, LocalDateTime deadlineAt) {
+        validateFutureDeadline(deadlineAt);
         AssignmentEntity assignment = assignmentJpaRepository.save(
                 AssignmentEntity.builder()
                         .title(title)
@@ -96,7 +111,7 @@ public class TaskService {
         for (MultipartFile file : files) {
             String filename = fileStorageService.saveOriginal(file);
             Task task = Task.createForAssignment(filename, file.getOriginalFilename(),
-                    assignment.getId(), title);
+                    assignment.getId(), title, deadlineAt);
             AiAnalysisResponse aiResult = aiClientService.analyze(file);
             addCropsToTask(task, aiResult);
             Task savedTask = taskRepository.save(task);
@@ -131,6 +146,51 @@ public class TaskService {
         confusionMatrixJpaRepository.deleteAllByTaskId(taskId);
         cropIssueReportJpaRepository.deleteAllByTaskId(taskId);
         taskRepository.deleteById(taskId);
+    }
+
+    @Transactional
+    public void updateTaskDeadline(Long taskId, LocalDateTime deadlineAt) {
+        Task task = getTaskById(taskId);
+        if (task.getAssignmentId() != null) {
+            throw new BadRequestException("Assignment 소속 도말은 과제 단위로 마감일을 변경해 주세요.", ErrorCode.G000);
+        }
+        if (isDiagnosticTask(task)) {
+            throw new BadRequestException("진단평가에는 마감일을 설정할 수 없습니다.", ErrorCode.G000);
+        }
+        validateDeadlineChange(List.of(task), deadlineAt);
+        taskRepository.updateDeadlineAt(taskId, deadlineAt);
+    }
+
+    @Transactional
+    public void updateAssignmentDeadline(Long assignmentId, LocalDateTime deadlineAt) {
+        if (!assignmentJpaRepository.existsById(assignmentId)) {
+            throw new NotFoundException("과제를 찾을 수 없습니다. assignmentId=" + assignmentId, ErrorCode.T000);
+        }
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        validateDeadlineChange(tasks, deadlineAt);
+        taskRepository.updateDeadlineAtByAssignmentId(assignmentId, deadlineAt);
+    }
+
+    private void validateDeadlineChange(List<Task> tasks, LocalDateTime deadlineAt) {
+        LocalDateTime now = LocalDateTime.now();
+        boolean alreadyClosed = tasks.stream()
+                .map(Task::getDeadlineAt)
+                .anyMatch(current -> current != null && !current.isAfter(now));
+        if (alreadyClosed) {
+            throw new BadRequestException("이미 마감된 과제의 마감일은 변경하거나 해제할 수 없습니다.", ErrorCode.G000);
+        }
+        validateFutureDeadline(deadlineAt);
+    }
+
+    private void validateFutureDeadline(LocalDateTime deadlineAt) {
+        if (deadlineAt != null && !deadlineAt.isAfter(LocalDateTime.now())) {
+            throw new BadRequestException("마감일은 현재 시각 이후로 설정해 주세요.", ErrorCode.G000);
+        }
+    }
+
+    private boolean isDiagnosticTask(Task task) {
+        return task.getUploadedFilename() != null
+                && task.getUploadedFilename().startsWith("diagnostic-");
     }
 
     private CellType parseCellType(String prediction) {

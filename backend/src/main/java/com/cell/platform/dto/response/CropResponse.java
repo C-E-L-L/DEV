@@ -28,4 +28,19 @@ public record CropResponse(
                 crop.getOriginalSmearFilename()
         );
     }
+
+    public static CropResponse forStudent(Crop crop) {
+        return new CropResponse(
+                crop.getId(),
+                crop.getTaskId(),
+                crop.getCropFilename(),
+                crop.getBbox(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                crop.getOriginalSmearFilename()
+        );
+    }
 }

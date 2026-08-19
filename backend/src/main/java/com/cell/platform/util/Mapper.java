@@ -51,6 +51,7 @@ public final class Mapper {
                 .assignmentId(entity.getAssignmentId())
                 .title(entity.getTitle())
                 .createdAt(entity.getCreatedAt())
+                .deadlineAt(entity.getDeadlineAt())
                 .crops(new ArrayList<>())
                 .build();
         if (entity.getCrops() != null) {
@@ -71,6 +72,7 @@ public final class Mapper {
                 .assignmentId(task.getAssignmentId())
                 .title(task.getTitle())
                 .createdAt(task.getCreatedAt())
+                .deadlineAt(task.getDeadlineAt())
                 .build();
     }
 

@@ -11,6 +11,7 @@ public record TaskResponse(
         Long assignmentId,
         String title,
         LocalDateTime createdAt,
+        LocalDateTime deadlineAt,
         int cropCount
 ) {
     public static TaskResponse from(Task task) {
@@ -22,6 +23,7 @@ public record TaskResponse(
                 task.getAssignmentId(),
                 task.getTitle(),
                 task.getCreatedAt(),
+                task.getDeadlineAt(),
                 task.getCrops().size()
         );
     }

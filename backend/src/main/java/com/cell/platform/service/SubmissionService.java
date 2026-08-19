@@ -17,6 +17,7 @@ import com.cell.platform.entity.StudentConfusionMatrixEntity;
 import com.cell.platform.dto.response.DiagnosticStudentMatrixResponse;
 
 import com.cell.platform.dto.response.MyResultsResponse;
+import com.cell.platform.dto.response.StudentReviewResponse;
 import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.exception.ErrorCode;
 import com.cell.platform.exception.NotFoundException;
@@ -30,9 +31,11 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Comparator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -56,6 +59,10 @@ public class SubmissionService {
         Crop crop = cropRepository.findById(cropId)
                 .orElseThrow(() -> new NotFoundException(
                         "크롭(Crop)을 찾을 수 없습니다. cropId=" + cropId, ErrorCode.S000));
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(crop.getTaskId()), studentId);
+        if (isSubmissionLocked(scope)) {
+            throw new BadRequestException("이미 마감되었거나 결과가 공개된 과제의 답안은 수정할 수 없습니다.", ErrorCode.S001);
+        }
         CellType newLabel = parseCellType(studentLabel);
         CellType correctLabel = resolveCorrectLabel(crop, isDiagnosticTask(crop.getTaskId()));
 
@@ -220,6 +227,177 @@ public class SubmissionService {
                 .labels(labels)
                 .confusionMatrix(confusionMatrix)
                 .build();
+    }
+
+    public void assertReviewAvailableForTask(Long taskId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(taskId), studentId);
+        if (!isReviewAvailable(scope)) {
+            throw new BadRequestException("채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.", ErrorCode.S001);
+        }
+    }
+
+    public void assertReviewAvailableForAssignment(Long assignmentId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(taskRepository.findByAssignmentId(assignmentId), studentId);
+        if (!isReviewAvailable(scope)) {
+            throw new BadRequestException("채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.", ErrorCode.S001);
+        }
+    }
+
+    public StudentReviewResponse getStudentReviews(String studentId) {
+        List<Task> allTasks = taskRepository.findAllByOrderByIdDesc();
+        List<StudentReviewResponse.ReviewGroup> reviews = new ArrayList<>();
+        Set<Long> handledAssignments = new HashSet<>();
+
+        for (Task task : allTasks) {
+            if (task.getAssignmentId() != null) {
+                if (!handledAssignments.add(task.getAssignmentId())) continue;
+                buildReviewGroup(taskRepository.findByAssignmentId(task.getAssignmentId()), studentId)
+                        .ifPresent(reviews::add);
+            } else {
+                buildReviewGroup(List.of(task), studentId).ifPresent(reviews::add);
+            }
+        }
+
+        reviews.sort(Comparator.comparing(
+                (StudentReviewResponse.ReviewGroup review) -> review.deadlineAt() != null
+                        ? review.deadlineAt()
+                        : LocalDateTime.MIN
+        ).reversed().thenComparing(StudentReviewResponse.ReviewGroup::scopeId, Comparator.reverseOrder()));
+        return new StudentReviewResponse(reviews);
+    }
+
+    private java.util.Optional<StudentReviewResponse.ReviewGroup> buildReviewGroup(
+            List<Task> tasks,
+            String studentId
+    ) {
+        ScopeSnapshot scope = createScopeSnapshot(tasks, studentId);
+        if (!isReviewAvailable(scope) || scope.submissions().isEmpty()) {
+            return java.util.Optional.empty();
+        }
+
+        Map<Long, Crop> cropById = scope.crops().stream()
+                .collect(Collectors.toMap(Crop::getId, Function.identity()));
+        List<StudentReviewResponse.ReviewCell> cells = new ArrayList<>();
+        int correct = 0;
+        int wrong = 0;
+        int pending = 0;
+
+        for (Submission submission : scope.submissions()) {
+            Crop crop = cropById.get(submission.getCropId());
+            if (crop == null) continue;
+            CellType resolvedLabel = resolveCorrectLabel(crop, scope.diagnostic());
+            String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
+            Boolean isCorrect = correctLabel == null
+                    ? null
+                    : submission.getStudentLabel().name().equals(correctLabel);
+            if (isCorrect == null) pending++;
+            else if (isCorrect) correct++;
+            else wrong++;
+
+            cells.add(new StudentReviewResponse.ReviewCell(
+                    crop.getTaskId(), crop.getId(), crop.getCropFilename(),
+                    crop.getOriginalSmearFilename(), crop.getBbox(),
+                    submission.getStudentLabel().name(), correctLabel, isCorrect
+            ));
+        }
+
+        cells.sort(Comparator.comparing(StudentReviewResponse.ReviewCell::taskId)
+                .thenComparing(StudentReviewResponse.ReviewCell::cropId));
+        int gradedAnswers = correct + wrong;
+        Integer accuracy = gradedAnswers == 0 ? null : Math.round((float) correct / gradedAnswers * 100);
+        Task representative = scope.tasks().get(0);
+        String scopeType = scope.diagnostic()
+                ? "DIAGNOSTIC"
+                : representative.getAssignmentId() != null ? "ASSIGNMENT" : "TASK";
+        Long scopeId = representative.getAssignmentId() != null
+                ? representative.getAssignmentId()
+                : representative.getId();
+        String title = scope.diagnostic()
+                ? "Diagnostic #" + representative.getId()
+                : representative.getTitle() != null && !representative.getTitle().isBlank()
+                ? representative.getTitle()
+                : "Task #" + representative.getId();
+        String thumbnail = scope.diagnostic()
+                ? cells.stream().findFirst().map(StudentReviewResponse.ReviewCell::cropFilename).orElse(null)
+                : representative.getOriginalFilename();
+
+        return java.util.Optional.of(new StudentReviewResponse.ReviewGroup(
+                scopeType, scopeId, title, thumbnail, getDeadlineAt(scope.tasks()),
+                getAvailabilityReason(scope), scope.crops().size(), scope.submissions().size(),
+                Math.max(0, scope.crops().size() - scope.submissions().size()),
+                gradedAnswers, pending, correct, wrong, accuracy, cells
+        ));
+    }
+
+    private List<Task> getScopeTasks(Long taskId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new NotFoundException(
+                        "과제를 찾을 수 없습니다. taskId=" + taskId, ErrorCode.T000));
+        return task.getAssignmentId() == null
+                ? List.of(task)
+                : taskRepository.findByAssignmentId(task.getAssignmentId());
+    }
+
+    private ScopeSnapshot createScopeSnapshot(List<Task> tasks, String studentId) {
+        if (tasks == null || tasks.isEmpty()) {
+            return new ScopeSnapshot(List.of(), List.of(), List.of(), false);
+        }
+        List<Long> taskIds = tasks.stream().map(Task::getId).toList();
+        List<Crop> crops = cropRepository.findAllByTaskIdIn(taskIds);
+        List<Long> cropIds = crops.stream().map(Crop::getId).toList();
+        List<Submission> submissions = cropIds.isEmpty()
+                ? List.of()
+                : submissionRepository.findAllByCropIdInAndStudentId(cropIds, studentId);
+        return new ScopeSnapshot(tasks, crops, submissions, isDiagnosticTask(tasks.get(0)));
+    }
+
+    private boolean isReviewAvailable(ScopeSnapshot scope) {
+        if (scope.crops().isEmpty() || scope.submissions().isEmpty()) return false;
+        boolean allAnswered = scope.submissions().size() >= scope.crops().size();
+        if (scope.diagnostic()) return allAnswered;
+        if (isDeadlinePassed(scope.tasks())) return true;
+        boolean allGraded = scope.crops().stream().allMatch(crop -> crop.getFinalLabel() != null);
+        return allAnswered && allGraded;
+    }
+
+    private boolean isSubmissionLocked(ScopeSnapshot scope) {
+        if (scope.crops().isEmpty()) return false;
+        if (!scope.diagnostic() && isDeadlinePassed(scope.tasks())) return true;
+        boolean allAnswered = scope.submissions().size() >= scope.crops().size();
+        if (scope.diagnostic()) return allAnswered;
+        boolean allGraded = scope.crops().stream().allMatch(crop -> crop.getFinalLabel() != null);
+        return allAnswered && allGraded;
+    }
+
+    private boolean isDeadlinePassed(List<Task> tasks) {
+        LocalDateTime deadlineAt = getDeadlineAt(tasks);
+        return deadlineAt != null && !deadlineAt.isAfter(LocalDateTime.now());
+    }
+
+    private LocalDateTime getDeadlineAt(List<Task> tasks) {
+        return tasks.stream()
+                .map(Task::getDeadlineAt)
+                .filter(java.util.Objects::nonNull)
+                .min(LocalDateTime::compareTo)
+                .orElse(null);
+    }
+
+    private String getAvailabilityReason(ScopeSnapshot scope) {
+        if (scope.diagnostic()) return "DIAGNOSTIC_COMPLETED";
+        return isDeadlinePassed(scope.tasks()) ? "DEADLINE_PASSED" : "GRADED";
+    }
+
+    private boolean isDiagnosticTask(Task task) {
+        return task.getUploadedFilename() != null
+                && task.getUploadedFilename().startsWith(DIAGNOSTIC_PREFIX);
+    }
+
+    private record ScopeSnapshot(
+            List<Task> tasks,
+            List<Crop> crops,
+            List<Submission> submissions,
+            boolean diagnostic
+    ) {
     }
 
     private boolean isDiagnosticTask(Long taskId) {

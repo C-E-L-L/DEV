@@ -1,6 +1,7 @@
 package com.cell.platform.controller;
 
 import com.cell.platform.dto.response.AssignmentResponse;
+import com.cell.platform.dto.request.DeadlineUpdateRequest;
 import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
@@ -11,6 +12,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 
@@ -27,9 +31,11 @@ public class AssignmentController {
     public ResponseEntity<AssignmentResponse> createAssignment(
             @RequestParam("title") String title,
             @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "deadlineAt", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime deadlineAt,
             @AuthenticationPrincipal String username) {
         return ResponseEntity.ok(
-                taskService.createAssignment(title, username, files)
+                taskService.createAssignment(title, username, files, deadlineAt)
         );
     }
 
@@ -44,5 +50,14 @@ public class AssignmentController {
     public ResponseEntity<Void> deleteAssignment(@PathVariable Long assignmentId) {
         taskService.deleteAssignment(assignmentId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{assignmentId}/deadline")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public ResponseEntity<Void> updateDeadline(
+            @PathVariable Long assignmentId,
+            @RequestBody DeadlineUpdateRequest request) {
+        taskService.updateAssignmentDeadline(assignmentId, request.deadlineAt());
+        return ResponseEntity.ok().build();
     }
 }

@@ -1,6 +1,7 @@
 package com.cell.platform.controller;
 
 import com.cell.platform.dto.request.DiagnosticTaskCreateRequest;
+import com.cell.platform.dto.request.DeadlineUpdateRequest;
 import com.cell.platform.dto.response.DiagnosticPoolStatsResponse;
 import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
@@ -17,6 +18,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 
@@ -37,8 +41,11 @@ public class TaskController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<TaskUploadResponse> uploadAndCreateTask(@RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(taskService.createTask(file));
+    public ResponseEntity<TaskUploadResponse> uploadAndCreateTask(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "deadlineAt", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime deadlineAt) {
+        return ResponseEntity.ok(taskService.createTask(file, deadlineAt));
     }
 
     @GetMapping("/diagnostic/pool-stats")
@@ -70,5 +77,14 @@ public class TaskController {
     public ResponseEntity<Void> deleteTask(@PathVariable Long taskId) {
         taskService.deleteTask(taskId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{taskId}/deadline")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public ResponseEntity<Void> updateDeadline(
+            @PathVariable Long taskId,
+            @RequestBody DeadlineUpdateRequest request) {
+        taskService.updateTaskDeadline(taskId, request.deadlineAt());
+        return ResponseEntity.ok().build();
     }
 }

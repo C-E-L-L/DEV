@@ -17,12 +17,13 @@ public class Task {
     private Long assignmentId;
     private String title;
     private LocalDateTime createdAt;
+    private LocalDateTime deadlineAt;
     private List<Crop> crops;
 
     @Builder
     public Task(Long id, TaskStatus status, String originalFilename,
                 String uploadedFilename, Long assignmentId, String title,
-                LocalDateTime createdAt, List<Crop> crops) {
+                LocalDateTime createdAt, LocalDateTime deadlineAt, List<Crop> crops) {
         this.id = id;
         this.status = status;
         this.originalFilename = originalFilename;
@@ -30,26 +31,33 @@ public class Task {
         this.assignmentId = assignmentId;
         this.title = title;
         this.createdAt = createdAt;
+        this.deadlineAt = deadlineAt;
         this.crops = crops != null ? crops : new ArrayList<>();
     }
 
     public static Task create(String originalFilename, String uploadedFilename) {
+        return create(originalFilename, uploadedFilename, null);
+    }
+
+    public static Task create(String originalFilename, String uploadedFilename, LocalDateTime deadlineAt) {
         return Task.builder()
                 .status(TaskStatus.IN_PROGRESS)
                 .originalFilename(originalFilename)
                 .uploadedFilename(uploadedFilename)
+                .deadlineAt(deadlineAt)
                 .crops(new ArrayList<>())
                 .build();
     }
 
     public static Task createForAssignment(String originalFilename, String uploadedFilename,
-                                           Long assignmentId, String title) {
+                                           Long assignmentId, String title, LocalDateTime deadlineAt) {
         return Task.builder()
                 .status(TaskStatus.IN_PROGRESS)
                 .originalFilename(originalFilename)
                 .uploadedFilename(uploadedFilename)
                 .assignmentId(assignmentId)
                 .title(title)
+                .deadlineAt(deadlineAt)
                 .crops(new ArrayList<>())
                 .build();
     }

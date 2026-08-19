@@ -38,16 +38,24 @@ public class CropService {
     }
 
     public List<CropResponse> getCropsByTaskId(Long taskId) {
+        return getCropsByTaskId(taskId, false);
+    }
+
+    public List<CropResponse> getCropsByTaskId(Long taskId, boolean studentView) {
         return cropRepository.findAllByTaskId(taskId).stream()
-                .map(CropResponse::from)
+                .map(crop -> studentView ? CropResponse.forStudent(crop) : CropResponse.from(crop))
                 .toList();
     }
 
     public List<CropResponse> getCropsByAssignmentId(Long assignmentId) {
+        return getCropsByAssignmentId(assignmentId, false);
+    }
+
+    public List<CropResponse> getCropsByAssignmentId(Long assignmentId, boolean studentView) {
         List<Long> taskIds = taskRepository.findByAssignmentId(assignmentId)
                 .stream().map(t -> t.getId()).toList();
         return cropRepository.findAllByTaskIdIn(taskIds).stream()
-                .map(CropResponse::from)
+                .map(crop -> studentView ? CropResponse.forStudent(crop) : CropResponse.from(crop))
                 .toList();
     }
 

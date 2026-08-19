@@ -95,6 +95,59 @@ function VoteBar({ voteDistribution, votersByLabel, totalAnswers }) {
   );
 }
 
+function toDateTimeInputValue(value) {
+  return value ? String(value).slice(0, 16) : '';
+}
+
+function getMinimumDeadlineValue() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function DeadlineControl({ deadlineAt, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(() => toDateTimeInputValue(deadlineAt));
+  const [saving, setSaving] = useState(false);
+  const expired = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= Date.now());
+
+  useEffect(() => setValue(toDateTimeInputValue(deadlineAt)), [deadlineAt]);
+
+  const save = async (event, nextValue = value) => {
+    event.stopPropagation();
+    setSaving(true);
+    try {
+      await onSave(nextValue ? `${nextValue}:00` : null);
+      setEditing(false);
+    } catch (error) {
+      alert(error?.response?.data?.message || '마감일 변경에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={(event) => event.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: '11px', fontWeight: '700', color: expired ? '#842029' : '#495057', background: expired ? '#f8d7da' : '#e9ecef', padding: '4px 7px', borderRadius: '999px' }}>
+        {deadlineAt ? `${expired ? '마감됨' : '마감'} · ${new Date(deadlineAt).toLocaleString('ko-KR')}` : '마감일 없음'}
+      </span>
+      {!expired && !editing && (
+        <button type="button" onClick={(event) => { event.stopPropagation(); setEditing(true); }} style={{ border: '1px solid #ced4da', background: '#fff', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>
+          {deadlineAt ? '변경' : '설정'}
+        </button>
+      )}
+      {!expired && editing && (
+        <>
+          <input type="datetime-local" min={getMinimumDeadlineValue()} value={value} onChange={(event) => setValue(event.target.value)} style={{ border: '1px solid #ced4da', borderRadius: '4px', padding: '4px', fontSize: '11px' }} />
+          <button type="button" disabled={saving || !value} onClick={save} style={{ border: 'none', background: '#0056b3', color: '#fff', borderRadius: '4px', padding: '4px 7px', cursor: 'pointer', fontSize: '11px' }}>저장</button>
+          {deadlineAt && <button type="button" disabled={saving} onClick={(event) => save(event, '')} style={{ border: '1px solid #dc3545', background: '#fff', color: '#dc3545', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>해제</button>}
+          <button type="button" onClick={(event) => { event.stopPropagation(); setEditing(false); setValue(toDateTimeInputValue(deadlineAt)); }} style={{ border: 'none', background: 'transparent', color: '#6c757d', cursor: 'pointer', fontSize: '11px' }}>취소</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function GtProgressBadge({ progress, completeLabel = '✓ 완료', incompleteLabel = 'GT' }) {
   const baseStyle = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -198,6 +251,7 @@ export default function ExpertPage() {
 
   /* ── Tab 1: Assignment Creation ── */
   const [assignmentTitle, setAssignmentTitle] = useState('');
+  const [assignmentDeadline, setAssignmentDeadline] = useState('');
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -217,6 +271,7 @@ export default function ExpertPage() {
     if (activeTab === 1) return;
     setUploadResult(null);
     setSelectedResultTaskIndex(0);
+    setAssignmentDeadline('');
     setFormErrors({ title: false, files: false });
   }, [activeTab]);
 
@@ -569,6 +624,16 @@ export default function ExpertPage() {
     }
   };
 
+  const handleUpdateDeadline = async (scopeType, scopeId, deadlineAt) => {
+    if (scopeType === 'assignment') {
+      await taskApi.updateAssignmentDeadline(scopeId, deadlineAt);
+    } else {
+      await taskApi.updateDeadline(scopeId, deadlineAt);
+    }
+    const { data } = await taskApi.getAll();
+    setTasks(data);
+  };
+
   /* ── Confirm Label ── */
   const handleConfirmLabel = async (cropId, finalLabel) => {
     try {
@@ -651,11 +716,12 @@ export default function ExpertPage() {
     try {
       const formData = new FormData();
       formData.append('title', assignmentTitle.trim());
+      if (assignmentDeadline) formData.append('deadlineAt', `${assignmentDeadline}:00`);
       files.forEach(f => formData.append('files', f));
       const { data } = await taskApi.createAssignment(formData);
       setUploadResult(data);
       setSelectedResultTaskIndex(0);
-      setFiles([]); setPreviews([]); setAssignmentTitle('');
+      setFiles([]); setPreviews([]); setAssignmentTitle(''); setAssignmentDeadline('');
     } catch { alert('업로드에 실패했습니다.'); }
     finally { setUploading(false); }
   };
@@ -743,6 +809,22 @@ export default function ExpertPage() {
           </div>
 
           {/* 드래그 앤 드롭 — 다중 파일 */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontWeight: '600', color: '#495057', marginBottom: '6px' }}>
+              마감일 (선택)
+            </label>
+            <input
+              type="datetime-local"
+              min={getMinimumDeadlineValue()}
+              value={assignmentDeadline}
+              onChange={(event) => setAssignmentDeadline(event.target.value)}
+              style={{ width: '100%', maxWidth: '360px', padding: '10px 12px', border: '1px solid #ced4da', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+            />
+            <div style={{ marginTop: '5px', fontSize: '12px', color: '#6c757d' }}>
+              마감일이 지나면 제출이 잠기고 학생의 제출 결과가 공개됩니다.
+            </div>
+          </div>
+
           <div
             ref={dropZoneRef}
             onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
@@ -949,6 +1031,10 @@ export default function ExpertPage() {
                           <div style={{ fontWeight: '600', fontSize: '15px', color: '#212529' }}>{group.title}</div>
                           <div style={{ fontSize: '13px', color: '#6c757d', marginTop: '3px' }}>도말 {group.tasks.length}개</div>
                         </div>
+                        <DeadlineControl
+                          deadlineAt={group.tasks[0]?.deadlineAt}
+                          onSave={(deadlineAt) => handleUpdateDeadline('assignment', group.id, deadlineAt)}
+                        />
                         <GtProgressBadge progress={getAssignmentGtProgress(group.tasks)} completeLabel="✓ COMPLETE" />
                         <span style={{ fontSize: '13px', color: '#adb5bd' }}>▶</span>
                         <button
@@ -960,33 +1046,51 @@ export default function ExpertPage() {
                     ))}
 
                     {/* 개별 과제 (assignment 없는 것) */}
-                    {individualTasks.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                        {individualTasks.map(task => (
-                          <div key={task.id} style={{ position: 'relative' }}>
-                            <button onClick={() => fetchTaskStats(task.id)} style={{
-                              ...taskBtnStyle,
-                              ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
-                              display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
-                            }}>
-                              <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
-                              <div style={{ fontWeight: '600', fontSize: '14px' }}>Task #{task.id}</div>
-                              <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
-                                {task.uploadedFilename || task.originalFilename}
-                              </div>
-                              <div style={{ marginTop: '8px' }}>
-                                <GtProgressBadge progress={getTaskGtProgress(task)} completeLabel="✓ COMPLETE" />
-                              </div>
-                            </button>
-                            <button
-                              onClick={(e) => handleDeleteTask(task, e)}
-                              title="삭제"
-                              style={{ position: 'absolute', top: '4px', right: '4px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', width: '22px', height: '22px', cursor: 'pointer', fontSize: '12px', lineHeight: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            >✕</button>
+                    {individualTasks.map(task => (
+                      <div
+                        key={task.id}
+                        onClick={() => fetchTaskStats(task.id)}
+                        style={{
+                          border: selectedTaskId === task.id ? '2px solid #495057' : '1px solid #dee2e6',
+                          borderRadius: '8px',
+                          padding: selectedTaskId === task.id ? '13px 15px' : '14px 16px',
+                          background: selectedTaskId === task.id ? '#f8f9fa' : '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          cursor: 'pointer',
+                          transition: 'box-shadow 0.15s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                      >
+                        <AuthImage
+                          src={imageUrl.thumbnail(task.originalFilename)}
+                          fallbackSrc={imageUrl.original(task.originalFilename)}
+                          alt={`Task ${task.id}`}
+                          style={{ width: '72px', height: '56px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dee2e6', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: '600', fontSize: '15px', color: '#212529' }}>
+                            {task.title || `Task #${task.id}`}
                           </div>
-                        ))}
+                          <div style={{ fontSize: '13px', color: '#6c757d', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            Task #{task.id} · {task.uploadedFilename || task.originalFilename}
+                          </div>
+                        </div>
+                        <DeadlineControl
+                          deadlineAt={task.deadlineAt}
+                          onSave={(deadlineAt) => handleUpdateDeadline('task', task.id, deadlineAt)}
+                        />
+                        <GtProgressBadge progress={getTaskGtProgress(task)} completeLabel="✓ COMPLETE" />
+                        <span style={{ fontSize: '13px', color: '#adb5bd' }}>▶</span>
+                        <button
+                          onClick={(e) => handleDeleteTask(task, e)}
+                          title="삭제"
+                          style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', width: '22px', height: '22px', cursor: 'pointer', fontSize: '12px', lineHeight: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >✕</button>
                       </div>
-                    )}
+                    ))}
 
                     {/* Diagnostic Tasks */}
                     {tasks.filter(isDiagnosticTask).length > 0 && (

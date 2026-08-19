@@ -1,8 +1,11 @@
 const CELL_LABELS = ['Segment', 'Band', 'Eosinophil', 'NucleatedRBC', 'Lymphocyte', 'Monocyte'];
 
 const tasks = [
-  { id: 101, assignmentId: 10, title: '로컬 테스트 - Week1 분류 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', cropCount: 11, createdAt: '2026-08-18T10:00:00' },
-  { id: 102, assignmentId: 10, title: '로컬 테스트 - Week1 분류 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', cropCount: 11, createdAt: '2026-08-18T10:05:00' },
+  { id: 101, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:00:00' },
+  { id: 102, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:05:00' },
+  { id: 103, assignmentId: null, title: 'GT 채점 완료 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T11:00:00' },
+  { id: 104, assignmentId: 11, title: '마감 예정 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', cropCount: 11, deadlineAt: '2027-01-15T18:00:00', createdAt: '2026-08-18T11:30:00' },
+  { id: 201, assignmentId: null, title: null, originalFilename: '', uploadedFilename: 'diagnostic-20260818120000', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T12:00:00' },
 ];
 
 const boxes = [
@@ -41,7 +44,9 @@ function makeVoters(index) {
 }
 
 function makeCrop(taskId, index) {
-  const finalLabel = taskId === 102 ? CELL_LABELS[index % CELL_LABELS.length] : labelsByIndex[index];
+  const task = tasks.find(item => item.id === taskId);
+  const fullyGraded = [102, 103, 201].includes(taskId);
+  const finalLabel = fullyGraded ? CELL_LABELS[index % CELL_LABELS.length] : labelsByIndex[index];
   const voteDistribution = makeVotes(index);
   const totalAnswers = Object.values(voteDistribution).reduce((sum, count) => sum + count, 0);
   const correctAnswers = finalLabel ? voteDistribution[finalLabel] || 0 : 0;
@@ -50,9 +55,9 @@ function makeCrop(taskId, index) {
     taskId,
     cropId: taskId * 100 + index + 1,
     filename: `mock-cell-${taskId}-${index + 1}.svg`,
-    originalSmearFilename: `mock-smear-${taskId === 101 ? 1 : 2}.svg`,
+    originalSmearFilename: task?.originalFilename || null,
     bbox: JSON.stringify(boxes[index]),
-    gtLabel: null,
+    gtLabel: taskId === 201 ? finalLabel : null,
     pseudoLabel: CELL_LABELS[index % CELL_LABELS.length],
     aiBboxConfidence: 0.94,
     aiClassificationConfidence: 0.82,
@@ -69,6 +74,12 @@ function makeCrop(taskId, index) {
 
 const cropStats = new Map(tasks.map(task => [task.id, boxes.map((_, index) => makeCrop(task.id, index))]));
 const studentAnswers = new Map();
+studentAnswers.set('student', Object.fromEntries([
+  ...(cropStats.get(101) || []).slice(0, 5),
+  ...(cropStats.get(102) || []).slice(0, 3),
+  ...(cropStats.get(103) || []),
+  ...(cropStats.get(201) || []),
+].map((crop, index) => [crop.cropId, CELL_LABELS[(index + 1) % CELL_LABELS.length]])));
 let mockUsers = [
   { id: 1, username: 'admin', name: '로컬 관리자', role: 'ADMIN', status: 'ACTIVE', createdAt: '2026-08-18T09:00:00' },
   { id: 2, username: 'professor', name: '로컬 테스트 교수', role: 'EXPERT', status: 'ACTIVE', createdAt: '2026-08-18T09:05:00' },
@@ -79,18 +90,18 @@ let mockRoster = [
   { id: 2, studentId: '20260001', registeredBy: 'admin', claimedUserId: null, createdAt: '2026-08-18T09:00:00' },
 ];
 
-function cropDto(crop) {
+function cropDto(crop, studentView = false) {
   return {
     id: crop.cropId,
     taskId: crop.taskId,
     originalSmearFilename: crop.originalSmearFilename,
     cropFilename: crop.filename,
     bbox: crop.bbox,
-    gtLabel: crop.gtLabel,
-    pseudoLabel: crop.pseudoLabel,
-    aiBboxConfidence: crop.aiBboxConfidence,
-    aiClassificationConfidence: crop.aiClassificationConfidence,
-    finalLabel: crop.finalLabel,
+    gtLabel: studentView ? null : crop.gtLabel,
+    pseudoLabel: studentView ? null : crop.pseudoLabel,
+    aiBboxConfidence: studentView ? null : crop.aiBboxConfidence,
+    aiClassificationConfidence: studentView ? null : crop.aiClassificationConfidence,
+    finalLabel: studentView ? null : crop.finalLabel,
   };
 }
 
@@ -125,6 +136,80 @@ function resultFor(crops, studentId) {
     labels: CELL_LABELS,
     confusionMatrix: {},
   };
+}
+
+function reviewFor(taskGroup, studentId) {
+  const answers = answersFor(studentId);
+  const crops = taskGroup.flatMap(task => cropStats.get(task.id) || []);
+  const submitted = crops.filter(crop => answers[crop.cropId]);
+  if (submitted.length === 0) return null;
+  const representative = taskGroup[0];
+  const diagnostic = representative.uploadedFilename?.startsWith('diagnostic-');
+  const deadlineAt = representative.deadlineAt || null;
+  const deadlinePassed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= Date.now());
+  const allAnswered = submitted.length >= crops.length;
+  const allGraded = crops.length > 0 && crops.every(crop => crop.finalLabel);
+  if (!(diagnostic ? allAnswered : deadlinePassed || (allAnswered && allGraded))) return null;
+
+  const cells = submitted.map(crop => {
+    const studentLabel = answers[crop.cropId];
+    const correctLabel = crop.finalLabel;
+    return {
+      taskId: crop.taskId,
+      cropId: crop.cropId,
+      cropFilename: crop.filename,
+      originalSmearFilename: crop.originalSmearFilename,
+      bbox: crop.bbox,
+      studentLabel,
+      correctLabel,
+      isCorrect: correctLabel ? studentLabel === correctLabel : null,
+    };
+  });
+  const correct = cells.filter(cell => cell.isCorrect === true).length;
+  const wrong = cells.filter(cell => cell.isCorrect === false).length;
+  const pendingAnswers = cells.filter(cell => cell.isCorrect == null).length;
+  const gradedAnswers = correct + wrong;
+  return {
+    scopeType: diagnostic ? 'DIAGNOSTIC' : representative.assignmentId ? 'ASSIGNMENT' : 'TASK',
+    scopeId: representative.assignmentId || representative.id,
+    title: diagnostic ? `Diagnostic #${representative.id}` : representative.title || `Task #${representative.id}`,
+    thumbnailFilename: diagnostic ? cells[0]?.cropFilename : representative.originalFilename,
+    deadlineAt,
+    availabilityReason: diagnostic ? 'DIAGNOSTIC_COMPLETED' : deadlinePassed ? 'DEADLINE_PASSED' : 'GRADED',
+    totalCells: crops.length,
+    answeredCells: cells.length,
+    unsubmittedCells: Math.max(0, crops.length - cells.length),
+    gradedAnswers,
+    pendingAnswers,
+    correct,
+    wrong,
+    accuracy: gradedAnswers ? Math.round((correct / gradedAnswers) * 100) : null,
+    cells,
+  };
+}
+
+function getStudentReviews(studentId) {
+  const reviews = [];
+  const handledAssignments = new Set();
+  for (const task of tasks) {
+    if (task.assignmentId) {
+      if (handledAssignments.has(task.assignmentId)) continue;
+      handledAssignments.add(task.assignmentId);
+      const review = reviewFor(tasks.filter(item => item.assignmentId === task.assignmentId), studentId);
+      if (review) reviews.push(review);
+    } else {
+      const review = reviewFor([task], studentId);
+      if (review) reviews.push(review);
+    }
+  }
+  return reviews;
+}
+
+function isMockSubmissionLocked(taskId, studentId) {
+  const task = tasks.find(item => item.id === taskId);
+  if (!task) return false;
+  const group = task.assignmentId ? tasks.filter(item => item.assignmentId === task.assignmentId) : [task];
+  return Boolean(reviewFor(group, studentId)) || Boolean(task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now());
 }
 
 function refreshScore(crop) {
@@ -197,6 +282,7 @@ export function mockServerPlugin() {
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url, 'http://localhost');
         const { pathname } = url;
+        const studentRequest = String(req.headers.authorization || '').includes('local-mock-student-token');
 
         if (pathname.startsWith('/data/')) {
           serveImage(pathname, res);
@@ -223,10 +309,14 @@ export function mockServerPlugin() {
           json(res, [...cropStats.values()].flat());
           return;
         }
+        if (req.method === 'GET' && pathname === '/api/student/reviews') {
+          json(res, { reviews: getStudentReviews('student') });
+          return;
+        }
 
         const taskCropsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/crops$/);
         if (req.method === 'GET' && taskCropsMatch) {
-          json(res, (cropStats.get(Number(taskCropsMatch[1])) || []).map(cropDto));
+          json(res, (cropStats.get(Number(taskCropsMatch[1])) || []).map(crop => cropDto(crop, studentRequest)));
           return;
         }
 
@@ -234,7 +324,7 @@ export function mockServerPlugin() {
         if (req.method === 'GET' && assignmentCropsMatch) {
           const assignmentId = Number(assignmentCropsMatch[1]);
           const assignmentTaskIds = tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id);
-          json(res, assignmentTaskIds.flatMap(taskId => cropStats.get(taskId) || []).map(cropDto));
+          json(res, assignmentTaskIds.flatMap(taskId => cropStats.get(taskId) || []).map(crop => cropDto(crop, studentRequest)));
           return;
         }
 
@@ -280,6 +370,11 @@ export function mockServerPlugin() {
 
         if (req.method === 'POST' && pathname === '/api/submit') {
           const body = await readJson(req);
+          const crop = [...cropStats.values()].flat().find(item => item.cropId === Number(body.cropId));
+          if (crop && isMockSubmissionLocked(crop.taskId, body.studentId || 'student')) {
+            json(res, { message: '이미 마감되었거나 결과가 공개된 과제의 답안은 수정할 수 없습니다.' }, 400);
+            return;
+          }
           answersFor(body.studentId)[body.cropId] = body.studentLabel;
           json(res, { success: true });
           return;
@@ -288,6 +383,12 @@ export function mockServerPlugin() {
         const taskResultsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/my-results\/([^/]+)$/);
         if (req.method === 'GET' && taskResultsMatch) {
           const taskId = Number(taskResultsMatch[1]);
+          const task = tasks.find(item => item.id === taskId);
+          const group = task?.assignmentId ? tasks.filter(item => item.assignmentId === task.assignmentId) : task ? [task] : [];
+          if (!reviewFor(group, decodeURIComponent(taskResultsMatch[2]))) {
+            json(res, { message: '채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.' }, 400);
+            return;
+          }
           json(res, resultFor(cropStats.get(taskId) || [], decodeURIComponent(taskResultsMatch[2])));
           return;
         }
@@ -297,6 +398,10 @@ export function mockServerPlugin() {
           const assignmentId = Number(assignmentResultsMatch[1]);
           const assignmentTaskIds = new Set(tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id));
           const crops = [...cropStats.values()].flat().filter(crop => assignmentTaskIds.has(crop.taskId));
+          if (!reviewFor(tasks.filter(task => task.assignmentId === assignmentId), decodeURIComponent(assignmentResultsMatch[2]))) {
+            json(res, { message: '채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.' }, 400);
+            return;
+          }
           json(res, resultFor(crops, decodeURIComponent(assignmentResultsMatch[2])));
           return;
         }
@@ -304,6 +409,37 @@ export function mockServerPlugin() {
         const statsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/stats$/);
         if (req.method === 'GET' && statsMatch) {
           json(res, cropStats.get(Number(statsMatch[1])) || []);
+          return;
+        }
+
+        const assignmentDeadlineMatch = pathname.match(/^\/api\/assignments\/(\d+)\/deadline$/);
+        if (req.method === 'PUT' && assignmentDeadlineMatch) {
+          const assignmentId = Number(assignmentDeadlineMatch[1]);
+          const assignmentTasks = tasks.filter(task => task.assignmentId === assignmentId);
+          if (assignmentTasks.some(task => task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now())) {
+            json(res, { message: '이미 마감된 과제의 마감일은 변경하거나 해제할 수 없습니다.' }, 400);
+            return;
+          }
+          const body = await readJson(req);
+          assignmentTasks.forEach(task => { task.deadlineAt = body.deadlineAt || null; });
+          json(res, { success: true });
+          return;
+        }
+
+        const taskDeadlineMatch = pathname.match(/^\/api\/tasks\/(\d+)\/deadline$/);
+        if (req.method === 'PUT' && taskDeadlineMatch) {
+          const task = tasks.find(item => item.id === Number(taskDeadlineMatch[1]));
+          if (!task || task.assignmentId || task.uploadedFilename?.startsWith('diagnostic-')) {
+            json(res, { message: '이 Task의 마감일은 개별 변경할 수 없습니다.' }, 400);
+            return;
+          }
+          if (task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now()) {
+            json(res, { message: '이미 마감된 과제의 마감일은 변경하거나 해제할 수 없습니다.' }, 400);
+            return;
+          }
+          const body = await readJson(req);
+          task.deadlineAt = body.deadlineAt || null;
+          json(res, { success: true });
           return;
         }
 

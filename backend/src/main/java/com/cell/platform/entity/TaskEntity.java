@@ -35,6 +35,8 @@ public class TaskEntity {
 
     private LocalDateTime createdAt;
 
+    private LocalDateTime deadlineAt;
+
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CropEntity> crops = new ArrayList<>();
 
@@ -46,7 +48,7 @@ public class TaskEntity {
     @Builder
     private TaskEntity(Long id, TaskStatus status, String originalFilename,
                        String uploadedFilename, Long assignmentId, String title,
-                       LocalDateTime createdAt) {
+                       LocalDateTime createdAt, LocalDateTime deadlineAt) {
         this.id = id;
         this.status = status;
         this.originalFilename = originalFilename;
@@ -54,10 +56,15 @@ public class TaskEntity {
         this.assignmentId = assignmentId;
         this.title = title;
         this.createdAt = createdAt;
+        this.deadlineAt = deadlineAt;
     }
 
     public void addCrop(CropEntity cropEntity) {
         this.crops.add(cropEntity);
         cropEntity.assignTask(this);
+    }
+
+    public void updateDeadlineAt(LocalDateTime deadlineAt) {
+        this.deadlineAt = deadlineAt;
     }
 }

@@ -4,19 +4,22 @@ import { useAuth } from '../context/AuthContext';
 import { taskApi, cropApi, submissionApi, reportApi } from '../api';
 import { CELL_TYPES, REPORT_REASONS, imageUrl } from '../constants';
 import AuthImage from '../components/AuthImage';
+import StudentReviewPanel from '../components/StudentReviewPanel';
 
 function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
 }
 
 /* ──────────────── Task Card (과제 목록용) ──────────────── */
-function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumber = null }) {
+function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, displayNumber = null }) {
   const [total, setTotal] = useState(0);
   const [solved, setSolved] = useState(0);
   const [accuracy, setAccuracy] = useState(null);
+  const [reviewAvailable, setReviewAvailable] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
+      setReviewAvailable(false);
       try {
         const cropsRes = await cropApi.getByTaskId(task.id);
         setTotal(cropsRes.data.length);
@@ -25,6 +28,7 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
         if (cropsRes.data.length > 0 && solvedRes.data.length === cropsRes.data.length) {
           const statsRes = await submissionApi.getMyResults(task.id, username);
           if (statsRes.data?.accuracy !== undefined) setAccuracy(statsRes.data.accuracy);
+          setReviewAvailable(true);
         }
       } catch (err) { console.error(err); }
     };
@@ -33,9 +37,11 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
 
   const percent = total === 0 ? 0 : Math.round((solved / total) * 100);
   const isCompleted = total > 0 && solved === total;
+  const isExpired = !diagnostic && Boolean(task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now());
+  const openReview = !diagnostic && (isExpired || reviewAvailable);
 
   return (
-    <div style={taskCardStyle} onClick={onClick}>
+    <div style={taskCardStyle} onClick={openReview ? onReview : onClick}>
       {task.originalFilename ? (
         <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
       ) : diagnostic ? (
@@ -54,13 +60,14 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
                 DIAGNOSTIC
               </span>
             )}
-            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isCompleted ? '#d4edda' : '#e9ecef', color: isCompleted ? '#155724' : '#495057' }}>
-              {isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
+            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isExpired ? '#f8d7da' : isCompleted ? '#d4edda' : '#e9ecef', color: isExpired ? '#842029' : isCompleted ? '#155724' : '#495057' }}>
+              {isExpired ? 'CLOSED' : isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
             </span>
           </div>
         </div>
         <div style={{ color: '#6c757d', fontSize: '13px', marginBottom: '15px' }}>
           {task.uploadedFilename && <div style={{ fontSize: '11px', wordBreak: 'break-all' }}>{task.uploadedFilename}</div>}
+          {task.deadlineAt && <div style={{ fontSize: '11px', marginTop: '4px' }}>마감: {new Date(task.deadlineAt).toLocaleString('ko-KR')}</div>}
         </div>
         <div style={{ background: '#e9ecef', borderRadius: '4px', height: '8px', width: '100%', overflow: 'hidden', marginBottom: '6px' }}>
           <div style={{ background: isCompleted ? '#28a745' : '#0056b3', height: '100%', width: `${percent}%`, transition: 'width 0.5s ease-in-out' }} />
@@ -81,22 +88,36 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
 }
 
 /* ──────────────── Assignment Card ──────────────── */
-function AssignmentCard({ assignment, username, onClick }) {
+function AssignmentCard({ assignment, username, onClick, onReview }) {
   const [progress, setProgress] = useState({ total: 0, solved: 0 });
+  const [reviewAvailable, setReviewAvailable] = useState(false);
 
   useEffect(() => {
+    setReviewAvailable(false);
     const total = assignment.tasks.reduce((sum, t) => sum + (t.cropCount || 0), 0);
     if (total === 0) { setProgress({ total: 0, solved: 0 }); return; }
     submissionApi.getSolvedCropsForAssignment(assignment.id, username)
-      .then(({ data }) => setProgress({ total, solved: data.length }))
+      .then(async ({ data }) => {
+        setProgress({ total, solved: data.length });
+        if (data.length >= total) {
+          try {
+            await submissionApi.getMyResultsForAssignment(assignment.id, username);
+            setReviewAvailable(true);
+          } catch {
+            setReviewAvailable(false);
+          }
+        }
+      })
       .catch(() => setProgress({ total, solved: 0 }));
   }, [assignment, username]);
 
   const percent = progress.total === 0 ? 0 : Math.round((progress.solved / progress.total) * 100);
   const isCompleted = progress.total > 0 && progress.solved >= progress.total;
+  const deadlineAt = assignment.tasks[0]?.deadlineAt;
+  const isExpired = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= Date.now());
 
   return (
-    <div style={taskCardStyle} onClick={onClick}>
+    <div style={taskCardStyle} onClick={isExpired || reviewAvailable ? onReview : onClick}>
       {assignment.tasks[0]?.originalFilename ? (
         <AuthImage src={imageUrl.thumbnail(assignment.tasks[0].originalFilename)} fallbackSrc={imageUrl.original(assignment.tasks[0].originalFilename)} alt="smear" style={thumbnailStyle} />
       ) : (
@@ -105,12 +126,13 @@ function AssignmentCard({ assignment, username, onClick }) {
       <div style={{ padding: '15px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <span style={{ fontWeight: '700', fontSize: '16px', color: '#343a40' }}>{assignment.title}</span>
-          <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isCompleted ? '#d4edda' : '#e9ecef', color: isCompleted ? '#155724' : '#495057' }}>
-            {isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
+          <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isExpired ? '#f8d7da' : isCompleted ? '#d4edda' : '#e9ecef', color: isExpired ? '#842029' : isCompleted ? '#155724' : '#495057' }}>
+            {isExpired ? 'CLOSED' : isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
           </span>
         </div>
         <div style={{ color: '#6c757d', fontSize: '12px', marginBottom: '12px' }}>
           도말 {assignment.tasks.length}장 · 총 {progress.total}개 세포
+          {deadlineAt && <div style={{ marginTop: '4px' }}>마감: {new Date(deadlineAt).toLocaleString('ko-KR')}</div>}
         </div>
         <div style={{ background: '#e9ecef', borderRadius: '4px', height: '8px', overflow: 'hidden', marginBottom: '6px' }}>
           <div style={{ background: isCompleted ? '#28a745' : '#0056b3', height: '100%', width: `${percent}%`, transition: 'width 0.5s ease' }} />
@@ -250,7 +272,15 @@ export default function StudentPage() {
         const nextIdx = crops.findIndex((c, i) => i > currentCropIndex && !solvedCrops.has(c.id) && c.id !== currentCrop.id);
         if (nextIdx !== -1) setCurrentCropIndex(nextIdx);
       }
-    } catch { alert("제출에 실패했습니다."); }
+    } catch (error) {
+      const message = error?.response?.data?.message || '제출에 실패했습니다.';
+      alert(message);
+      if (error?.response?.status === 400 && /마감|결과가 공개/.test(message)) {
+        setSelectedTask(null);
+        setSelectedAssignment(null);
+        setTaskTab('review');
+      }
+    }
   };
 
   const handleFinalSubmit = async () => {
@@ -263,7 +293,13 @@ export default function StudentPage() {
       }
       setResultData(data);
       setShowResult(true);
-    } catch { alert("결과를 불러오는데 실패했습니다."); }
+    } catch (error) {
+      if (!isDiagnosticMode && error?.response?.status === 400) {
+        alert('답안 제출이 완료되었습니다. 교수 채점 완료 또는 마감 후 학습 결과 메뉴에서 확인할 수 있습니다.');
+      } else {
+        alert(error?.response?.data?.message || '결과를 불러오는데 실패했습니다.');
+      }
+    }
   };
 
   const [reportReason, setReportReason] = useState('이미지 잘림');
@@ -356,16 +392,21 @@ export default function StudentPage() {
           <span style={{ color: '#6c757d' }}>
             {taskTab === 'diagnostic'
               ? '진단평가 과제를 선택해 GT 기반으로 채점받으세요.'
-              : '일반 과제를 선택해 분류 연습을 진행하세요.'}
+              : taskTab === 'review'
+                ? '완료되거나 마감된 과제에서 내 응답과 GT 정답을 비교하세요.'
+                : '일반 과제를 선택해 분류 연습을 진행하세요.'}
           </span>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
           <button onClick={() => setTaskTab('practice')} style={taskTab === 'practice' ? tabActive : tabInactive}>일반 과제</button>
           <button onClick={() => setTaskTab('diagnostic')} style={taskTab === 'diagnostic' ? tabActive : tabInactive}>진단평가</button>
+          <button onClick={() => setTaskTab('review')} style={taskTab === 'review' ? tabActive : tabInactive}>학습 결과</button>
         </div>
 
-        {taskTab === 'practice' ? (
+        {taskTab === 'review' ? (
+          <StudentReviewPanel />
+        ) : taskTab === 'practice' ? (
           <>
             {assignments.length === 0 && individualTasks.length === 0 && (
               <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>No practice tasks available.</p>
@@ -380,6 +421,7 @@ export default function StudentPage() {
                       assignment={assignment}
                       username={username}
                       onClick={() => handleSelectAssignment(assignment)}
+                      onReview={() => setTaskTab('review')}
                     />
                   ))}
                 </div>
@@ -390,7 +432,7 @@ export default function StudentPage() {
                 <div style={{ fontWeight: '600', color: '#495057', marginBottom: '12px', fontSize: '14px' }}>개별 과제</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
                   {individualTasks.map(task => (
-                    <TaskCardItem key={task.id} task={task} username={username} diagnostic={false} onClick={() => handleSelectTask(task)} />
+                    <TaskCardItem key={task.id} task={task} username={username} diagnostic={false} onClick={() => handleSelectTask(task)} onReview={() => setTaskTab('review')} />
                   ))}
                 </div>
               </>

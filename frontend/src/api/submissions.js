@@ -21,4 +21,7 @@ export const submissionApi = {
 
   getMyResultsForAssignment: (assignmentId, studentId) =>
     api.get(`/assignments/${assignmentId}/my-results/${studentId}`),
+
+  getMyReviews: () =>
+    api.get('/student/reviews'),
 };

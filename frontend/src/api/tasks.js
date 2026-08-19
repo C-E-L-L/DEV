@@ -17,6 +17,12 @@ export const taskApi = {
   deleteAssignment: (assignmentId) =>
     api.delete(`/assignments/${assignmentId}`),
 
+  updateAssignmentDeadline: (assignmentId, deadlineAt) =>
+    api.put(`/assignments/${assignmentId}/deadline`, { deadlineAt }),
+
+  updateDeadline: (taskId, deadlineAt) =>
+    api.put(`/tasks/${taskId}/deadline`, { deadlineAt }),
+
   delete: (taskId) =>
     api.delete(`/tasks/${taskId}`),
 };

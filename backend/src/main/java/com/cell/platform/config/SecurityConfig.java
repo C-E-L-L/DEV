@@ -40,6 +40,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/game/**").hasRole("ADMIN")
                 .requestMatchers("/api/labeling/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/all-stats").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/student/reviews", "/api/student/reviews/**").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.GET, "/api/reports").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/reports").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/tasks/diagnostic/**").hasAnyRole("EXPERT", "ADMIN")
@@ -48,6 +49,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/tasks/diagnostic/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/tasks/upload").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/crops/*/confirm").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/tasks/*/deadline").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/assignments/*/deadline").hasAnyRole("EXPERT", "ADMIN")
                 .anyRequest().authenticated()
             )
                 .exceptionHandling(exception -> exception

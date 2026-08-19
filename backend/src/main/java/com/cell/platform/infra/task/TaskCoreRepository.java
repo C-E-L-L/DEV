@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 @Repository
 @RequiredArgsConstructor
@@ -51,6 +52,19 @@ public class TaskCoreRepository implements TaskRepository {
         return taskJpaRepository.findAllByAssignmentId(assignmentId).stream()
                 .map(Mapper::convertToTask)
                 .toList();
+    }
+
+    @Override
+    public void updateDeadlineAt(Long taskId, LocalDateTime deadlineAt) {
+        taskJpaRepository.findById(taskId)
+                .orElseThrow()
+                .updateDeadlineAt(deadlineAt);
+    }
+
+    @Override
+    public void updateDeadlineAtByAssignmentId(Long assignmentId, LocalDateTime deadlineAt) {
+        taskJpaRepository.findAllByAssignmentId(assignmentId)
+                .forEach(task -> task.updateDeadlineAt(deadlineAt));
     }
 
     public List<Long> findIdsByAssignmentId(Long assignmentId) {

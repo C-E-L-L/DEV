@@ -1,0 +1,2 @@
+ALTER TABLE tasks
+    ADD COLUMN deadline_at DATETIME(6) NULL;

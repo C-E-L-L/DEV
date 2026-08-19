@@ -63,8 +63,11 @@ public class SubmissionController {
             @PathVariable String studentId,
             @AuthenticationPrincipal String username,
             Authentication authentication) {
-        return ResponseEntity.ok(submissionService.getMyResults(taskId,
-                resolveStudentId(studentId, username, authentication)));
+        String resolvedStudentId = resolveStudentId(studentId, username, authentication);
+        if (isStudent(authentication)) {
+            submissionService.assertReviewAvailableForTask(taskId, resolvedStudentId);
+        }
+        return ResponseEntity.ok(submissionService.getMyResults(taskId, resolvedStudentId));
     }
 
     @GetMapping("/assignments/{assignmentId}/submissions/{studentId}")
@@ -83,14 +86,20 @@ public class SubmissionController {
             @PathVariable String studentId,
             @AuthenticationPrincipal String username,
             Authentication authentication) {
-        return ResponseEntity.ok(submissionService.getMyResultsForAssignment(assignmentId,
-                resolveStudentId(studentId, username, authentication)));
+        String resolvedStudentId = resolveStudentId(studentId, username, authentication);
+        if (isStudent(authentication)) {
+            submissionService.assertReviewAvailableForAssignment(assignmentId, resolvedStudentId);
+        }
+        return ResponseEntity.ok(submissionService.getMyResultsForAssignment(assignmentId, resolvedStudentId));
     }
 
     // STUDENT 역할은 자신의 데이터만 접근 가능, EXPERT/ADMIN은 모든 학생 데이터 접근 가능
     private String resolveStudentId(String requestedId, String username, Authentication authentication) {
-        boolean isStudent = authentication.getAuthorities().stream()
+        return isStudent(authentication) ? username : requestedId;
+    }
+
+    private boolean isStudent(Authentication authentication) {
+        return authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"));
-        return isStudent ? username : requestedId;
     }
 }
