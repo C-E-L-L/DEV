@@ -20,6 +20,26 @@ function makeVotes(index) {
   return Object.fromEntries(CELL_LABELS.map(label => [label, label === primary ? 3 : label === secondary ? 2 : 0]));
 }
 
+function makeVoters(index) {
+  const primary = CELL_LABELS[index % CELL_LABELS.length];
+  const secondary = CELL_LABELS[(index + 1) % CELL_LABELS.length];
+  const students = [
+    { studentId: '20260001', studentName: '김민지', studentDisplayName: '20260001_김민지' },
+    { studentId: '20260002', studentName: '이준호', studentDisplayName: '20260002_이준호' },
+    { studentId: '20260003', studentName: '박서연', studentDisplayName: '20260003_박서연' },
+    { studentId: '20260004', studentName: '최도윤', studentDisplayName: '20260004_최도윤' },
+    { studentId: '20260005', studentName: '정하은', studentDisplayName: '20260005_정하은' },
+  ];
+  return Object.fromEntries(CELL_LABELS.map(label => [
+    label,
+    label === primary
+      ? students.slice(0, 3)
+      : label === secondary
+        ? students.slice(3)
+        : [],
+  ]));
+}
+
 function makeCrop(taskId, index) {
   const finalLabel = taskId === 102 ? CELL_LABELS[index % CELL_LABELS.length] : labelsByIndex[index];
   const voteDistribution = makeVotes(index);
@@ -43,6 +63,7 @@ function makeCrop(taskId, index) {
     hardScore: finalLabel ? 100 - accuracyRate : 0,
     wrongDetails: [],
     voteDistribution,
+    votersByLabel: makeVoters(index),
   };
 }
 

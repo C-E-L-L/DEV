@@ -16,24 +16,78 @@ function getAccuracyColor(accuracy, totalAnswers = 1) {
 }
 
 /* ──────────────── 투표 분포 바 ──────────────── */
-function VoteBar({ voteDistribution, totalAnswers }) {
+function VoteBar({ voteDistribution, votersByLabel, totalAnswers }) {
+  const [expandedLabel, setExpandedLabel] = useState(null);
+
   if (totalAnswers === 0) {
     return <div style={{ color: '#6c757d', fontSize: '14px' }}>No student responses yet</div>;
   }
+
   return (
     <div style={{ marginTop: '10px' }}>
       {CELL_KEYS.map(label => {
         const count = voteDistribution?.[label] || 0;
         const pct = (count / totalAnswers) * 100;
+        const isExpanded = expandedLabel === label;
+        const voters = votersByLabel?.[label];
         return (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <div style={{ width: '90px', fontSize: '13px', color: '#495057', fontWeight: '500' }}>{label}</div>
-            <div style={{ flex: 1, height: '20px', background: '#e9ecef', borderRadius: '4px', overflow: 'hidden', marginRight: '10px' }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: pct > 0 ? '#4dabf7' : 'transparent', transition: 'width 0.3s ease' }} />
-            </div>
-            <div style={{ width: '60px', fontSize: '13px', color: '#495057', textAlign: 'right' }}>
-              {count} ({Math.round(pct)}%)
-            </div>
+          <div key={label} style={{ marginBottom: '6px' }}>
+            <button
+              type="button"
+              aria-expanded={isExpanded}
+              aria-controls={`voters-${label}`}
+              onClick={() => setExpandedLabel(current => current === label ? null : label)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', padding: '2px 4px',
+                border: 'none', borderRadius: '5px', background: isExpanded ? '#f1f3f5' : 'transparent',
+                cursor: 'pointer', font: 'inherit', textAlign: 'left',
+              }}
+            >
+              <span style={{ width: '90px', fontSize: '13px', color: '#495057', fontWeight: '500' }}>{label}</span>
+              <span style={{ flex: 1, height: '20px', background: '#e9ecef', borderRadius: '4px', overflow: 'hidden', marginRight: '10px' }}>
+                <span style={{ display: 'block', width: `${pct}%`, height: '100%', background: pct > 0 ? '#4dabf7' : 'transparent', transition: 'width 0.3s ease' }} />
+              </span>
+              <span style={{ width: '60px', fontSize: '13px', color: '#495057', textAlign: 'right' }}>
+                {count} ({Math.round(pct)}%)
+              </span>
+              <span aria-hidden="true" style={{ width: '22px', color: '#6c757d', fontSize: '11px', textAlign: 'right' }}>
+                {isExpanded ? '▲' : '▼'}
+              </span>
+            </button>
+            {isExpanded && (
+              <div
+                id={`voters-${label}`}
+                style={{
+                  margin: '4px 4px 2px 94px', padding: '9px 11px', borderRadius: '6px',
+                  background: '#f8f9fa', border: '1px solid #e9ecef', color: '#495057',
+                }}
+              >
+                <div style={{ marginBottom: voters?.length ? '7px' : 0, fontSize: '12px', fontWeight: '700' }}>
+                  선택한 학생 ({count}명)
+                </div>
+                {Array.isArray(voters) ? (
+                  voters.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                      {voters.map((voter, index) => {
+                        const studentId = typeof voter === 'string' ? voter : voter.studentId;
+                        const displayName = typeof voter === 'string'
+                          ? voter
+                          : voter.studentDisplayName || (voter.studentName ? `${studentId}_${voter.studentName}` : studentId);
+                        return (
+                          <span key={`${studentId}-${index}`} style={{ padding: '3px 7px', borderRadius: '999px', background: '#e7f5ff', color: '#1864ab', fontSize: '12px' }}>
+                            {displayName}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: '#868e96' }}>선택한 학생이 없습니다.</div>
+                  )
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#868e96' }}>학생 정보를 불러올 수 없습니다.</div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1148,7 +1202,12 @@ export default function ExpertPage() {
                           <div style={{ fontSize: '14px', fontWeight: '600', color: '#495057', marginBottom: '10px' }}>
                             📊 Student Vote Distribution ({selectedCrop.totalAnswers} responses)
                           </div>
-                          <VoteBar voteDistribution={selectedCrop.voteDistribution} totalAnswers={selectedCrop.totalAnswers} />
+                          <VoteBar
+                            key={`votes-${selectedCrop.cropId}`}
+                            voteDistribution={selectedCrop.voteDistribution}
+                            votersByLabel={selectedCrop.votersByLabel}
+                            totalAnswers={selectedCrop.totalAnswers}
+                          />
                         </div>
 
                         {/* 정답률 */}

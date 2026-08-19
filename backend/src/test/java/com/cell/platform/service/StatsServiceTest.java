@@ -5,6 +5,7 @@ import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CropRepository;
 import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.submission.SubmissionRepository;
+import com.cell.platform.domain.user.UserRepository;
 import com.cell.platform.dto.response.CropStatsResponse;
 import com.cell.platform.fixture.CropFixture;
 import org.junit.jupiter.api.Nested;
@@ -25,6 +26,7 @@ class StatsServiceTest {
     @InjectMocks private StatsService statsService;
     @Mock private CropRepository cropRepository;
     @Mock private SubmissionRepository submissionRepository;
+    @Mock private UserRepository userRepository;
 
     @Nested
     class getTaskStats_메서드는 {
