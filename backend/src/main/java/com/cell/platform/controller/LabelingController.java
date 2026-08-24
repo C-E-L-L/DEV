@@ -27,7 +27,7 @@ public class LabelingController {
         byte[] zip = labelingService.exportTask(taskId);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"task_" + taskId + "_labeling.zip\"")
+                        "attachment; filename=\"" + labelingService.buildArchiveFilename(taskId) + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(zip);
     }

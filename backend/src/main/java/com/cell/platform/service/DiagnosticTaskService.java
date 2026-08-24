@@ -10,6 +10,7 @@ import com.cell.platform.dto.response.DiagnosticPoolStatsResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
 import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.exception.ErrorCode;
+import com.cell.platform.entity.AnimalSpeciesEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ public class DiagnosticTaskService {
 
     private final DiagnosticDatasetService diagnosticDatasetService;
     private final TaskRepository taskRepository;
+    private final AnimalSpeciesService animalSpeciesService;
 
     public DiagnosticPoolStatsResponse getPoolStats() {
         Map<CellType, Integer> available = diagnosticDatasetService.getAvailableCounts();
@@ -35,7 +37,10 @@ public class DiagnosticTaskService {
             byClass.put(type.name(), count);
             total += count;
         }
-        return new DiagnosticPoolStatsResponse(total, byClass);
+        AnimalSpeciesEntity dog = animalSpeciesService.getDog();
+        return new DiagnosticPoolStatsResponse(
+                total, byClass, dog.getId(), dog.getCode(), dog.getName()
+        );
     }
 
     @Transactional
@@ -45,7 +50,8 @@ public class DiagnosticTaskService {
         List<DiagnosticDatasetService.DiagnosticCell> selected = diagnosticDatasetService.sampleCells(distribution);
 
         String title = "diagnostic-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        Task task = Task.create("", title);
+        AnimalSpeciesEntity dog = animalSpeciesService.getDog();
+        Task task = Task.create("", title, null, dog.getId(), dog.getCode(), dog.getName());
         selected.forEach(cell -> {
             Crop crop = Crop.create(cell.cropFilename(), cell.bbox(), cell.label(), null, null, null);
             task.getCrops().add(crop);
@@ -55,7 +61,7 @@ public class DiagnosticTaskService {
         List<CropResponse> cropResponses = savedTask.getCrops().stream()
                 .map(CropResponse::from)
                 .toList();
-        return TaskUploadResponse.of(savedTask.getId(), savedTask.getOriginalFilename(), cropResponses);
+        return TaskUploadResponse.of(savedTask, savedTask.getOriginalFilename(), cropResponses);
     }
 
     private Map<CellType, Integer> normalizeAndValidateDistribution(

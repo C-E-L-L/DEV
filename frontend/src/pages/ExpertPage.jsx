@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi } from '../api';
+import { taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelingApi, speciesApi } from '../api';
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
 import AuthImage from '../components/AuthImage';
 import ImageDisplayControls, { useImageDisplaySettings } from '../components/ImageDisplayControls';
 import { fetchAuthImage } from '../utils/fetchAuthImage';
+import SpeciesBadge from '../components/SpeciesBadge';
+import SpeciesSelector from '../components/SpeciesSelector';
+import TaskSpeciesEditor from '../components/TaskSpeciesEditor';
+import SpeciesDataSettings from '../components/SpeciesDataSettings';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -261,11 +265,41 @@ export default function ExpertPage() {
   const [uploadStep, setUploadStep] = useState(0);
   const [uploadingImageIndex, setUploadingImageIndex] = useState(0);
   const [formErrors, setFormErrors] = useState({ title: false, files: false });
+  const [species, setSpecies] = useState([]);
+  const [fileSpeciesIds, setFileSpeciesIds] = useState([]);
   const fileInputRef = useRef(null);
   const titleInputRef = useRef(null);
   const dropZoneRef = useRef(null);
 
   const [selectedResultTaskIndex, setSelectedResultTaskIndex] = useState(0);
+
+  const loadSpecies = useCallback(async () => {
+    try {
+      const { data } = await speciesApi.getAll();
+      setSpecies(data || []);
+      const defaultSpeciesId = data?.find(item => item.code === 'DOG')?.id || data?.[0]?.id || null;
+      setFileSpeciesIds(current => current.map(id => id || defaultSpeciesId));
+    } catch (error) {
+      console.error('동물 종 목록 조회 실패:', error);
+    }
+  }, []);
+
+  const handleSpeciesSaved = useCallback((savedSpecies) => {
+    setSpecies(current => {
+      const exists = current.some(item => item.id === savedSpecies.id);
+      const next = exists
+        ? current.map(item => item.id === savedSpecies.id ? savedSpecies : item)
+        : [...current, savedSpecies];
+      return next.sort((a, b) => Number(b.builtIn) - Number(a.builtIn)
+        || a.name.localeCompare(b.name, 'ko'));
+    });
+  }, []);
+
+  useEffect(() => { loadSpecies(); }, [loadSpecies]);
+
+  useEffect(() => {
+    if (activeTab === 4) loadSpecies();
+  }, [activeTab, loadSpecies]);
 
   /* 다른 탭에 갔다 오면 이전 분석 결과는 지우고 초기 화면으로 되돌린다 */
   useEffect(() => {
@@ -638,6 +672,11 @@ export default function ExpertPage() {
     setTasks(data);
   };
 
+  const refreshTasks = async () => {
+    const { data } = await taskApi.getAll();
+    setTasks(data);
+  };
+
   /* ── Confirm Label ── */
   const handleConfirmLabel = async (cropId, finalLabel) => {
     try {
@@ -657,7 +696,8 @@ export default function ExpertPage() {
       const url = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `task_${taskId}_labeling.zip`;
+      const task = tasks.find(item => item.id === taskId);
+      link.download = `task_${taskId}_${(task?.speciesCode || 'DOG').toLowerCase()}_labeling.zip`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -679,35 +719,40 @@ export default function ExpertPage() {
   };
 
   /* ── Assignment Upload 핸들러 ── */
+  const addSmearFiles = (newFiles) => {
+    if (newFiles.length === 0) return;
+    const defaultSpeciesId = species.find(item => item.code === 'DOG')?.id || species[0]?.id || null;
+    setFiles(prev => [...prev, ...newFiles]);
+    setPreviews(prev => [...prev, ...newFiles.map(f => URL.createObjectURL(f))]);
+    setFileSpeciesIds(prev => [...prev, ...newFiles.map(() => defaultSpeciesId)]);
+    setUploadResult(null);
+    setFormErrors(prev => ({ ...prev, files: false }));
+  };
+
   const handleFileChange = (e) => {
     const newFiles = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
-    if (newFiles.length > 0) {
-      setFiles(prev => [...prev, ...newFiles]);
-      setPreviews(prev => [...prev, ...newFiles.map(f => URL.createObjectURL(f))]);
-      setUploadResult(null);
-      setFormErrors(prev => ({ ...prev, files: false }));
-    }
+    addSmearFiles(newFiles);
   };
   const handleRemoveFile = (idx) => {
     setFiles(prev => prev.filter((_, i) => i !== idx));
     setPreviews(prev => prev.filter((_, i) => i !== idx));
+    setFileSpeciesIds(prev => prev.filter((_, i) => i !== idx));
   };
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop = (e) => {
     e.preventDefault(); setIsDragging(false);
     const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-    if (dropped.length > 0) {
-      setFiles(prev => [...prev, ...dropped]);
-      setPreviews(prev => [...prev, ...dropped.map(f => URL.createObjectURL(f))]);
-      setUploadResult(null);
-      setFormErrors(prev => ({ ...prev, files: false }));
-    }
+    addSmearFiles(dropped);
   };
   const handleUpload = async () => {
     /* 필수 항목 검증 — 버튼을 막는 대신 어디를 채워야 하는지 표시한다 */
-    const nextErrors = { title: !assignmentTitle.trim(), files: files.length === 0 };
-    if (nextErrors.title || nextErrors.files) {
+    const nextErrors = {
+      title: !assignmentTitle.trim(),
+      files: files.length === 0,
+      species: files.length > 0 && files.some((_, index) => !fileSpeciesIds[index]),
+    };
+    if (nextErrors.title || nextErrors.files || nextErrors.species) {
       setFormErrors(nextErrors);
       const target = nextErrors.title ? titleInputRef.current : dropZoneRef.current;
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -721,11 +766,14 @@ export default function ExpertPage() {
       const formData = new FormData();
       formData.append('title', assignmentTitle.trim());
       if (assignmentDeadline) formData.append('deadlineAt', `${assignmentDeadline}:00`);
-      files.forEach(f => formData.append('files', f));
+      files.forEach((file, index) => {
+        formData.append('files', file);
+        formData.append('speciesIds', String(fileSpeciesIds[index]));
+      });
       const { data } = await taskApi.createAssignment(formData);
       setUploadResult(data);
       setSelectedResultTaskIndex(0);
-      setFiles([]); setPreviews([]); setAssignmentTitle(''); setAssignmentDeadline('');
+      setFiles([]); setPreviews([]); setFileSpeciesIds([]); setAssignmentTitle(''); setAssignmentDeadline('');
     } catch { alert('업로드에 실패했습니다.'); }
     finally { setUploading(false); }
   };
@@ -779,6 +827,7 @@ export default function ExpertPage() {
         <button onClick={() => setActiveTab(1)} style={activeTab === 1 ? tabActive : tabInactive}>1. Task Management</button>
         <button onClick={() => setActiveTab(2)} style={activeTab === 2 ? tabActive : tabInactive}>2. Analytics &amp; Feedback</button>
         <button onClick={() => setActiveTab(3)} style={activeTab === 3 ? tabActive : tabInactive}>3. Diagnostic Evaluation</button>
+        <button onClick={() => setActiveTab(4)} style={activeTab === 4 ? tabActive : tabInactive}>4. Data Settings</button>
       </div>
 
       {/* ============= Tab 1: Task Management ============= */}
@@ -856,20 +905,32 @@ export default function ExpertPage() {
               <div style={{ fontWeight: '600', color: '#495057', marginBottom: '10px' }}>
                 선택된 도말 이미지 ({previews.length}장)
               </div>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 {previews.map((src, idx) => (
-                  <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
-                    <img src={src} alt={`preview-${idx}`} style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dee2e6' }} />
+                  <div key={idx} style={{ position: 'relative', width: '280px', padding: '12px', border: `1px solid ${formErrors.species && !fileSpeciesIds[idx] ? '#dc3545' : '#dee2e6'}`, borderRadius: '8px', background: '#fff' }}>
+                    <img src={src} alt={`preview-${idx}`} style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #dee2e6' }} />
                     <button
                       onClick={() => handleRemoveFile(idx)}
                       style={{ position: 'absolute', top: '-6px', right: '-6px', width: '20px', height: '20px', borderRadius: '50%', background: '#dc3545', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', lineHeight: '20px', textAlign: 'center', padding: 0 }}
                     >✕</button>
-                    <div style={{ fontSize: '10px', color: '#6c757d', textAlign: 'center', marginTop: '2px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '11px', color: '#6c757d', textAlign: 'center', margin: '5px 0 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {files[idx]?.name}
                     </div>
+                    <SpeciesSelector
+                      species={species}
+                      selectedId={fileSpeciesIds[idx]}
+                      onSelect={(id) => {
+                        setFileSpeciesIds(prev => prev.map((value, index) => index === idx ? id : value));
+                        setFormErrors(prev => ({ ...prev, species: false }));
+                      }}
+                      disabled={uploading}
+                      label={`도말 ${idx + 1}의 동물 종 *`}
+                      helperText="이 종은 해당 도말과 여기서 생성된 모든 세포에 적용됩니다."
+                    />
                   </div>
                 ))}
               </div>
+              {formErrors.species && <div style={fieldErrorStyle}>⚠️ 각 도말 이미지의 동물 종을 선택해 주세요.</div>}
             </div>
           )}
 
@@ -936,7 +997,7 @@ export default function ExpertPage() {
                         background: selectedResultTaskIndex === idx ? '#495057' : '#f8f9fa',
                         color: selectedResultTaskIndex === idx ? '#fff' : '#495057', fontWeight: selectedResultTaskIndex === idx ? '600' : 'normal',
                       }}>
-                        이미지 {idx + 1} ({t.totalDetected}개)
+                        이미지 {idx + 1} · {t.speciesName || '개 (Dog)'} ({t.totalDetected}개)
                       </button>
                     ))}
                   </div>
@@ -1006,6 +1067,7 @@ export default function ExpertPage() {
                           }}>
                             <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Smear ${idx + 1}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                             <div style={{ fontWeight: '600', fontSize: '14px' }}>도말 #{idx + 1}</div>
+                            <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact style={{ marginTop: '5px' }} />
                             <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                               {task.uploadedFilename || task.originalFilename}
                             </div>
@@ -1013,6 +1075,14 @@ export default function ExpertPage() {
                               <GtProgressBadge progress={getTaskGtProgress(task)} completeLabel="✓ GT 완료" />
                             </div>
                           </button>
+                          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
+                            <TaskSpeciesEditor
+                              taskId={task.id}
+                              species={species}
+                              value={task.speciesId}
+                              onUpdated={refreshTasks}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1034,6 +1104,11 @@ export default function ExpertPage() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: '600', fontSize: '15px', color: '#212529' }}>{group.title}</div>
                           <div style={{ fontSize: '13px', color: '#6c757d', marginTop: '3px' }}>도말 {group.tasks.length}개</div>
+                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '5px' }}>
+                            {Array.from(new Map(group.tasks.map(task => [task.speciesCode || `species-${task.speciesId}`, task])).values()).map(task => (
+                              <SpeciesBadge key={task.speciesCode || task.speciesId} name={task.speciesName} code={task.speciesCode} compact />
+                            ))}
+                          </div>
                         </div>
                         <DeadlineControl
                           deadlineAt={group.tasks[0]?.deadlineAt}
@@ -1081,10 +1156,17 @@ export default function ExpertPage() {
                           <div style={{ fontSize: '13px', color: '#6c757d', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             Task #{task.id} · {task.uploadedFilename || task.originalFilename}
                           </div>
+                          <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact style={{ marginTop: '5px' }} />
                         </div>
                         <DeadlineControl
                           deadlineAt={task.deadlineAt}
                           onSave={(deadlineAt) => handleUpdateDeadline('task', task.id, deadlineAt)}
+                        />
+                        <TaskSpeciesEditor
+                          taskId={task.id}
+                          species={species}
+                          value={task.speciesId}
+                          onUpdated={refreshTasks}
                         />
                         <GtProgressBadge progress={getTaskGtProgress(task)} completeLabel="✓ COMPLETE" />
                         <span style={{ fontSize: '13px', color: '#adb5bd' }}>▶</span>
@@ -1114,8 +1196,9 @@ export default function ExpertPage() {
                                 }}>
                                   <div style={{ background: isSelected ? 'rgba(255,255,255,0.2)' : '#e9ecef', borderRadius: '6px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', color: isSelected ? '#fff' : '#495057', flexShrink: 0 }}>DIAG</div>
                                   <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: '600', fontSize: '14px' }}>Diagnostic #{diagnosticNumber || task.id}</div>
-                                    <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px', wordBreak: 'break-all' }}>{task.uploadedFilename}</div>
+                                     <div style={{ fontWeight: '600', fontSize: '14px' }}>Diagnostic #{diagnosticNumber || task.id}</div>
+                                     <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px', wordBreak: 'break-all' }}>{task.uploadedFilename}</div>
+                                     <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact style={{ marginTop: '5px' }} />
                                   </div>
                                   <span style={{ fontSize: '13px', opacity: 0.5 }}>▶</span>
                                 </button>
@@ -1131,6 +1214,21 @@ export default function ExpertPage() {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {selectedTaskId && selectedAnalyticsTask && (
+                <div style={{ marginBottom: '12px', padding: '10px 12px', border: '1px solid #a5d8ff', borderRadius: '8px', background: '#f8fcff', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: '13px', color: '#495057' }}>이 도말의 동물 종</strong>
+                  <SpeciesBadge name={selectedAnalyticsTask.speciesName} code={selectedAnalyticsTask.speciesCode} />
+                  {!isDiagnosticTask(selectedAnalyticsTask) && (
+                    <TaskSpeciesEditor
+                      taskId={selectedAnalyticsTask.id}
+                      species={species}
+                      value={selectedAnalyticsTask.speciesId}
+                      onUpdated={refreshTasks}
+                    />
+                  )}
                 </div>
               )}
 
@@ -1301,6 +1399,7 @@ export default function ExpertPage() {
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{selectedCropIndex + 1} / {stats.length}
                           </div>
+                          <SpeciesBadge name={selectedCrop.speciesName} code={selectedCrop.speciesCode} compact style={{ marginTop: '6px' }} />
                           {displaySmearFilename(selectedCrop) !== '-' && (
                             <div style={{ marginTop: '6px', fontSize: '12px', color: '#6c757d', wordBreak: 'break-all' }}>
                               Smear: {displaySmearFilename(selectedCrop)}
@@ -1403,9 +1502,10 @@ export default function ExpertPage() {
                       <div style={{ display: 'flex', gap: '12px' }}>
                         <AuthImage src={imageUrl.crop(item.filename)} alt="cell" style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '5px' }}>
-                            Crop #{item.cropId}
-                          </div>
+                           <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '5px' }}>
+                             Crop #{item.cropId}
+                           </div>
+                           <SpeciesBadge name={item.speciesName} code={item.speciesCode} compact style={{ marginBottom: '5px' }} />
                           <div style={{ fontSize: '12px', marginBottom: '3px' }}>
                             {item.finalLabel && item.totalAnswers > 0 ? (
                               <>Error Rate: <strong style={{ color: getAccuracyColor(item.accuracyRate, item.totalAnswers) }}>{item.errorRate}%</strong></>
@@ -1589,6 +1689,7 @@ export default function ExpertPage() {
                         <th style={reportHeadStyle}>학생</th>
                         <th style={reportHeadStyle}>Task</th>
                         <th style={reportHeadStyle}>Crop</th>
+                        <th style={reportHeadStyle}>동물 종</th>
                         <th style={reportHeadStyle}>사유</th>
                       </tr>
                     </thead>
@@ -1610,6 +1711,7 @@ export default function ExpertPage() {
                           <td style={reportCellStyle}>{item.studentId}</td>
                           <td style={reportCellStyle}>#{item.taskId}</td>
                           <td style={reportCellStyle}>#{item.cropId}</td>
+                          <td style={reportCellStyle}><SpeciesBadge name={item.speciesName} code={item.speciesCode} compact /></td>
                           <td style={reportCellStyle}>{item.reason}</td>
                         </tr>
                       ))}
@@ -1641,7 +1743,9 @@ export default function ExpertPage() {
           {!diagnosticLoading && poolStats && (
             <div>
               <div style={{ marginBottom: '15px', padding: '12px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px' }}>
-                <strong>총 사용 가능 셀:</strong> {maxTotalQuestions}
+                <strong>총 사용 가능 셀:</strong> {maxTotalQuestions}{' '}
+                <SpeciesBadge name={poolStats.speciesName} code={poolStats.speciesCode} style={{ marginLeft: '10px' }} />
+                <div style={{ marginTop: '7px', fontSize: '12px', color: '#6c757d' }}>현재 진단평가 데이터셋은 모두 Dog 도말입니다.</div>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap' }}>
@@ -1688,7 +1792,8 @@ export default function ExpertPage() {
 
               {diagnosticResult && (
                 <div style={successBox}>
-                  ✅ <strong>Success!</strong> Diagnostic Task #{diagnosticResult.taskId} created with <strong>{diagnosticResult.totalDetected}</strong> cells.
+                  ✅ <strong>Success!</strong> Diagnostic Task #{diagnosticResult.taskId} created with <strong>{diagnosticResult.totalDetected}</strong> cells.{' '}
+                  <SpeciesBadge name={diagnosticResult.speciesName} code={diagnosticResult.speciesCode} />
                 </div>
               )}
 
@@ -1705,6 +1810,17 @@ export default function ExpertPage() {
           )}
         </div>
       )}
+
+      {/* ============= Tab 4: Data Settings ============= */}
+      {activeTab === 4 && (
+        <div style={boxStyle}>
+          <h2 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>Data Settings</h2>
+          <p style={{ color: '#6c757d', marginBottom: '20px' }}>
+            도말 데이터에 사용하는 동물 종을 추가하고 표시 이름을 관리합니다.
+          </p>
+          <SpeciesDataSettings species={species} onSaved={handleSpeciesSaved} />
+        </div>
+      )}
     </div>
   );
 }
@@ -1712,7 +1828,7 @@ export default function ExpertPage() {
 /* ──────────────── Styles ──────────────── */
 const containerStyle = { maxWidth: '1600px', width: '95%', margin: '0 auto', padding: '20px', fontFamily: 'Inter, sans-serif', color: '#343a40' };
 
-const tabBar = { display: 'flex', borderBottom: '1px solid #dee2e6', marginBottom: '25px' };
+const tabBar = { display: 'flex', flexWrap: 'wrap', borderBottom: '1px solid #dee2e6', marginBottom: '25px' };
 const tabActive = { padding: '12px 24px', background: '#343a40', color: '#fff', border: '1px solid #343a40', fontWeight: '600', cursor: 'pointer' };
 const tabInactive = { padding: '12px 24px', background: '#f8f9fa', color: '#6c757d', border: '1px solid #dee2e6', borderBottom: 'none', cursor: 'pointer' };
 

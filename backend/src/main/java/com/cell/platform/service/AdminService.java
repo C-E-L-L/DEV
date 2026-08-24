@@ -57,6 +57,9 @@ public class AdminService {
                             task.getId(),
                             task.getOriginalFilename(),
                             task.getUploadedFilename(),
+                            task.getAnimalSpecies() != null ? task.getAnimalSpecies().getId() : null,
+                            task.getAnimalSpecies() != null ? task.getAnimalSpecies().getCode() : AnimalSpeciesService.DOG_CODE,
+                            task.getAnimalSpecies() != null ? task.getAnimalSpecies().getName() : "개 (Dog)",
                             task.getCreatedAt(),
                             total,
                             labeled,
@@ -80,8 +83,11 @@ public class AdminService {
                             task != null ? task.getId() : null,
                             crop.getCropFilename(),
                             task != null ? task.getUploadedFilename() : null,
-                        gtLabel,
-                        pseudoLabel,
+                            task != null && task.getAnimalSpecies() != null ? task.getAnimalSpecies().getId() : null,
+                            task != null && task.getAnimalSpecies() != null ? task.getAnimalSpecies().getCode() : AnimalSpeciesService.DOG_CODE,
+                            task != null && task.getAnimalSpecies() != null ? task.getAnimalSpecies().getName() : "개 (Dog)",
+                            gtLabel,
+                            pseudoLabel,
                             finalLabel,
                             hasLabel
                     );

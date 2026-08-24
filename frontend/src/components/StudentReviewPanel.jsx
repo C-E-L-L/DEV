@@ -3,6 +3,7 @@ import { submissionApi } from '../api';
 import { imageUrl } from '../constants';
 import AuthImage from './AuthImage';
 import ImageDisplayControls, { useImageDisplaySettings } from './ImageDisplayControls';
+import SpeciesBadge from './SpeciesBadge';
 
 const STATUS_META = {
   GRADED: { label: '채점 완료', background: '#d4edda', color: '#155724' },
@@ -151,7 +152,8 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
               {smearGroups.map(([name, items], groupIndex) => (
                 <div key={name} style={{ marginBottom: '10px' }}>
                   <div style={{ fontSize: '11px', fontWeight: '700', color: '#6c757d', margin: '2px 0 6px' }}>
-                    {review.scopeType === 'DIAGNOSTIC' ? '진단평가' : `도말 #${groupIndex + 1}`} · {name}
+                    {review.scopeType === 'DIAGNOSTIC' ? '진단평가' : `도말 #${groupIndex + 1}`} · {name}{' '}
+                    <SpeciesBadge name={items[0]?.item?.speciesName} code={items[0]?.item?.speciesCode} compact />
                   </div>
                   {items.map(({ item, index }) => {
                     const itemMeta = resultMeta(item);
@@ -183,6 +185,9 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
                 {review.scopeType === 'DIAGNOSTIC' && <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />}
               </div>
               <div style={{ padding: '16px' }}>
+                <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                  <SpeciesBadge name={cell.speciesName} code={cell.speciesCode} compact />
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
                   <button type="button" disabled={selectedIndex <= 0} onClick={() => onSelectIndex(selectedIndex - 1)} style={{ ...circleButtonStyle, opacity: selectedIndex <= 0 ? 0.35 : 1 }}>◀</button>
                   <AuthImage
@@ -283,6 +288,7 @@ export default function StudentReviewPanel() {
                   <span style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                     <span style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <strong style={{ fontSize: '15px', color: '#212529' }}>{review.title}</strong>
+                      <SpeciesBadge name={review.cells?.[0]?.speciesName} code={review.cells?.[0]?.speciesCode} compact />
                       <span style={{ padding: '4px 7px', borderRadius: '999px', background: status.background, color: status.color, fontSize: '10px', fontWeight: '800' }}>{status.label}</span>
                     </span>
                     <span style={{ display: 'block', marginTop: '7px', color: '#6c757d', fontSize: '12px' }}>
@@ -317,6 +323,7 @@ export default function StudentReviewPanel() {
                   <AuthImage src={imageUrl.crop(cell.cropFilename)} alt="cell" style={{ width: '76px', height: '76px', objectFit: 'contain', borderRadius: '6px', background: '#f8f9fa', flexShrink: 0 }} />
                   <span style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                     <strong style={{ display: 'block', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{review.title}</strong>
+                    <SpeciesBadge name={cell.speciesName} code={cell.speciesCode} compact style={{ marginTop: '5px' }} />
                     <span style={{ display: 'block', marginTop: '7px', fontSize: '12px', color: '#495057' }}>내 답: <strong>{cell.studentLabel}</strong></span>
                     <span style={{ display: 'block', marginTop: '2px', fontSize: '12px', color: meta.color }}>GT: <strong>{cell.correctLabel || '채점 대기'}</strong></span>
                     <span style={{ display: 'block', marginTop: '5px', fontSize: '11px', fontWeight: '800', color: meta.color }}>{meta.label}</span>

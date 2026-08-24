@@ -5,6 +5,8 @@ import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.entity.CropEntity;
 import com.cell.platform.entity.TaskEntity;
+import com.cell.platform.entity.AnimalSpeciesEntity;
+import com.cell.platform.infra.species.AnimalSpeciesJpaRepository;
 import com.cell.platform.util.Mapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -17,10 +19,14 @@ import java.time.LocalDateTime;
 public class TaskCoreRepository implements TaskRepository {
 
     private final TaskJpaRepository taskJpaRepository;
+    private final AnimalSpeciesJpaRepository animalSpeciesJpaRepository;
 
     @Override
     public Task save(Task task) {
-        TaskEntity entity = Mapper.convertToTaskEntity(task);
+        AnimalSpeciesEntity species = task.getSpeciesId() != null
+                ? animalSpeciesJpaRepository.findById(task.getSpeciesId()).orElseThrow()
+                : animalSpeciesJpaRepository.findByCode("DOG").orElse(null);
+        TaskEntity entity = Mapper.convertToTaskEntity(task, species);
         // Task에 포함된 Crop들도 함께 저장
         for (Crop crop : task.getCrops()) {
             CropEntity cropEntity = Mapper.convertToCropEntity(crop);

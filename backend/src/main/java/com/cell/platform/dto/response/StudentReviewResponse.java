@@ -30,6 +30,8 @@ public record StudentReviewResponse(
             Long cropId,
             String cropFilename,
             String originalSmearFilename,
+            String speciesCode,
+            String speciesName,
             String bbox,
             String studentLabel,
             String correctLabel,

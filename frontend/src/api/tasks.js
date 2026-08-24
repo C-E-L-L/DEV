@@ -23,6 +23,9 @@ export const taskApi = {
   updateDeadline: (taskId, deadlineAt) =>
     api.put(`/tasks/${taskId}/deadline`, { deadlineAt }),
 
+  updateSpecies: (taskId, speciesId) =>
+    api.put(`/tasks/${taskId}/species`, { speciesId }),
+
   delete: (taskId) =>
     api.delete(`/tasks/${taskId}`),
 };

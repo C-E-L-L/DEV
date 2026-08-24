@@ -6,6 +6,7 @@ import { CELL_TYPES, REPORT_REASONS, imageUrl } from '../constants';
 import AuthImage from '../components/AuthImage';
 import StudentReviewPanel from '../components/StudentReviewPanel';
 import ImageDisplayControls, { useImageDisplaySettings } from '../components/ImageDisplayControls';
+import SpeciesBadge from '../components/SpeciesBadge';
 
 function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
@@ -61,6 +62,7 @@ function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, d
                 DIAGNOSTIC
               </span>
             )}
+            <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact />
             <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isExpired ? '#f8d7da' : isCompleted ? '#d4edda' : '#e9ecef', color: isExpired ? '#842029' : isCompleted ? '#155724' : '#495057' }}>
               {isExpired ? 'CLOSED' : isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
             </span>
@@ -133,6 +135,11 @@ function AssignmentCard({ assignment, username, onClick, onReview }) {
         </div>
         <div style={{ color: '#6c757d', fontSize: '12px', marginBottom: '12px' }}>
           도말 {assignment.tasks.length}장 · 총 {progress.total}개 세포
+          <div style={{ marginTop: '6px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+            {Array.from(new Map(assignment.tasks.map(task => [task.speciesCode || 'DOG', task])).values()).map(task => (
+              <SpeciesBadge key={task.speciesCode || 'DOG'} name={task.speciesName} code={task.speciesCode} compact />
+            ))}
+          </div>
           {deadlineAt && <div style={{ marginTop: '4px' }}>마감: {new Date(deadlineAt).toLocaleString('ko-KR')}</div>}
         </div>
         <div style={{ background: '#e9ecef', borderRadius: '4px', height: '8px', overflow: 'hidden', marginBottom: '6px' }}>
@@ -492,6 +499,7 @@ export default function StudentPage() {
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', padding: '10px', border: `2px solid ${item.isCorrect === null ? '#adb5bd' : item.isCorrect ? '#28a745' : '#dc3545'}`, borderRadius: '8px', background: '#fff' }}>
                     <AuthImage src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
                     <div style={{ flex: 1, marginLeft: '10px' }}>
+                      <SpeciesBadge name={item.speciesName} code={item.speciesCode} compact style={{ marginBottom: '4px' }} />
                       <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{item.studentLabel}</strong></div>
                       <div style={{ fontSize: '13px' }}>
                         <span style={{ color: '#6c757d' }}>정답: </span>
@@ -523,6 +531,11 @@ export default function StudentPage() {
         <h2 style={{ margin: 0 }}>
           {selectedAssignment ? selectedAssignment.title : `Task #${selectedTask.id}`} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
           {isDiagnosticMode && <span style={{ marginLeft: '10px', fontSize: '14px', color: '#856404', background: '#fff3cd', padding: '3px 8px', borderRadius: '5px' }}>GT Scoring</span>}
+          <SpeciesBadge
+            name={currentCrop?.speciesName || selectedTask?.speciesName}
+            code={currentCrop?.speciesCode || selectedTask?.speciesCode}
+            style={{ marginLeft: '10px', verticalAlign: 'middle' }}
+          />
         </h2>
         <button onClick={() => setSelectedTask(null)} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>← 목록으로 돌아가기</button>
       </div>
@@ -533,7 +546,7 @@ export default function StudentPage() {
         {!isDiagnosticMode && (
         <div style={{ flex: '2 1 720px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
           <div style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>🔬 혈액 도말 이미지</span>
+            <span>🔬 혈액 도말 이미지 · {currentCrop?.speciesName || selectedTask?.speciesName || '개 (Dog)'}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {smearGroups.length > 1 && (
                 <>
@@ -637,6 +650,7 @@ export default function StudentPage() {
                 </div>
                 <div style={{ textAlign: 'center', marginBottom: '15px', color: '#6c757d', fontSize: '13px' }}>
                   세포 #{currentCropIndex + 1} / {crops.length}
+                  <SpeciesBadge name={currentCrop.speciesName} code={currentCrop.speciesCode} compact style={{ marginLeft: '8px' }} />
                   {solvedCrops.has(currentCrop.id) && <span style={{ color: '#28a745', marginLeft: '10px' }}>✓ 분류완료</span>}
                 </div>
                 <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: '600' }}>👆 클래스를 선택하세요</div>

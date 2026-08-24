@@ -2,6 +2,8 @@ package com.cell.platform.controller;
 
 import com.cell.platform.dto.request.DiagnosticTaskCreateRequest;
 import com.cell.platform.dto.request.DeadlineUpdateRequest;
+import com.cell.platform.dto.request.SpeciesUpdateRequest;
+import com.cell.platform.dto.response.AnimalSpeciesResponse;
 import com.cell.platform.dto.response.DiagnosticPoolStatsResponse;
 import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
@@ -11,6 +13,7 @@ import com.cell.platform.service.DiagnosticTaskService;
 import com.cell.platform.service.TaskService;
 // [추가된 Import]
 import com.cell.platform.service.SubmissionService;
+import com.cell.platform.service.AnimalSpeciesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +37,7 @@ public class TaskController {
 
     // [추가된 부분] SubmissionService 주입
     private final SubmissionService submissionService;
+    private final AnimalSpeciesService animalSpeciesService;
 
     @GetMapping
     public ResponseEntity<List<TaskResponse>> getAllTasks() {
@@ -44,8 +48,9 @@ public class TaskController {
     public ResponseEntity<TaskUploadResponse> uploadAndCreateTask(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "deadlineAt", required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime deadlineAt) {
-        return ResponseEntity.ok(taskService.createTask(file, deadlineAt));
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime deadlineAt,
+            @RequestParam(value = "speciesId", required = false) Long speciesId) {
+        return ResponseEntity.ok(taskService.createTask(file, deadlineAt, speciesId));
     }
 
     @GetMapping("/diagnostic/pool-stats")
@@ -86,5 +91,13 @@ public class TaskController {
             @RequestBody DeadlineUpdateRequest request) {
         taskService.updateTaskDeadline(taskId, request.deadlineAt());
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{taskId}/species")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public ResponseEntity<AnimalSpeciesResponse> updateSpecies(
+            @PathVariable Long taskId,
+            @Valid @RequestBody SpeciesUpdateRequest request) {
+        return ResponseEntity.ok(animalSpeciesService.updateTaskSpecies(taskId, request.speciesId()));
     }
 }

@@ -3,6 +3,7 @@ import { adminApi, taskApi, statsApi, cropApi, diagnosticApi, reportApi, labelin
 import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
 import AuthImage from '../components/AuthImage';
 import { fetchAuthImage } from '../utils/fetchAuthImage';
+import SpeciesBadge from '../components/SpeciesBadge';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -178,7 +179,9 @@ export default function AdminPage() {
       if (!query) return true;
       const original = String(item.originalFilename || '').toLowerCase();
       const uploaded = String(item.uploadedFilename || '').toLowerCase();
-      return original.includes(query) || uploaded.includes(query);
+      const speciesName = String(item.speciesName || '').toLowerCase();
+      const speciesCode = String(item.speciesCode || '').toLowerCase();
+      return original.includes(query) || uploaded.includes(query) || speciesName.includes(query) || speciesCode.includes(query);
     });
   }, [smears, smearFilter, smearQuery]);
 
@@ -218,7 +221,8 @@ export default function AdminPage() {
       if (!query) return true;
       const cropName = String(item.cropFilename || '').toLowerCase();
       const smearName = String(taskFilenameById.get(item.taskId) || item.originalSmearFilename || '').toLowerCase();
-      return cropName.includes(query) || smearName.includes(query);
+      const speciesName = String(item.speciesName || '').toLowerCase();
+      return cropName.includes(query) || smearName.includes(query) || speciesName.includes(query);
     });
   }, [crops, cropFilter, cropQuery, taskFilenameById]);
 
@@ -399,7 +403,8 @@ export default function AdminPage() {
       const url = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `task_${taskId}_labeling.zip`;
+      const metadata = smears.find(item => item.taskId === taskId) || tasks.find(item => item.id === taskId);
+      link.download = `task_${taskId}_${(metadata?.speciesCode || 'DOG').toLowerCase()}_labeling.zip`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -465,6 +470,7 @@ export default function AdminPage() {
                     <th style={tableHeadStyle}>Preview</th>
                     <th style={tableHeadStyle}>Task</th>
                     <th style={tableHeadStyle}>File Name</th>
+                    <th style={tableHeadStyle}>동물 종</th>
                     <th style={tableHeadStyle}>Created At</th>
                     <th style={tableHeadStyle}>Total Crops</th>
                     <th style={tableHeadStyle}>Labeled Crops</th>
@@ -485,6 +491,7 @@ export default function AdminPage() {
                       </td>
                       <td style={tableCellStyle}>#{item.taskId}</td>
                       <td style={{ ...tableCellStyle, wordBreak: 'break-all' }} title={item.originalFilename}>{item.uploadedFilename || item.originalFilename}</td>
+                      <td style={tableCellStyle}><SpeciesBadge name={item.speciesName} code={item.speciesCode} compact /></td>
                       <td style={tableCellStyle}>{item.createdAt || '-'}</td>
                       <td style={tableCellStyle}>{item.totalCrops}</td>
                       <td style={tableCellStyle}>{item.labeledCrops}</td>
@@ -546,6 +553,7 @@ export default function AdminPage() {
                     <th style={tableHeadStyle}>Labeling Filename</th>
                     <th style={tableHeadStyle}>Smear File</th>
                     <th style={tableHeadStyle}>Task</th>
+                    <th style={tableHeadStyle}>동물 종</th>
                     <th style={tableHeadStyle}>GT Label</th>
                     <th style={tableHeadStyle}>Pseudo Label</th>
                     <th style={tableHeadStyle}>Final Label</th>
@@ -563,9 +571,10 @@ export default function AdminPage() {
                         />
                       </td>
                       <td style={tableCellStyle}>#{item.cropId}</td>
-                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }} title={item.cropFilename}>{`task_${item.taskId}_cell_${item.cropId}.jpg`}</td>
+                      <td style={{ ...tableCellStyle, wordBreak: 'break-all' }} title={item.cropFilename}>{`task_${item.taskId}_${(item.speciesCode || 'DOG').toLowerCase()}_cell_${item.cropId}.jpg`}</td>
                       <td style={{ ...tableCellStyle, wordBreak: 'break-all' }} title={item.originalSmearFilename || ''}>{displaySmearFilename(item)}</td>
                       <td style={tableCellStyle}>#{item.taskId}</td>
+                      <td style={tableCellStyle}><SpeciesBadge name={item.speciesName} code={item.speciesCode} compact /></td>
                       <td style={tableCellStyle}>{item.gtLabel || '-'}</td>
                       <td style={tableCellStyle}>{item.pseudoLabel || '-'}</td>
                       <td style={tableCellStyle}>{item.finalLabel || '-'}</td>
@@ -613,6 +622,7 @@ export default function AdminPage() {
                         }}>
                           <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Smear ${idx + 1}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                           <div style={{ fontWeight: '600', fontSize: '14px' }}>도말 #{idx + 1}</div>
+                          <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact style={{ marginTop: '5px' }} />
                           <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                             {task.uploadedFilename || task.originalFilename}
                           </div>
@@ -637,6 +647,11 @@ export default function AdminPage() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: '600', fontSize: '15px', color: '#212529' }}>{group.title}</div>
                           <div style={{ fontSize: '13px', color: '#6c757d', marginTop: '3px' }}>도말 {group.tasks.length}개</div>
+                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '5px' }}>
+                            {Array.from(new Map(group.tasks.map(task => [task.speciesCode || `species-${task.speciesId}`, task])).values()).map(task => (
+                              <SpeciesBadge key={task.speciesCode || task.speciesId} name={task.speciesName} code={task.speciesCode} compact />
+                            ))}
+                          </div>
                         </div>
                         <span style={{ fontSize: '13px', color: '#adb5bd' }}>▶</span>
                       </div>
@@ -653,6 +668,7 @@ export default function AdminPage() {
                           }}>
                             <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                             <div style={{ fontWeight: '600', fontSize: '14px' }}>Task #{task.id}</div>
+                            <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact style={{ marginTop: '5px' }} />
                             <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                               {task.uploadedFilename || task.originalFilename}
                             </div>
@@ -678,6 +694,7 @@ export default function AdminPage() {
                                   Diagnostic Task
                                 </div>
                                 <div style={{ fontWeight: '600', fontSize: '14px' }}>Diagnostic #{diagnosticNumber || task.id}</div>
+                                <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact style={{ marginTop: '5px' }} />
                                 <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                                   {task.uploadedFilename || task.originalFilename}
                                 </div>
@@ -754,6 +771,7 @@ export default function AdminPage() {
                           <div style={{ marginTop: '8px', fontSize: '14px', color: '#495057', fontWeight: '600' }}>
                             Cell #{stats.findIndex(s => s.cropId === selectedCrop.cropId) + 1}
                           </div>
+                          <SpeciesBadge name={selectedCrop.speciesName} code={selectedCrop.speciesCode} compact style={{ marginTop: '6px' }} />
                           {displaySmearFilename(selectedCrop) !== '-' && (
                             <div style={{ marginTop: '6px', fontSize: '12px', color: '#6c757d', wordBreak: 'break-all' }}>
                               Smear: {displaySmearFilename(selectedCrop)}
@@ -857,6 +875,7 @@ export default function AdminPage() {
                           <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '5px' }}>
                             Crop #{item.cropId}
                           </div>
+                          <SpeciesBadge name={item.speciesName} code={item.speciesCode} compact style={{ marginBottom: '5px' }} />
                           <div style={{ fontSize: '12px', marginBottom: '3px' }}>
                             {item.finalLabel && item.totalAnswers > 0 ? (
                               <>Error Rate: <strong style={{ color: getAccuracyColor(item.accuracyRate, item.totalAnswers) }}>{item.errorRate}%</strong></>
@@ -1034,6 +1053,7 @@ export default function AdminPage() {
                         <th style={reportHeadStyle}>학생</th>
                         <th style={reportHeadStyle}>Task</th>
                         <th style={reportHeadStyle}>Crop</th>
+                        <th style={reportHeadStyle}>동물 종</th>
                         <th style={reportHeadStyle}>사유</th>
                       </tr>
                     </thead>
@@ -1055,6 +1075,7 @@ export default function AdminPage() {
                           <td style={reportCellStyle}>{item.studentId}</td>
                           <td style={reportCellStyle}>#{item.taskId}</td>
                           <td style={reportCellStyle}>#{item.cropId}</td>
+                          <td style={reportCellStyle}><SpeciesBadge name={item.speciesName} code={item.speciesCode} compact /></td>
                           <td style={reportCellStyle}>{item.reason}</td>
                         </tr>
                       ))}

@@ -45,7 +45,11 @@ public class FileStorageService {
     }
 
     public String saveOriginal(MultipartFile file) {
-        String filename = generateFilename(file.getOriginalFilename());
+        return saveOriginal(file, null);
+    }
+
+    public String saveOriginal(MultipartFile file, String speciesCode) {
+        String filename = generateFilename(file.getOriginalFilename(), speciesCode);
         Path target = uploadDir.resolve(filename);
         saveFile(file, target);
         ensureThumbnail(target, filename);
@@ -101,9 +105,12 @@ public class FileStorageService {
         return lower.endsWith(".png") ? "png" : "jpg";
     }
 
-    private String generateFilename(String originalName) {
+    private String generateFilename(String originalName, String speciesCode) {
         String ext = extractExtension(originalName);
-        return "orig_" + UUID.randomUUID().toString().replace("-", "") + ext;
+        String speciesToken = speciesCode == null
+                ? "animal"
+                : speciesCode.toLowerCase().replaceAll("[^a-z0-9_-]", "-");
+        return speciesToken + "_orig_" + UUID.randomUUID().toString().replace("-", "") + ext;
     }
 
     private String extractExtension(String filename) {

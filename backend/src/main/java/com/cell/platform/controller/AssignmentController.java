@@ -33,9 +33,10 @@ public class AssignmentController {
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "deadlineAt", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime deadlineAt,
+            @RequestParam(value = "speciesIds", required = false) List<Long> speciesIds,
             @AuthenticationPrincipal String username) {
         return ResponseEntity.ok(
-                taskService.createAssignment(title, username, files, deadlineAt)
+                taskService.createAssignment(title, username, files, deadlineAt, speciesIds)
         );
     }
 
@@ -60,4 +61,5 @@ public class AssignmentController {
         taskService.updateAssignmentDeadline(assignmentId, request.deadlineAt());
         return ResponseEntity.ok().build();
     }
+
 }

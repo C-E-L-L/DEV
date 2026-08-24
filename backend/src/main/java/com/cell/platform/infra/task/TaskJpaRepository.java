@@ -24,6 +24,8 @@ public interface TaskJpaRepository extends JpaRepository<TaskEntity, Long> {
 
     List<TaskEntity> findAllByAssignmentId(Long assignmentId);
 
+    List<TaskEntity> findAllByAnimalSpeciesIsNull();
+
     @Query("select t.id from TaskEntity t where t.assignmentId = :assignmentId")
     List<Long> findIdsByAssignmentId(@Param("assignmentId") Long assignmentId);
 }

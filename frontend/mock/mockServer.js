@@ -1,11 +1,16 @@
 const CELL_LABELS = ['Segment', 'Band', 'Eosinophil', 'NucleatedRBC', 'Lymphocyte', 'Monocyte'];
 
+let animalSpecies = [
+  { id: 1, code: 'DOG', name: '개 (Dog)', builtIn: true },
+  { id: 2, code: 'CAT', name: '고양이 (Cat)', builtIn: true },
+];
+
 const tasks = [
-  { id: 101, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:00:00' },
-  { id: 102, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:05:00' },
-  { id: 103, assignmentId: null, title: 'GT 채점 완료 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T11:00:00' },
-  { id: 104, assignmentId: 11, title: '마감 예정 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', cropCount: 11, deadlineAt: '2027-01-15T18:00:00', createdAt: '2026-08-18T11:30:00' },
-  { id: 201, assignmentId: null, title: null, originalFilename: '', uploadedFilename: 'diagnostic-20260818120000', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T12:00:00' },
+  { id: 101, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:00:00' },
+  { id: 102, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', speciesId: 2, speciesCode: 'CAT', speciesName: '고양이 (Cat)', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:05:00' },
+  { id: 103, assignmentId: null, title: 'GT 채점 완료 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T11:00:00' },
+  { id: 104, assignmentId: 11, title: '마감 예정 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: '2027-01-15T18:00:00', createdAt: '2026-08-18T11:30:00' },
+  { id: 201, assignmentId: null, title: null, originalFilename: '', uploadedFilename: 'diagnostic-20260818120000', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T12:00:00' },
 ];
 
 const boxes = [
@@ -56,6 +61,9 @@ function makeCrop(taskId, index) {
     cropId: taskId * 100 + index + 1,
     filename: `mock-cell-${taskId}-${index + 1}.svg`,
     originalSmearFilename: task?.originalFilename || null,
+    speciesId: task?.speciesId || null,
+    speciesCode: task?.speciesCode || null,
+    speciesName: task?.speciesName || null,
     bbox: JSON.stringify(boxes[index]),
     gtLabel: taskId === 201 ? finalLabel : null,
     pseudoLabel: CELL_LABELS[index % CELL_LABELS.length],
@@ -95,6 +103,9 @@ function cropDto(crop, studentView = false) {
     id: crop.cropId,
     taskId: crop.taskId,
     originalSmearFilename: crop.originalSmearFilename,
+    speciesId: crop.speciesId,
+    speciesCode: crop.speciesCode,
+    speciesName: crop.speciesName,
     cropFilename: crop.filename,
     bbox: crop.bbox,
     gtLabel: studentView ? null : crop.gtLabel,
@@ -159,6 +170,8 @@ function reviewFor(taskGroup, studentId) {
       cropId: crop.cropId,
       cropFilename: crop.filename,
       originalSmearFilename: crop.originalSmearFilename,
+      speciesCode: crop.speciesCode,
+      speciesName: crop.speciesName,
       bbox: crop.bbox,
       studentLabel,
       correctLabel,
@@ -236,6 +249,34 @@ function readJson(req) {
   });
 }
 
+function readMultipart(req) {
+  return new Promise(resolve => {
+    const chunks = [];
+    req.on('data', chunk => { chunks.push(chunk); });
+    req.on('end', () => {
+      const contentType = String(req.headers['content-type'] || '');
+      const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.slice(1).find(Boolean);
+      if (!boundary) { resolve({ fields: {}, files: [] }); return; }
+
+      const fields = {};
+      const files = [];
+      const raw = Buffer.concat(chunks).toString('binary');
+      for (const part of raw.split(`--${boundary}`)) {
+        const headerEnd = part.indexOf('\r\n\r\n');
+        if (headerEnd < 0) continue;
+        const headers = part.slice(0, headerEnd);
+        const name = headers.match(/name="([^"]+)"/)?.[1];
+        if (!name) continue;
+        const filename = headers.match(/filename="([^"]*)"/)?.[1];
+        const value = part.slice(headerEnd + 4).replace(/\r\n$/, '');
+        if (filename !== undefined) files.push({ fieldName: name, filename });
+        else (fields[name] ||= []).push(Buffer.from(value, 'binary').toString('utf8'));
+      }
+      resolve({ fields, files });
+    });
+  });
+}
+
 function smearSvg(variant) {
   const offset = variant === 2 ? 28 : 0;
   const cells = boxes.map(([x1, y1, x2, y2], index) => {
@@ -301,8 +342,117 @@ export function mockServerPlugin() {
           json(res, { username, name: names[role], role, accessToken: `local-mock-${role.toLowerCase()}-token` });
           return;
         }
+        if (req.method === 'POST' && pathname === '/api/assignments') {
+          const multipart = await readMultipart(req);
+          const title = multipart.fields.title?.[0] || '목업 도말 과제';
+          const speciesIds = (multipart.fields.speciesIds || []).map(Number);
+          const deadlineAt = multipart.fields.deadlineAt?.[0] || null;
+          const assignmentId = Math.max(...tasks.map(task => task.assignmentId || 0), 0) + 1;
+          const createdTasks = [];
+
+          multipart.files.filter(file => file.fieldName === 'files').forEach((file, index) => {
+            const species = animalSpecies.find(item => item.id === speciesIds[index]) || animalSpecies[0];
+            const task = {
+              id: Math.max(...tasks.map(item => item.id), 0) + 1,
+              assignmentId,
+              title,
+              originalFilename: index % 2 === 0 ? 'mock-smear-1.svg' : 'mock-smear-2.svg',
+              uploadedFilename: file.filename || `mock-smear-${index + 1}.png`,
+              speciesId: species.id,
+              speciesCode: species.code,
+              speciesName: species.name,
+              cropCount: boxes.length,
+              deadlineAt,
+              createdAt: new Date().toISOString(),
+            };
+            tasks.push(task);
+            const crops = boxes.map((_, cropIndex) => makeCrop(task.id, cropIndex));
+            cropStats.set(task.id, crops);
+            createdTasks.push({
+              taskId: task.id,
+              originalImage: task.originalFilename,
+              speciesId: species.id,
+              speciesCode: species.code,
+              speciesName: species.name,
+              totalDetected: crops.length,
+              crops: crops.map(crop => cropDto(crop)),
+            });
+          });
+
+          json(res, {
+            assignmentId,
+            title,
+            expertUsername: 'professor',
+            createdAt: new Date().toISOString(),
+            tasks: createdTasks,
+            totalCrops: createdTasks.reduce((sum, task) => sum + task.totalDetected, 0),
+          });
+          return;
+        }
         if (req.method === 'GET' && pathname === '/api/tasks') {
           json(res, tasks);
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/species') {
+          json(res, animalSpecies);
+          return;
+        }
+        if (req.method === 'POST' && pathname === '/api/species') {
+          const body = await readJson(req);
+          const name = String(body.name || '').trim().replace(/\s+/g, ' ');
+          if (!name || name.length > 60 || animalSpecies.some(item => item.name.toLowerCase() === name.toLowerCase())) {
+            json(res, { message: !name ? '동물 종 이름은 필수입니다.' : name.length > 60 ? '동물 종 이름은 60자 이하여야 합니다.' : `이미 등록된 동물 종입니다: ${name}` }, 400);
+            return;
+          }
+          const created = {
+            id: Math.max(...animalSpecies.map(item => item.id), 0) + 1,
+            code: `ANIMAL_MOCK_${Date.now()}`,
+            name,
+            builtIn: false,
+          };
+          animalSpecies.push(created);
+          json(res, created);
+          return;
+        }
+
+        const speciesRenameMatch = pathname.match(/^\/api\/species\/(\d+)$/);
+        if (req.method === 'PUT' && speciesRenameMatch) {
+          const species = animalSpecies.find(item => item.id === Number(speciesRenameMatch[1]));
+          const body = await readJson(req);
+          if (!species) {
+            json(res, { message: '동물 종을 찾을 수 없습니다.' }, 404);
+            return;
+          }
+          const name = String(body.name || '').trim().replace(/\s+/g, ' ');
+          if (!name || name.length > 60 || animalSpecies.some(item => item.id !== species.id && item.name.toLowerCase() === name.toLowerCase())) {
+            json(res, { message: !name ? '동물 종 이름은 필수입니다.' : name.length > 60 ? '동물 종 이름은 60자 이하여야 합니다.' : `이미 등록된 동물 종입니다: ${name}` }, 400);
+            return;
+          }
+          species.name = name;
+          tasks.filter(task => task.speciesId === species.id).forEach(task => { task.speciesName = species.name; });
+          [...cropStats.values()].flat().filter(crop => crop.speciesId === species.id).forEach(crop => { crop.speciesName = species.name; });
+          json(res, species);
+          return;
+        }
+
+        const taskSpeciesMatch = pathname.match(/^\/api\/tasks\/(\d+)\/species$/);
+        if (req.method === 'PUT' && taskSpeciesMatch) {
+          const task = tasks.find(item => item.id === Number(taskSpeciesMatch[1]));
+          const body = await readJson(req);
+          const species = animalSpecies.find(item => item.id === Number(body.speciesId));
+          if (!task || !species) {
+            json(res, { message: '도말 이미지 또는 동물 종을 찾을 수 없습니다.' }, 404);
+            return;
+          }
+          task.speciesId = species.id;
+          task.speciesCode = species.code;
+          task.speciesName = species.name;
+          (cropStats.get(task.id) || []).forEach(crop => {
+            crop.speciesId = species.id;
+            crop.speciesCode = species.code;
+            crop.speciesName = species.name;
+          });
+          json(res, species);
           return;
         }
         if (req.method === 'GET' && pathname === '/api/all-stats') {
@@ -476,6 +626,9 @@ export function mockServerPlugin() {
               taskId: task.id,
               originalFilename: task.originalFilename,
               uploadedFilename: task.uploadedFilename,
+              speciesId: task.speciesId,
+              speciesCode: task.speciesCode,
+              speciesName: task.speciesName,
               createdAt: task.createdAt,
               totalCrops: crops.length,
               labeledCrops,
@@ -490,6 +643,9 @@ export function mockServerPlugin() {
             taskId: crop.taskId,
             cropFilename: crop.filename,
             originalSmearFilename: crop.originalSmearFilename,
+            speciesId: crop.speciesId,
+            speciesCode: crop.speciesCode,
+            speciesName: crop.speciesName,
             gtLabel: crop.gtLabel,
             pseudoLabel: crop.pseudoLabel,
             finalLabel: crop.finalLabel,

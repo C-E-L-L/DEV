@@ -10,16 +10,21 @@ public record CropIssueReportResponse(
         Long taskId,
         Long cropId,
         String cropFilename,
+        String speciesCode,
+        String speciesName,
         String reason,
         LocalDateTime createdAt
 ) {
-    public static CropIssueReportResponse from(CropIssueReportEntity entity, String cropFilename) {
+    public static CropIssueReportResponse from(CropIssueReportEntity entity, String cropFilename,
+                                               String speciesCode, String speciesName) {
         return new CropIssueReportResponse(
                 entity.getId(),
                 entity.getStudentId(),
                 entity.getTaskId(),
                 entity.getCropId(),
                 cropFilename,
+                speciesCode,
+                speciesName,
                 entity.getReason(),
                 entity.getCreatedAt()
         );

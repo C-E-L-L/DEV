@@ -33,10 +33,13 @@ public class CropIssueReportService {
     public List<CropIssueReportResponse> getReports() {
         return reportRepository.findAll().stream()
                 .map(entity -> {
-                    String cropFilename = cropRepository.findById(entity.getCropId())
-                            .map(Crop::getCropFilename)
-                            .orElse(null);
-                    return CropIssueReportResponse.from(entity, cropFilename);
+                    Crop crop = cropRepository.findById(entity.getCropId()).orElse(null);
+                    return CropIssueReportResponse.from(
+                            entity,
+                            crop != null ? crop.getCropFilename() : null,
+                            crop != null ? crop.getSpeciesCode() : AnimalSpeciesService.DOG_CODE,
+                            crop != null ? crop.getSpeciesName() : "개 (Dog)"
+                    );
                 })
                 .toList();
     }

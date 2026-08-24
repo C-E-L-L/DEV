@@ -47,7 +47,8 @@ public class LabelingService {
     public byte[] exportTask(Long taskId) {
         TaskEntity task = findUploadedSmearTask(taskId);
         List<CropEntity> crops = cropJpaRepository.findAllByTask_Id(taskId);
-        String folder = "task_" + taskId + "/";
+        String speciesCode = speciesCode(task);
+        String folder = "task_" + taskId + "_" + speciesCode.toLowerCase() + "/";
         String smearExportName = buildSmearExportName(task);
         Path smearPath = fileStorageService.getUploadDir().resolve(task.getOriginalFilename());
 
@@ -63,7 +64,7 @@ public class LabelingService {
             addFile(zip, smearPath, folder + smearExportName);
             for (CropEntity crop : crops) {
                 addFile(zip, fileStorageService.getCropDir().resolve(crop.getCropFilename()),
-                        folder + "crops/" + buildCropExportName(taskId, crop));
+                        folder + "crops/" + buildCropExportName(task, crop));
             }
             addContent(zip, folder + "annotations.json",
                     objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(viaJson));
@@ -117,7 +118,11 @@ public class LabelingService {
         imgEntry.put("filename", smearExportName);
         imgEntry.put("size", fileSize);
         imgEntry.put("regions", regions);
-        imgEntry.put("file_attributes", Map.of());
+        Map<String, Object> fileAttributes = new LinkedHashMap<>();
+        fileAttributes.put("animalSpeciesId", task.getAnimalSpecies() != null ? task.getAnimalSpecies().getId() : null);
+        fileAttributes.put("animalSpeciesCode", speciesCode(task));
+        fileAttributes.put("animalSpeciesName", speciesName(task));
+        imgEntry.put("file_attributes", fileAttributes);
 
         Map<String, Object> imgMetadata = new LinkedHashMap<>();
         imgMetadata.put(imageKey, imgEntry);
@@ -140,7 +145,11 @@ public class LabelingService {
 
         Map<String, Object> viaAttributes = new LinkedHashMap<>();
         viaAttributes.put("region", regionSchema);
-        viaAttributes.put("file", Map.of());
+        Map<String, Object> speciesAttr = new LinkedHashMap<>();
+        speciesAttr.put("type", "text");
+        speciesAttr.put("description", "Animal species");
+        speciesAttr.put("default_value", speciesName(task));
+        viaAttributes.put("file", Map.of("animalSpeciesName", speciesAttr));
 
         // _via_settings
         Map<String, Object> uiSettings = new LinkedHashMap<>();
@@ -154,7 +163,7 @@ public class LabelingService {
         coreSettings.put("default_filepath", "");
 
         Map<String, Object> projectSettings = new LinkedHashMap<>();
-        projectSettings.put("name", "CELL_task_" + task.getId());
+        projectSettings.put("name", "CELL_task_" + task.getId() + "_" + speciesCode(task));
 
         Map<String, Object> viaSettings = new LinkedHashMap<>();
         viaSettings.put("ui", uiSettings);
@@ -167,6 +176,11 @@ public class LabelingService {
         via.put("_via_attributes", viaAttributes);
         via.put("_via_data_format_version", "2.0.10");
         via.put("_via_image_id_list", List.of(imageKey));
+        via.put("_cell_platform_metadata", Map.of(
+                "taskId", task.getId(),
+                "animalSpeciesCode", speciesCode(task),
+                "animalSpeciesName", speciesName(task)
+        ));
         return via;
     }
 
@@ -254,11 +268,30 @@ public class LabelingService {
         String filename = hasText(task.getUploadedFilename())
                 ? task.getUploadedFilename()
                 : task.getOriginalFilename();
-        return "task_" + task.getId() + "_smear_" + sanitizeFilename(filename);
+        return "task_" + task.getId() + "_" + speciesCode(task).toLowerCase()
+                + "_smear_" + sanitizeFilename(filename);
     }
 
-    private String buildCropExportName(Long taskId, CropEntity crop) {
-        return "task_" + taskId + "_cell_" + crop.getId() + ".jpg";
+    private String buildCropExportName(TaskEntity task, CropEntity crop) {
+        return "task_" + task.getId() + "_" + speciesCode(task).toLowerCase()
+                + "_cell_" + crop.getId() + ".jpg";
+    }
+
+    public String buildArchiveFilename(Long taskId) {
+        TaskEntity task = findUploadedSmearTask(taskId);
+        return "task_" + taskId + "_" + speciesCode(task).toLowerCase() + "_labeling.zip";
+    }
+
+    private String speciesCode(TaskEntity task) {
+        return task.getAnimalSpecies() != null
+                ? task.getAnimalSpecies().getCode()
+                : AnimalSpeciesService.DOG_CODE;
+    }
+
+    private String speciesName(TaskEntity task) {
+        return task.getAnimalSpecies() != null
+                ? task.getAnimalSpecies().getName()
+                : "개 (Dog)";
     }
 
     private String sanitizeFilename(String filename) {

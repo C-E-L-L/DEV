@@ -11,6 +11,7 @@ import com.cell.platform.dto.response.CropResponse;
 import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
 import com.cell.platform.entity.AssignmentEntity;
+import com.cell.platform.entity.AnimalSpeciesEntity;
 import com.cell.platform.exception.ErrorCode;
 import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.exception.NotFoundException;
@@ -40,6 +41,7 @@ public class TaskService {
     private final CropIssueReportJpaRepository cropIssueReportJpaRepository;
     private final AssignmentJpaRepository assignmentJpaRepository;
     private final CropRepository cropRepository;
+    private final AnimalSpeciesService animalSpeciesService;
 
     public List<TaskResponse> getAllTasks() {
         return taskRepository.findAllByOrderByIdDesc().stream()
@@ -60,9 +62,18 @@ public class TaskService {
 
     @Transactional
     public TaskUploadResponse createTask(MultipartFile file, LocalDateTime deadlineAt) {
+        return createTask(file, deadlineAt, animalSpeciesService.getDog().getId());
+    }
+
+    @Transactional
+    public TaskUploadResponse createTask(MultipartFile file, LocalDateTime deadlineAt, Long speciesId) {
         validateFutureDeadline(deadlineAt);
-        String filename = fileStorageService.saveOriginal(file);
-        Task task = Task.create(filename, file.getOriginalFilename(), deadlineAt);
+        AnimalSpeciesEntity species = speciesId == null
+                ? animalSpeciesService.getDog()
+                : animalSpeciesService.getRequired(speciesId);
+        String filename = fileStorageService.saveOriginal(file, species.getCode());
+        Task task = Task.create(filename, file.getOriginalFilename(), deadlineAt,
+                species.getId(), species.getCode(), species.getName());
         AiAnalysisResponse aiResult = aiClientService.analyze(file);
         addCropsToTask(task, aiResult);
 
@@ -71,7 +82,7 @@ public class TaskService {
         List<CropResponse> cropResponses = savedTask.getCrops().stream()
                 .map(CropResponse::from)
                 .toList();
-        return TaskUploadResponse.of(savedTask.getId(), filename, cropResponses);
+        return TaskUploadResponse.of(savedTask, filename, cropResponses);
     }
 
     private void addCropsToTask(Task task, AiAnalysisResponse aiResult) {
@@ -97,7 +108,21 @@ public class TaskService {
     @Transactional
     public AssignmentResponse createAssignment(String title, String expertUsername,
                                                List<MultipartFile> files, LocalDateTime deadlineAt) {
+        return createAssignment(title, expertUsername, files, deadlineAt, null);
+    }
+
+    @Transactional
+    public AssignmentResponse createAssignment(String title, String expertUsername,
+                                               List<MultipartFile> files, LocalDateTime deadlineAt,
+                                               List<Long> speciesIds) {
         validateFutureDeadline(deadlineAt);
+        if (files == null || files.isEmpty()) {
+            throw new BadRequestException("도말 이미지를 최소 1장 선택해 주세요.", ErrorCode.G000);
+        }
+        if (speciesIds != null && !speciesIds.isEmpty() && speciesIds.size() != files.size()) {
+            throw new BadRequestException("각 도말 이미지마다 동물 종을 선택해 주세요.", ErrorCode.G000);
+        }
+        AnimalSpeciesEntity defaultSpecies = animalSpeciesService.getDog();
         AssignmentEntity assignment = assignmentJpaRepository.save(
                 AssignmentEntity.builder()
                         .title(title)
@@ -108,10 +133,16 @@ public class TaskService {
         List<TaskUploadResponse> taskResponses = new ArrayList<>();
         int totalCrops = 0;
 
-        for (MultipartFile file : files) {
-            String filename = fileStorageService.saveOriginal(file);
+        for (int index = 0; index < files.size(); index++) {
+            MultipartFile file = files.get(index);
+            Long speciesId = speciesIds == null || speciesIds.isEmpty() ? null : speciesIds.get(index);
+            AnimalSpeciesEntity species = speciesId == null
+                    ? defaultSpecies
+                    : animalSpeciesService.getRequired(speciesId);
+            String filename = fileStorageService.saveOriginal(file, species.getCode());
             Task task = Task.createForAssignment(filename, file.getOriginalFilename(),
-                    assignment.getId(), title, deadlineAt);
+                    assignment.getId(), title, deadlineAt,
+                    species.getId(), species.getCode(), species.getName());
             AiAnalysisResponse aiResult = aiClientService.analyze(file);
             addCropsToTask(task, aiResult);
             Task savedTask = taskRepository.save(task);
@@ -119,7 +150,7 @@ public class TaskService {
 
             List<CropResponse> cropResponses = savedTask.getCrops().stream()
                     .map(CropResponse::from).toList();
-            taskResponses.add(TaskUploadResponse.of(savedTask.getId(), filename, cropResponses));
+            taskResponses.add(TaskUploadResponse.of(savedTask, filename, cropResponses));
         }
 
         return new AssignmentResponse(assignment.getId(), title, expertUsername,

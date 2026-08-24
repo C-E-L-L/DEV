@@ -7,6 +7,9 @@ public record LabelingManifestResponse(
         String smearFilename,
         String storedSmearFilename,
         String exportSmearFilename,
+        Long speciesId,
+        String speciesCode,
+        String speciesName,
         List<CellAnnotation> cells
 ) {
     public record CellAnnotation(

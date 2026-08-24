@@ -33,6 +33,10 @@ public class TaskEntity {
     @Column
     private String title;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "animal_species_id")
+    private AnimalSpeciesEntity animalSpecies;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime deadlineAt;
@@ -48,6 +52,7 @@ public class TaskEntity {
     @Builder
     private TaskEntity(Long id, TaskStatus status, String originalFilename,
                        String uploadedFilename, Long assignmentId, String title,
+                       AnimalSpeciesEntity animalSpecies,
                        LocalDateTime createdAt, LocalDateTime deadlineAt) {
         this.id = id;
         this.status = status;
@@ -55,6 +60,7 @@ public class TaskEntity {
         this.uploadedFilename = uploadedFilename;
         this.assignmentId = assignmentId;
         this.title = title;
+        this.animalSpecies = animalSpecies;
         this.createdAt = createdAt;
         this.deadlineAt = deadlineAt;
     }
@@ -66,5 +72,9 @@ public class TaskEntity {
 
     public void updateDeadlineAt(LocalDateTime deadlineAt) {
         this.deadlineAt = deadlineAt;
+    }
+
+    public void updateAnimalSpecies(AnimalSpeciesEntity animalSpecies) {
+        this.animalSpecies = animalSpecies;
     }
 }

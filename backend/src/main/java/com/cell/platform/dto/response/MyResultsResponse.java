@@ -18,6 +18,8 @@ public record MyResultsResponse(
     public record Detail(
             Long cropId,
             String cropFilename,
+            String speciesCode,
+            String speciesName,
             String studentLabel,
             String correctLabel,
             Boolean isCorrect

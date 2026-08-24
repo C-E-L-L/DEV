@@ -152,6 +152,7 @@ public class SubmissionService {
             }
             details.add(MyResultsResponse.Detail.builder()
                     .cropId(crop.getId()).cropFilename(crop.getCropFilename())
+                    .speciesCode(crop.getSpeciesCode()).speciesName(crop.getSpeciesName())
                     .studentLabel(sub.getStudentLabel().name())
                     .correctLabel(correctLabel).isCorrect(isCorrect).build());
         }
@@ -209,6 +210,8 @@ public class SubmissionService {
             details.add(MyResultsResponse.Detail.builder()
                     .cropId(crop.getId())
                     .cropFilename(crop.getCropFilename())
+                    .speciesCode(crop.getSpeciesCode())
+                    .speciesName(crop.getSpeciesName())
                     .studentLabel(sub.getStudentLabel().name())
                     .correctLabel(correctLabel)
                     .isCorrect(isCorrect)
@@ -296,7 +299,7 @@ public class SubmissionService {
 
             cells.add(new StudentReviewResponse.ReviewCell(
                     crop.getTaskId(), crop.getId(), crop.getCropFilename(),
-                    crop.getOriginalSmearFilename(), crop.getBbox(),
+                    crop.getOriginalSmearFilename(), crop.getSpeciesCode(), crop.getSpeciesName(), crop.getBbox(),
                     submission.getStudentLabel().name(), correctLabel, isCorrect
             ));
         }
