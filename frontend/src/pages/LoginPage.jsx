@@ -4,6 +4,8 @@ import { authApi } from '../api';
 
 export default function LoginPage() {
   const isMockMode = import.meta.env.MODE === 'mock';
+  const colorizerUrl = import.meta.env.VITE_COLORIZER_URL
+    || (isMockMode ? 'http://127.0.0.1:8501/' : '/colorizer/');
   const mockAccounts = {
     EXPERT: { username: 'professor', label: '교수' },
     STUDENT: { username: 'student', label: '학생' },
@@ -125,6 +127,16 @@ export default function LoginPage() {
             {isLoginMode ? '회원가입 하기' : '로그인 하기'}
           </span>
         </div>
+
+        <a
+          href={colorizerUrl}
+          target="_blank"
+          rel="noreferrer"
+          title="DICOM 컬러화 작업공간 열기"
+          style={colorizerLinkStyle}
+        >
+          ◐ DICOM Color Lab
+        </a>
       </div>
     </div>
   );
@@ -138,3 +150,4 @@ const btnStyle = { width: '100%', padding: '12px', background: '#0056b3', color:
 const errorStyle = { color: '#dc3545', background: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px', fontSize: '14px' };
 const successStyle = { color: '#155724', background: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px', fontSize: '14px', fontWeight: 'bold' };
 const toggleStyle = { color: '#0056b3', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' };
+const colorizerLinkStyle = { display: 'inline-block', marginTop: '22px', padding: '6px 9px', color: '#8a949e', background: '#f8f9fa', border: '1px solid #e5e8eb', borderRadius: '999px', fontSize: '10px', fontWeight: '600', textDecoration: 'none', letterSpacing: '0.02em' };

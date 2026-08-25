@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>DICOM 컬러맵 뷰어</title>
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+<body>
+  <section id="auth-gate" class="auth-gate" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <div class="auth-mark" aria-hidden="true">◐</div>
+      <p class="eyebrow">DICOM COLORIZATION WORKSPACE</p>
+      <h1 id="auth-title">컬러화 작업공간</h1>
+      <p id="auth-description">계정으로 로그인하면 업로드한 파일과 ROI 라벨링을 이어서 작업할 수 있습니다.</p>
+      <div id="auth-error" class="auth-error hidden" role="alert"></div>
+      <form id="auth-form">
+        <label for="auth-username">아이디</label>
+        <input id="auth-username" name="username" type="text" minlength="3" maxlength="40" autocomplete="username" required>
+        <label for="auth-password">비밀번호</label>
+        <input id="auth-password" name="password" type="password" minlength="8" maxlength="128" autocomplete="current-password" required>
+        <button id="auth-submit" class="primary-button" type="submit">로그인</button>
+      </form>
+      <button id="auth-toggle" class="auth-toggle" type="button">처음 이용하시나요? 계정 만들기</button>
+      <a class="auth-back-link" href="https://cell.cbnu.ac.kr">CELL로 돌아가기</a>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◐</span>
+        <div><strong>DICOM Studio</strong><span>컬러맵 뷰어</span></div>
+      </div>
+
+      <div class="account-strip">
+        <span><small>작업 계정</small><strong id="account-username">-</strong></span>
+        <button id="logout" type="button">로그아웃</button>
+      </div>
+
+      <section class="control-section saved-work-section">
+        <div class="section-title-row">
+          <h2>저장된 작업</h2><span id="saved-batch-count" class="count-badge">0</span>
+        </div>
+        <select id="saved-batches" aria-label="저장된 작업 선택">
+          <option value="">저장된 작업이 없습니다</option>
+        </select>
+        <div class="saved-work-actions">
+          <button id="open-saved-batch" class="secondary-button compact" type="button" disabled>작업 열기</button>
+          <button id="delete-saved-batch" class="danger-button compact" type="button" disabled>작업 삭제</button>
+        </div>
+        <p class="saved-work-note">업로드 파일과 저장한 설정·ROI는 계정에 계속 보관됩니다.</p>
+      </section>
+
+      <section class="control-section source-section">
+        <h2>DICOM 불러오기</h2>
+        <div class="segmented" role="radiogroup" aria-label="DICOM 불러오기 방식">
+          <label><input type="radio" name="sourceType" value="files" checked><span>여러 파일</span></label>
+          <label><input type="radio" name="sourceType" value="folder"><span>폴더 선택</span></label>
+        </div>
+        <div id="files-source" class="field source-picker">
+          <label class="file-drop" for="upload-files">
+            <input id="upload-files" type="file" accept=".dcm,.dicom,application/dicom" multiple>
+            <span class="file-drop-title">DICOM 파일 여러 개 선택</span>
+            <span class="file-drop-note">최대 1,000개 권장</span>
+          </label>
+        </div>
+        <div id="folder-source" class="field source-picker hidden">
+          <label class="file-drop" for="upload-folder">
+            <input id="upload-folder" type="file" webkitdirectory directory multiple>
+            <span class="file-drop-title">DICOM 폴더 선택</span>
+            <span class="file-drop-note">하위 폴더까지 자동으로 포함합니다</span>
+          </label>
+        </div>
+        <div id="import-progress" class="task-progress hidden">
+          <div class="task-line"><span id="import-message">파일 준비 중</span><strong id="import-percent">0%</strong></div>
+          <progress id="import-progress-bar" max="100" value="0"></progress>
+          <button id="cancel-import" class="text-button">불러오기 취소</button>
+        </div>
+        <p id="import-summary" class="import-summary hidden" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="control-section file-worklist">
+        <div class="section-title-row">
+          <h2>불러온 파일</h2><span id="file-count" class="count-badge">0</span>
+        </div>
+        <div class="list-tools">
+          <input id="file-search" type="search" placeholder="파일 이름 검색" aria-label="파일 이름 검색">
+          <select id="status-filter" aria-label="파일 상태 필터">
+            <option value="all">전체 상태</option>
+            <option value="saved">저장됨</option>
+            <option value="modified">수정됨</option>
+            <option value="unsaved">미저장</option>
+            <option value="error">오류</option>
+          </select>
+        </div>
+        <div id="file-list" class="file-list" role="listbox" aria-label="불러온 DICOM 파일"></div>
+        <p id="empty-list" class="empty-list">여러 파일이나 폴더를 선택해 주세요.</p>
+        <div class="status-legend" aria-label="파일 상태 범례">
+          <span><i class="status-dot unsaved"></i>미저장</span>
+          <span><i class="status-dot modified"></i>수정됨</span>
+          <span><i class="status-dot saved"></i>저장됨</span>
+          <span><i class="status-dot error"></i>오류</span>
+        </div>
+      </section>
+
+      <section class="control-section batch-export">
+        <h2>전체 변환 다운로드 (이미지만)</h2>
+        <div class="segmented" role="radiogroup" aria-label="전체 변환 범위">
+          <label title="ROI 라벨은 제외하고 컬러화 설정을 저장한 파일만 내보냅니다."><input type="radio" name="batchScope" value="saved" checked><span>저장된 파일만</span></label>
+          <label title="미저장 파일에도 현재 화면의 컬러화 설정을 적용해 함께 내보냅니다."><input type="radio" name="batchScope" value="all"><span>모든 파일</span></label>
+        </div>
+        <p id="batch-scope-help" class="batch-scope-help" role="status" aria-live="polite">
+          <span class="batch-scope-help-icon" aria-hidden="true">i</span>
+          <span id="batch-scope-help-text"></span>
+        </p>
+        <div class="batch-format-actions">
+          <button id="start-batch-png" class="primary-button compact batch-start-button" disabled>전체 PNG 다운로드</button>
+          <button id="start-batch-jpg" class="secondary-button compact batch-start-button" disabled>전체 JPG 다운로드</button>
+        </div>
+        <div class="field batch-quality-field">
+          <div class="label-row"><label for="jpeg-quality">JPG 품질</label><output id="jpeg-quality-value">95</output></div>
+          <input id="jpeg-quality" type="range" min="50" max="100" value="95">
+        </div>
+        <div class="roi-batch-export">
+          <div><strong>컬러화 이미지 + ROI 라벨 데이터</strong><span>ROI가 저장된 파일의 컬러화 PNG와 VIA 라벨 JSON을 ZIP으로 묶습니다.</span></div>
+          <button id="start-batch-via" class="secondary-button compact" disabled>이미지 + ROI 데이터 다운로드</button>
+        </div>
+        <div id="batch-job" class="task-progress hidden">
+          <div class="task-line"><span id="batch-message">작업 대기 중</span><strong id="batch-percent">0%</strong></div>
+          <progress id="batch-progress-bar" max="100" value="0"></progress>
+          <p id="batch-current" class="task-current"></p>
+          <button id="cancel-batch" class="text-button">변환 취소</button>
+          <button id="download-batch-result" class="primary-button compact hidden">완료 ZIP 다운로드</button>
+        </div>
+      </section>
+    </aside>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div class="page-title-block">
+          <p class="eyebrow">MEDICAL IMAGE WORKBENCH</p>
+          <h1>DICOM 흑백 영상 컬러맵</h1>
+          <div class="current-file-line"><span>현재 파일</span><strong id="file-badge">파일을 선택하세요</strong></div>
+        </div>
+
+        <section class="header-image-info" aria-labelledby="image-info-title">
+          <div class="header-info-heading"><span class="section-kicker">IMAGE DATA</span><h2 id="image-info-title">영상 및 강도 정보</h2></div>
+          <div class="header-metrics">
+            <div class="header-metric"><span>크기</span><strong id="metric-size">—</strong></div>
+            <div class="header-metric"><span>원본 Min / Max</span><strong id="metric-range">—</strong></div>
+            <div class="header-metric"><span>1% / 99%</span><strong id="metric-percentile">—</strong></div>
+            <div class="header-metric"><span>Modality</span><strong id="metric-modality">—</strong></div>
+            <div class="header-metric"><span>Photometric</span><strong id="metric-photometric">—</strong></div>
+            <div class="header-metric"><span>Bits Stored</span><strong id="metric-bits">—</strong></div>
+          </div>
+        </section>
+      </header>
+
+      <div id="error-banner" class="error-banner hidden" role="alert"></div>
+
+      <section class="workspace-grid">
+        <section class="comparison-grid" aria-label="영상 비교">
+          <article class="image-card">
+            <div class="card-heading">
+              <div><span class="card-index">01</span><h2>정규화된 흑백</h2></div>
+              <span id="grayscale-caption" class="caption-pill">파일 대기 중</span>
+            </div>
+            <div class="image-stage">
+              <img id="grayscale-image" alt="정규화된 흑백 DICOM 영상">
+              <div class="image-loading" role="status" aria-live="polite">
+                <div class="spinner"></div><span class="image-loading-label">DICOM 파일을 읽고 있습니다</span>
+              </div>
+            </div>
+          </article>
+          <article class="image-card accent-card">
+            <div class="card-heading">
+              <div><span class="card-index">02</span><h2>컬러맵 적용 결과</h2></div>
+              <span id="color-caption" class="caption-pill accent">파일 대기 중</span>
+            </div>
+            <div class="image-stage">
+              <img id="color-image" alt="컬러맵이 적용된 DICOM 영상">
+              <div class="image-loading" aria-hidden="true">
+                <div class="spinner"></div><span class="image-loading-label">DICOM 파일을 읽고 있습니다</span>
+              </div>
+            </div>
+            <div class="scale-wrap">
+              <img id="colormap-scale" alt="컬러맵 색상 스케일">
+              <div class="scale-meta">
+                <div class="scale-labels"><span>낮은 강도</span><span>높은 강도</span></div>
+                <button id="open-roi-editor" class="roi-open-button" disabled>ROI 라벨링</button>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <aside class="main-settings-panel" aria-labelledby="settings-title">
+          <div class="settings-panel-heading"><span class="section-kicker">COLOR CONTROLS</span><h2 id="settings-title">컬러화 설정</h2></div>
+
+          <div class="settings-grid">
+            <div class="field setting-normalization">
+              <label for="normalization">명암 정규화 방식</label>
+              <select id="normalization">
+                <option value="linear">Linear Min-Max</option>
+                <option value="percentile">Percentile Clipping</option>
+                <option value="histogram">Histogram Equalization</option>
+                <option value="log">Log Transform</option>
+                <option value="window">DICOM Window Center/Width</option>
+              </select>
+              <p id="normalization-help" class="help-text"></p>
+            </div>
+
+            <div id="linear-controls" class="method-controls setting-detail">
+              <label class="check-row"><input id="manual-bounds" type="checkbox"><span>Min/Max 직접 지정</span></label>
+              <div id="manual-bound-fields" class="two-fields hidden">
+                <div class="field"><label for="lower-bound">표현할 최솟값</label><input id="lower-bound" type="number" step="any"></div>
+                <div class="field"><label for="upper-bound">표현할 최댓값</label><input id="upper-bound" type="number" step="any"></div>
+              </div>
+            </div>
+            <div id="percentile-controls" class="method-controls setting-detail hidden">
+              <div class="two-fields">
+                <div class="field"><label for="lower-percentile">하한 백분위</label><input id="lower-percentile" type="number" min="0" max="99.5" step="0.5" value="1"></div>
+                <div class="field"><label for="upper-percentile">상한 백분위</label><input id="upper-percentile" type="number" min="0.5" max="100" step="0.5" value="99"></div>
+              </div>
+            </div>
+            <div id="log-controls" class="method-controls setting-detail hidden">
+              <div class="field">
+                <div class="label-row"><label for="log-strength">저강도 강조 정도</label><output id="log-strength-value">20.0</output></div>
+                <input id="log-strength" type="range" min="0.1" max="100" step="0.1" value="20">
+              </div>
+            </div>
+            <div id="window-controls" class="method-controls setting-detail hidden">
+              <div class="two-fields">
+                <div class="field"><label for="window-center">Window Center</label><input id="window-center" type="number" step="any"></div>
+                <div class="field"><label for="window-width">Window Width</label><input id="window-width" type="number" min="0.001" step="any"></div>
+              </div>
+              <p id="window-source" class="help-text"></p>
+            </div>
+
+            <div class="field setting-colormap">
+              <label for="colormap">컬러맵</label>
+              <select id="colormap">
+                <option value="nuclear_spectrum">Nuclear Spectrum (원시 스펙트럼)</option>
+                <option value="nipy_spectral">Nipy Spectral (높은 무지개색)</option>
+                <option value="gist_ncar">Gist Ncar (고대비 스펙트럼)</option>
+                <option value="turbo">Turbo (선명한 무지개색)</option>
+                <option value="inferno">Inferno (검정-주황-노랑)</option>
+                <option value="magma">Magma (검정-보라-노랑)</option>
+                <option value="plasma">Plasma (보라-빨강-노랑)</option>
+                <option value="viridis">Viridis (보라-초록-노랑)</option>
+                <option value="hot">Hot (검정-빨강-노랑)</option>
+                <option value="cool">Cool (청록-분홍)</option>
+                <option value="jet">Jet (파랑-초록-빨강)</option>
+                <option value="bone">Bone (청회색)</option>
+                <option value="gray">Gray (흑백)</option>
+              </select>
+              <label class="check-row"><input id="invert-grayscale" type="checkbox" checked><span>흑백 명암 반전</span></label>
+            </div>
+
+            <div class="field setting-range setting-gamma">
+              <div class="label-row"><label for="gamma">감마</label><output id="gamma-value">1.35</output></div>
+              <input id="gamma" type="range" min="0.2" max="3" step="0.05" value="1.35">
+            </div>
+
+            <div class="field setting-range setting-threshold">
+              <div class="label-row"><label for="background-threshold">검정 배경 임계값</label><output id="background-threshold-value">0.5%</output></div>
+              <input id="background-threshold" type="range" min="0" max="25" step="0.5" value="0.5">
+            </div>
+          </div>
+
+          <div class="settings-save-area">
+            <button id="save-settings" class="save-button" disabled>현재 파일 설정 저장</button>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="workspace-disclaimer">컬러맵 이미지는 시각화용이며 의료적 판단을 대체하지 않습니다. 내보낸 이미지에는 원본 DICOM 메타데이터가 포함되지 않습니다.</footer>
+    </main>
+  </div>
+
+  <div id="loading" class="loading-overlay hidden" aria-live="polite">
+    <div class="spinner"></div><span>영상을 준비하고 있습니다</span>
+  </div>
+  <div id="roi-modal" class="roi-modal hidden" role="dialog" aria-modal="true" aria-labelledby="roi-modal-title">
+    <div class="roi-dialog">
+      <header class="roi-dialog-header">
+        <div>
+          <span class="section-kicker">ROI ANNOTATION</span>
+          <h2 id="roi-modal-title">컬러맵 영상 ROI 라벨링</h2>
+          <p id="roi-modal-filename">파일을 선택하세요</p>
+        </div>
+        <button id="close-roi-editor" class="roi-close-button" type="button" aria-label="ROI 편집기 닫기">×</button>
+      </header>
+
+      <div class="roi-dialog-body">
+        <section class="roi-editor-area" aria-label="ROI 그리기 영역">
+          <div class="roi-toolbar" role="toolbar" aria-label="ROI 편집 도구">
+            <div class="roi-tool-group">
+              <button class="roi-tool-button active" data-roi-tool="select" type="button">선택</button>
+              <button class="roi-tool-button" data-roi-tool="polygon" type="button">다각형</button>
+              <button class="roi-tool-button" data-roi-tool="ellipse" type="button">타원</button>
+              <button class="roi-tool-button" data-roi-tool="pan" type="button">이동</button>
+            </div>
+            <div class="roi-tool-group compact">
+              <button id="roi-undo-point" type="button" disabled>마지막 점 취소</button>
+              <button id="roi-zoom-out" type="button" aria-label="축소">−</button>
+              <button id="roi-fit" type="button">화면 맞춤</button>
+              <button id="roi-zoom-in" type="button" aria-label="확대">＋</button>
+              <label class="roi-smoothing-toggle"><input id="roi-smoothing" type="checkbox" checked><span>부드럽게</span></label>
+            </div>
+          </div>
+          <div id="roi-canvas-stage" class="roi-canvas-stage" tabindex="0" aria-label="컬러 영상 위 ROI 편집 캔버스">
+            <canvas id="roi-canvas"></canvas>
+            <div id="roi-empty-hint" class="roi-canvas-hint">다각형 또는 타원 도구를 선택해 ROI를 그려 주세요.</div>
+          </div>
+          <div class="roi-editor-help">
+            <span id="roi-coordinate">X — · Y —</span>
+            <span id="roi-zoom-value">100%</span>
+            <span>Enter: 다각형 완료 · Esc: 취소 · Delete: 선택 ROI 삭제</span>
+          </div>
+        </section>
+
+        <aside class="roi-side-panel" aria-label="ROI 속성과 목록">
+          <div class="field">
+            <label for="roi-label">ROI 라벨</label>
+            <select id="roi-label"></select>
+            <div class="roi-label-actions">
+              <button id="add-roi-label" type="button">＋ 라벨 추가</button>
+              <button id="rename-roi-label" type="button">이름 수정</button>
+            </div>
+          </div>
+          <div class="roi-side-heading">
+            <h3>저장할 ROI</h3><span id="roi-region-count" class="count-badge">0</span>
+          </div>
+          <div id="roi-region-list" class="roi-region-list"></div>
+          <p id="roi-region-empty" class="roi-region-empty">아직 그린 ROI가 없습니다.</p>
+          <button id="roi-delete-region" class="roi-delete-button" type="button" disabled>선택 ROI 삭제</button>
+          <div class="roi-context-note">
+            <strong>라벨링 기준</strong>
+            <span>현재 컬러화 설정을 스냅샷으로 저장합니다. ROI 좌표는 원본 픽셀 기준입니다.</span>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="roi-dialog-footer">
+        <p id="roi-save-status" aria-live="polite">저장된 ROI를 불러오면 편집할 수 있습니다.</p>
+        <div>
+          <button id="download-roi-via" class="secondary-button roi-footer-button" type="button" disabled>현재 VIA JSON</button>
+          <button id="cancel-roi-editor" class="secondary-button roi-footer-button" type="button">닫기</button>
+          <button id="save-roi" class="primary-button roi-footer-button" type="button" disabled>ROI 저장</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+  <script src="static/roi_geometry.js" defer></script>
+  <script src="static/app.js" defer></script>
+</body>
+</html>

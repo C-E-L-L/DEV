@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.git/
+data_dicom/
+user_data/
+tests/
