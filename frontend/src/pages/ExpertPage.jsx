@@ -1059,15 +1059,17 @@ export default function ExpertPage() {
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '25px' }}>
                       {group.tasks.map((task, idx) => (
-                        <div key={task.id} style={{ position: 'relative' }}>
-                          <button onClick={() => fetchTaskStats(task.id)} style={{
-                            ...taskBtnStyle,
-                            ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
+                        <div key={task.id} style={{
+                          ...taskBtnStyle,
+                          ...(selectedTaskId === task.id ? { background: '#495057', color: '#fff', borderColor: '#495057' } : {}),
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', minWidth: '180px',
+                        }}>
+                          <button type="button" onClick={() => fetchTaskStats(task.id)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%',
+                            padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer',
                           }}>
                             <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Smear ${idx + 1}`} style={{ width: '160px', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px', border: '1px solid #dee2e6' }} />
                             <div style={{ fontWeight: '600', fontSize: '14px' }}>도말 #{idx + 1}</div>
-                            <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact style={{ marginTop: '5px' }} />
                             <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px', wordBreak: 'break-all', textAlign: 'center' }}>
                               {task.uploadedFilename || task.originalFilename}
                             </div>
@@ -1075,7 +1077,7 @@ export default function ExpertPage() {
                               <GtProgressBadge progress={getTaskGtProgress(task)} completeLabel="✓ GT 완료" />
                             </div>
                           </button>
-                          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
                             <TaskSpeciesEditor
                               taskId={task.id}
                               species={species}
@@ -1214,21 +1216,6 @@ export default function ExpertPage() {
                       </div>
                     )}
                   </div>
-                </div>
-              )}
-
-              {selectedTaskId && selectedAnalyticsTask && (
-                <div style={{ marginBottom: '12px', padding: '10px 12px', border: '1px solid #a5d8ff', borderRadius: '8px', background: '#f8fcff', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <strong style={{ fontSize: '13px', color: '#495057' }}>이 도말의 동물 종</strong>
-                  <SpeciesBadge name={selectedAnalyticsTask.speciesName} code={selectedAnalyticsTask.speciesCode} />
-                  {!isDiagnosticTask(selectedAnalyticsTask) && (
-                    <TaskSpeciesEditor
-                      taskId={selectedAnalyticsTask.id}
-                      species={species}
-                      value={selectedAnalyticsTask.speciesId}
-                      onUpdated={refreshTasks}
-                    />
-                  )}
                 </div>
               )}
 
