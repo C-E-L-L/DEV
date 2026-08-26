@@ -61,6 +61,7 @@ class ColorizerStore:
                     content_hash TEXT NOT NULL,
                     image_hash TEXT,
                     error TEXT,
+                    acquisition_json TEXT,
                     created_at REAL NOT NULL,
                     FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -104,6 +105,11 @@ class ColorizerStore:
                 );
                 """
             )
+            item_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(items)").fetchall()
+            }
+            if "acquisition_json" not in item_columns:
+                connection.execute("ALTER TABLE items ADD COLUMN acquisition_json TEXT")
 
     @staticmethod
     def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -194,13 +200,13 @@ class ColorizerStore:
                 """
                 INSERT INTO items(
                     id, batch_id, user_id, relative_path, storage_path,
-                    content_hash, image_hash, error, created_at
+                    content_hash, image_hash, error, acquisition_json, created_at
                 ) VALUES (
                     :id, :batch_id, :user_id, :relative_path, :storage_path,
-                    :content_hash, :image_hash, :error, :created_at
+                    :content_hash, :image_hash, :error, :acquisition_json, :created_at
                 )
                 """,
-                record,
+                {**record, "acquisition_json": json.dumps(record.get("acquisition"))},
             )
 
     def list_items(self, batch_id: str) -> list[dict[str, Any]]:
@@ -208,25 +214,33 @@ class ColorizerStore:
             rows = connection.execute(
                 """
                 SELECT id, batch_id, user_id, relative_path, storage_path,
-                       content_hash, image_hash, error, created_at
+                       content_hash, image_hash, error, acquisition_json, created_at
                 FROM items WHERE batch_id = ? ORDER BY created_at, id
                 """,
                 (batch_id,),
             ).fetchall()
-        return [dict(row) for row in rows]
+        records = [dict(row) for row in rows]
+        for record in records:
+            payload = record.pop("acquisition_json", None)
+            record["acquisition"] = json.loads(payload) if payload else None
+        return records
 
     def item_by_id(self, item_id: str) -> dict[str, Any] | None:
         with self._connect() as connection:
-            return self._dict(
+            record = self._dict(
                 connection.execute(
                     """
                     SELECT id, batch_id, user_id, relative_path, storage_path,
-                           content_hash, image_hash, error, created_at
+                           content_hash, image_hash, error, acquisition_json, created_at
                     FROM items WHERE id = ?
                     """,
                     (item_id,),
                 ).fetchone()
             )
+        if record is not None:
+            payload = record.pop("acquisition_json", None)
+            record["acquisition"] = json.loads(payload) if payload else None
+        return record
 
     def delete_items(self, batch_id: str, user_id: str, item_ids: list[str]) -> int:
         if not item_ids:

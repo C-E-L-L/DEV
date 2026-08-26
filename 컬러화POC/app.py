@@ -55,6 +55,8 @@ MAX_ROI_REGIONS = 500
 MAX_POLYGON_POINTS = 2000
 MAX_ROI_LABELS = 32
 MAX_ROI_LABEL_LENGTH = 40
+TIME_60_DURATION_MS = 60_000
+TIME_60_TOLERANCE_MS = 500
 
 ROI_LABELS = ("갑상샘", "병변", "배경", "기타")
 SUPPORTED_ROI_SHAPES = {"polygon", "ellipse"}
@@ -93,6 +95,16 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "format": "PNG",
     "jpegQuality": 95,
 }
+
+
+def default_acquisition_summary() -> dict[str, Any]:
+    return {
+        "type": "other",
+        "label": None,
+        "durationMs": None,
+        "counts": None,
+        "terminationCondition": None,
+    }
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE + 16 * 1024 * 1024
@@ -138,6 +150,7 @@ class BatchItem:
     content_hash: str
     image_hash: str | None = None
     error: str | None = None
+    acquisition: dict[str, Any] = field(default_factory=default_acquisition_summary)
     lock: Any = field(default_factory=threading.RLock, repr=False)
 
 
@@ -560,11 +573,58 @@ IMAGE_FINGERPRINT_FIELDS = (
 )
 
 
-def inspect_dicom_image(path: Path) -> tuple[str | None, str | None]:
+def _dicom_numeric_value(value: Any) -> int | float | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not np.isfinite(number):
+        return None
+    return int(number) if number.is_integer() else number
+
+
+def dicom_acquisition_summary(dataset: Any) -> dict[str, Any]:
+    duration_ms = _dicom_numeric_value(getattr(dataset, "ActualFrameDuration", None))
+    counts = _dicom_numeric_value(getattr(dataset, "CountsAccumulated", None))
+    termination_value = getattr(dataset, "AcquisitionTerminationCondition", None)
+    termination_condition = str(termination_value).strip() if termination_value is not None else None
+    if not termination_condition:
+        termination_condition = None
+
+    acquisition_type = "other"
+    label = None
+    if (
+        duration_ms is not None
+        and TIME_60_DURATION_MS - TIME_60_TOLERANCE_MS
+        <= duration_ms
+        <= TIME_60_DURATION_MS + TIME_60_TOLERANCE_MS
+    ):
+        acquisition_type = "time60"
+        label = "60 sec"
+    elif counts == 200_000:
+        acquisition_type = "counts200000"
+        label = "200,000"
+
+    return {
+        "type": acquisition_type,
+        "label": label,
+        "durationMs": duration_ms,
+        "counts": counts,
+        "terminationCondition": termination_condition,
+    }
+
+
+def inspect_dicom_image(
+    path: Path,
+) -> tuple[str | None, str | None, dict[str, Any]]:
+    acquisition = default_acquisition_summary()
     try:
         dataset = pydicom.dcmread(path, force=True, defer_size=1024)
+        acquisition = dicom_acquisition_summary(dataset)
         if "PixelData" not in dataset:
-            return "PixelData가 없는 DICOM 파일입니다.", None
+            return "PixelData가 없는 DICOM 파일입니다.", None, acquisition
         fingerprint = hashlib.sha256()
         interpretation = {
             keyword: str(getattr(dataset, keyword, ""))
@@ -580,9 +640,9 @@ def inspect_dicom_image(path: Path) -> tuple[str | None, str | None]:
         )
         fingerprint.update(b"\0PIXELDATA\0")
         fingerprint.update(bytes(dataset.PixelData))
-        return None, fingerprint.hexdigest()
+        return None, fingerprint.hexdigest(), acquisition
     except Exception as exc:
-        return f"DICOM 헤더를 읽을 수 없습니다: {exc}", None
+        return f"DICOM 헤더를 읽을 수 없습니다: {exc}", None, acquisition
 
 
 def create_batch(label: str, source_type: str, user_id: str) -> Batch:
@@ -614,7 +674,7 @@ def add_batch_item(
     content_hash: str | None = None,
 ) -> BatchItem:
     relative_path = unique_relative_path(batch, relative_path)
-    error, image_hash = inspect_dicom_image(source_path)
+    error, image_hash, acquisition = inspect_dicom_image(source_path)
     item = BatchItem(
         item_id=uuid.uuid4().hex,
         batch_id=batch.batch_id,
@@ -624,6 +684,7 @@ def add_batch_item(
         content_hash=content_hash or hash_file(source_path),
         image_hash=image_hash,
         error=error,
+        acquisition=acquisition,
     )
     store.create_item(
         {
@@ -635,6 +696,7 @@ def add_batch_item(
             "content_hash": item.content_hash,
             "image_hash": image_hash,
             "error": error,
+            "acquisition": acquisition,
             "created_at": time.time(),
         }
     )
@@ -659,6 +721,7 @@ def _item_from_record(record: dict[str, Any]) -> BatchItem:
         content_hash=str(record["content_hash"]),
         image_hash=record.get("image_hash"),
         error=record.get("error"),
+        acquisition=record.get("acquisition") or default_acquisition_summary(),
     )
 
 
@@ -725,6 +788,7 @@ def item_summary(item: BatchItem) -> dict[str, Any]:
         "contentHash": item.content_hash,
         "imageHash": item.image_hash,
         "error": item.error,
+        "acquisition": item.acquisition,
         "savedSettings": saved,
         "roiCount": len(annotations.get("regions", [])) if annotations else 0,
     }
@@ -1256,6 +1320,7 @@ def api_upload_batch_files(batch_id: str):
                     "contentHash": None,
                     "imageHash": None,
                     "error": str(exc),
+                    "acquisition": default_acquisition_summary(),
                     "savedSettings": None,
                     "roiCount": 0,
                 }

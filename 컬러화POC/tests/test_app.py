@@ -35,7 +35,12 @@ class DicomBatchAppTests(unittest.TestCase):
         self.sample = self.make_sample_dicom()
 
     @staticmethod
-    def make_sample_dicom() -> bytes:
+    def make_sample_dicom(
+        *,
+        duration_ms: int | None = None,
+        counts: int | None = None,
+        termination_condition: str | None = None,
+    ) -> bytes:
         file_meta = FileMetaDataset()
         file_meta.MediaStorageSOPClassUID = SecondaryCaptureImageStorage
         file_meta.MediaStorageSOPInstanceUID = generate_uid()
@@ -52,6 +57,12 @@ class DicomBatchAppTests(unittest.TestCase):
         dataset.BitsStored = 12
         dataset.HighBit = 11
         dataset.PixelRepresentation = 0
+        if duration_ms is not None:
+            dataset.ActualFrameDuration = duration_ms
+        if counts is not None:
+            dataset.CountsAccumulated = counts
+        if termination_condition is not None:
+            dataset.AcquisitionTerminationCondition = termination_condition
         dataset.PixelData = np.arange(80 * 80, dtype=np.uint16).reshape(80, 80).tobytes()
         output = BytesIO()
         dataset.save_as(output, enforce_file_format=True)
@@ -144,12 +155,57 @@ class DicomBatchAppTests(unittest.TestCase):
         self.assertEqual(items[1]["relativePath"], "root/study/one__2.dcm")
         self.assertEqual(items[0]["imageHash"], items[1]["imageHash"])
         self.assertIsNotNone(items[2]["error"])
+        self.assertEqual(items[2]["acquisition"]["type"], "other")
 
         traversal = self.upload(
             batch["batchId"], [(self.sample, "escape.dcm", "../escape.dcm")]
         )[0]
         self.assertIsNone(traversal["itemId"])
         self.assertIsNotNone(traversal["error"])
+
+    def test_acquisition_classification_priority_and_persistence(self):
+        batch = self.create_upload_batch()
+        time60 = self.make_sample_dicom(
+            duration_ms=60_500,
+            counts=200_000,
+            termination_condition="TIME",
+        )
+        counts200000 = self.make_sample_dicom(
+            duration_ms=45_000,
+            counts=200_000,
+            termination_condition="TIME",
+        )
+        items = self.upload(
+            batch["batchId"],
+            [
+                (time60, "time60.dcm", "time60.dcm"),
+                (counts200000, "counts.dcm", "counts.dcm"),
+                (self.sample, "other.dcm", "other.dcm"),
+            ],
+        )
+
+        self.assertEqual(
+            items[0]["acquisition"],
+            {
+                "type": "time60",
+                "label": "60 sec",
+                "durationMs": 60_500,
+                "counts": 200_000,
+                "terminationCondition": "TIME",
+            },
+        )
+        self.assertEqual(items[1]["acquisition"]["type"], "counts200000")
+        self.assertEqual(items[1]["acquisition"]["label"], "200,000")
+        self.assertEqual(items[1]["acquisition"]["terminationCondition"], "TIME")
+        self.assertEqual(items[2]["acquisition"]["type"], "other")
+        self.assertIsNone(items[2]["acquisition"]["label"])
+
+        with application._state_lock:
+            application._batches.clear()
+            application._items.clear()
+        restored = self.client.get(f"/api/batches/{batch['batchId']}").get_json()["items"]
+        self.assertEqual(restored[0]["acquisition"], items[0]["acquisition"])
+        self.assertEqual(restored[1]["acquisition"], items[1]["acquisition"])
 
     def test_image_duplicates_ignore_unrelated_metadata_and_can_be_removed(self):
         dataset = pydicom.dcmread(BytesIO(self.sample), force=True)
@@ -542,6 +598,7 @@ class DicomBatchAppTests(unittest.TestCase):
         self.assertIn('id="start-batch-jpg"', html)
         self.assertIn('id="jpeg-quality"', html)
         self.assertIn('id="import-summary"', html)
+        self.assertIn('id="acquisition-filter"', html)
         self.assertIn('id="batch-scope-help"', html)
         self.assertIn('id="batch-scope-help-text"', html)
         self.assertIn('class="header-metrics"', html)

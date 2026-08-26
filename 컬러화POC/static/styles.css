@@ -164,8 +164,8 @@ input[type="range"] {
 .section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .section-title-row h2 { margin-bottom: 0; }
 .count-badge { min-width: 24px; padding: 3px 7px; color: #4e5961; font-size: 10px; font-weight: 750; text-align: center; background: #e1e5e7; border-radius: 999px; }
-.list-tools { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(92px, 0.8fr); gap: 7px; margin-top: 13px; }
-.list-tools input, .list-tools select { height: 34px; min-width: 0; padding: 0 9px; font-size: 11px; }
+.list-tools { display: grid; grid-template-columns: minmax(72px, 1.15fr) minmax(74px, 0.9fr) minmax(78px, 1fr); gap: 5px; margin-top: 13px; }
+.list-tools input, .list-tools select { height: 34px; min-width: 0; padding: 0 6px; font-size: 10px; }
 .file-list { max-height: min(300px, 30vh); margin-top: 9px; overflow-y: auto; border: 1px solid var(--line); border-radius: 9px; background: white; scrollbar-width: thin; }
 .file-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 44px; padding: 7px 8px; border-bottom: 1px solid #edf0f1; cursor: pointer; transition: background 0.12s; }
 .file-row:last-child { border-bottom: 0; }
@@ -178,6 +178,9 @@ input[type="range"] {
 .file-row-name > span { margin-top: 2px; color: #899198; font-size: 9px; }
 .file-row-title { display: flex; align-items: center; min-width: 0; gap: 5px; }
 .file-row-title strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acquisition-badge { flex: 0 0 auto; padding: 2px 4px; font-size: 7px; font-weight: 800; border: 1px solid; border-radius: 999px; }
+.acquisition-badge.time60 { color: #1d5fa7; background: #edf6ff; border-color: #bddcff; }
+.acquisition-badge.counts200000 { color: #6941a5; background: #f5efff; border-color: #dac5fa; }
 .roi-count-badge { flex: 0 0 auto; padding: 2px 4px; color: #a52f18; font-size: 7px; font-weight: 800; background: #fff0ec; border: 1px solid #ffd3c8; border-radius: 999px; }
 .file-row-actions { display: flex; align-items: center; gap: 3px; }
 .file-download-button { display: grid; place-items: center; min-width: 34px; height: 25px; padding: 0 5px; color: #59646c; font-size: 8px; font-weight: 800; background: white; border: 1px solid #d5dadd; border-radius: 6px; }

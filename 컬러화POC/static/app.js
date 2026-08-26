@@ -472,12 +472,28 @@ function resetMainPanel() {
 
 function visibleItems() {
   const query = $("#file-search").value.trim().toLocaleLowerCase("ko-KR");
-  const filter = $("#status-filter").value;
+  const statusFilter = $("#status-filter").value;
+  const acquisitionFilter = $("#acquisition-filter").value;
   return state.items.filter((item) => {
     const searchMatch = !query || item.relativePath.toLocaleLowerCase("ko-KR").includes(query);
-    const statusMatch = filter === "all" || itemStatus(item) === filter;
-    return searchMatch && statusMatch;
+    const statusMatch = statusFilter === "all" || itemStatus(item) === statusFilter;
+    const acquisitionMatch = (
+      acquisitionFilter === "all" || item.acquisition?.type === acquisitionFilter
+    );
+    return searchMatch && statusMatch && acquisitionMatch;
   });
+}
+
+function acquisitionTooltip(acquisition) {
+  const formatValue = (value) => (
+    value !== null && value !== "" && Number.isFinite(Number(value))
+      ? Number(value).toLocaleString("ko-KR")
+      : "정보 없음"
+  );
+  return [
+    `촬영 시간: ${formatValue(acquisition?.durationMs)} ms`,
+    `누적 카운트: ${formatValue(acquisition?.counts)}`,
+  ].join("\n");
 }
 
 function renderFileList() {
@@ -511,6 +527,13 @@ function renderFileList() {
     const strong = document.createElement("strong");
     strong.textContent = filename;
     titleLine.appendChild(strong);
+    if (["time60", "counts200000"].includes(item.acquisition?.type)) {
+      const acquisitionBadge = document.createElement("span");
+      acquisitionBadge.className = `acquisition-badge ${item.acquisition.type}`;
+      acquisitionBadge.textContent = item.acquisition.label;
+      acquisitionBadge.title = acquisitionTooltip(item.acquisition);
+      titleLine.appendChild(acquisitionBadge);
+    }
     if (Number(item.roiCount) > 0) {
       const roiBadge = document.createElement("span");
       roiBadge.className = "roi-count-badge";
@@ -1834,6 +1857,7 @@ function bindEvents() {
   $("#cancel-import").addEventListener("click", cancelImport);
   $("#file-search").addEventListener("input", renderFileList);
   $("#status-filter").addEventListener("change", renderFileList);
+  $("#acquisition-filter").addEventListener("change", renderFileList);
 
   $("#normalization").addEventListener("change", () => {
     updateNormalizationControls();
