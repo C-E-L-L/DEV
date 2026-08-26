@@ -205,6 +205,7 @@ def configure_data_directory(path: Path) -> None:
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     store = ColorizerStore(DATABASE_PATH)
     store.initialize()
+    backfill_missing_acquisition_summaries()
     with _state_lock:
         _batches.clear()
         _items.clear()
@@ -614,6 +615,43 @@ def dicom_acquisition_summary(dataset: Any) -> dict[str, Any]:
         "counts": counts,
         "terminationCondition": termination_condition,
     }
+
+
+def backfill_missing_acquisition_summaries() -> dict[str, int]:
+    missing_records = store.list_items_missing_acquisition()
+    updates: list[tuple[str, dict[str, Any]]] = []
+    skipped = 0
+
+    for record in missing_records:
+        source_path = (DATA_DIR / str(record["storage_path"])).resolve()
+        try:
+            source_path.relative_to(DATA_DIR)
+        except ValueError:
+            skipped += 1
+            continue
+        if not source_path.is_file():
+            skipped += 1
+            continue
+        try:
+            dataset = pydicom.dcmread(source_path, force=True, stop_before_pixels=True)
+            acquisition = dicom_acquisition_summary(dataset)
+        except Exception:
+            skipped += 1
+            continue
+        updates.append((str(record["id"]), acquisition))
+
+    updated = store.update_item_acquisitions(updates)
+    if missing_records:
+        app.logger.info(
+            "DICOM acquisition backfill finished: missing=%d updated=%d skipped=%d",
+            len(missing_records),
+            updated,
+            skipped,
+        )
+    return {"missing": len(missing_records), "updated": updated, "skipped": skipped}
+
+
+backfill_missing_acquisition_summaries()
 
 
 def inspect_dicom_image(

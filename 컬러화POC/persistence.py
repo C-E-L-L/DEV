@@ -242,6 +242,43 @@ class ColorizerStore:
             record["acquisition"] = json.loads(payload) if payload else None
         return record
 
+    def list_items_missing_acquisition(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, storage_path
+                FROM items
+                WHERE acquisition_json IS NULL
+                   OR TRIM(acquisition_json) IN ('', 'null')
+                ORDER BY created_at, id
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_item_acquisitions(
+        self, records: Iterable[tuple[str, dict[str, Any]]]
+    ) -> int:
+        serialized = [
+            (json.dumps(acquisition, ensure_ascii=False), item_id)
+            for item_id, acquisition in records
+        ]
+        if not serialized:
+            return 0
+        with self._connect() as connection:
+            connection.executemany(
+                """
+                UPDATE items
+                SET acquisition_json = ?
+                WHERE id = ?
+                  AND (
+                      acquisition_json IS NULL
+                      OR TRIM(acquisition_json) IN ('', 'null')
+                  )
+                """,
+                serialized,
+            )
+        return len(serialized)
+
     def delete_items(self, batch_id: str, user_id: str, item_ids: list[str]) -> int:
         if not item_ids:
             return 0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 import time
 import unittest
@@ -206,6 +207,33 @@ class DicomBatchAppTests(unittest.TestCase):
         restored = self.client.get(f"/api/batches/{batch['batchId']}").get_json()["items"]
         self.assertEqual(restored[0]["acquisition"], items[0]["acquisition"])
         self.assertEqual(restored[1]["acquisition"], items[1]["acquisition"])
+
+    def test_existing_item_acquisition_is_backfilled_from_stored_dicom(self):
+        batch = self.create_upload_batch()
+        time60 = self.make_sample_dicom(
+            duration_ms=60_000,
+            counts=150_000,
+            termination_condition="TIME",
+        )
+        item = self.upload(
+            batch["batchId"], [(time60, "legacy.dcm", "legacy.dcm")]
+        )[0]
+
+        with sqlite3.connect(application.DATABASE_PATH) as connection:
+            connection.execute(
+                "UPDATE items SET acquisition_json = NULL WHERE id = ?",
+                (item["itemId"],),
+            )
+        with application._state_lock:
+            application._batches.clear()
+            application._items.clear()
+
+        result = application.backfill_missing_acquisition_summaries()
+        self.assertEqual(result, {"missing": 1, "updated": 1, "skipped": 0})
+
+        restored = self.client.get(f"/api/batches/{batch['batchId']}").get_json()["items"]
+        self.assertEqual(restored[0]["acquisition"]["type"], "time60")
+        self.assertEqual(restored[0]["acquisition"]["label"], "60 sec")
 
     def test_image_duplicates_ignore_unrelated_metadata_and_can_be_removed(self):
         dataset = pydicom.dcmread(BytesIO(self.sample), force=True)
