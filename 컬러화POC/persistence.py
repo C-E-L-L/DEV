@@ -57,6 +57,7 @@ class ColorizerStore:
                     batch_id TEXT NOT NULL,
                     user_id TEXT NOT NULL,
                     relative_path TEXT NOT NULL,
+                    original_relative_path TEXT NOT NULL,
                     storage_path TEXT NOT NULL,
                     content_hash TEXT NOT NULL,
                     image_hash TEXT,
@@ -110,6 +111,12 @@ class ColorizerStore:
             }
             if "acquisition_json" not in item_columns:
                 connection.execute("ALTER TABLE items ADD COLUMN acquisition_json TEXT")
+            if "original_relative_path" not in item_columns:
+                connection.execute("ALTER TABLE items ADD COLUMN original_relative_path TEXT")
+                connection.execute(
+                    "UPDATE items SET original_relative_path = relative_path "
+                    "WHERE original_relative_path IS NULL"
+                )
 
     @staticmethod
     def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -199,10 +206,10 @@ class ColorizerStore:
             connection.execute(
                 """
                 INSERT INTO items(
-                    id, batch_id, user_id, relative_path, storage_path,
+                    id, batch_id, user_id, relative_path, original_relative_path, storage_path,
                     content_hash, image_hash, error, acquisition_json, created_at
                 ) VALUES (
-                    :id, :batch_id, :user_id, :relative_path, :storage_path,
+                    :id, :batch_id, :user_id, :relative_path, :original_relative_path, :storage_path,
                     :content_hash, :image_hash, :error, :acquisition_json, :created_at
                 )
                 """,
@@ -213,7 +220,7 @@ class ColorizerStore:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT id, batch_id, user_id, relative_path, storage_path,
+                SELECT id, batch_id, user_id, relative_path, original_relative_path, storage_path,
                        content_hash, image_hash, error, acquisition_json, created_at
                 FROM items WHERE batch_id = ? ORDER BY created_at, id
                 """,
@@ -230,7 +237,7 @@ class ColorizerStore:
             record = self._dict(
                 connection.execute(
                     """
-                    SELECT id, batch_id, user_id, relative_path, storage_path,
+                    SELECT id, batch_id, user_id, relative_path, original_relative_path, storage_path,
                            content_hash, image_hash, error, acquisition_json, created_at
                     FROM items WHERE id = ?
                     """,
@@ -293,6 +300,29 @@ class ColorizerStore:
     def update_item_error(self, item_id: str, error: str | None) -> None:
         with self._connect() as connection:
             connection.execute("UPDATE items SET error = ? WHERE id = ?", (error, item_id))
+
+    def update_item_relative_path(
+        self, item_id: str, user_id: str, relative_path: str
+    ) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                "UPDATE items SET relative_path = ? WHERE id = ? AND user_id = ?",
+                (relative_path, item_id, user_id),
+            )
+            return cursor.rowcount > 0
+
+    def reset_item_relative_paths(self, batch_id: str, user_id: str) -> int:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE items
+                SET relative_path = original_relative_path
+                WHERE batch_id = ? AND user_id = ?
+                  AND relative_path <> original_relative_path
+                """,
+                (batch_id, user_id),
+            )
+            return cursor.rowcount
 
     def get_settings(self, user_id: str, content_hash: str) -> dict[str, Any] | None:
         with self._connect() as connection:

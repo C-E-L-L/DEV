@@ -496,11 +496,113 @@ function acquisitionTooltip(acquisition) {
   ].join("\n");
 }
 
+function pathFilename(relativePath) {
+  return String(relativePath || "").split("/").pop() || "";
+}
+
+function applyRenamedItem(updated) {
+  const item = state.items.find((candidate) => candidate.itemId === updated.itemId);
+  if (!item) return;
+  Object.assign(item, updated);
+  if (state.selectedItem?.itemId === item.itemId) {
+    state.selectedItem = item;
+    if (state.source) {
+      Object.assign(state.source, updated, { filename: pathFilename(updated.relativePath) });
+    }
+    $("#file-badge").textContent = updated.relativePath;
+    if (state.roi.open && state.roi.itemId === item.itemId) {
+      $("#roi-modal-filename").textContent = updated.relativePath;
+    }
+  }
+}
+
+function beginItemNameEdit(item, label) {
+  if (!item.itemId || item.error) return;
+  const input = document.createElement("input");
+  input.className = "file-name-input";
+  input.type = "text";
+  input.maxLength = 255;
+  input.value = pathFilename(item.relativePath);
+  input.setAttribute("aria-label", "파일 이름 수정");
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let finished = false;
+  const cancel = () => {
+    if (finished) return;
+    finished = true;
+    renderFileList();
+  };
+  const commit = async () => {
+    if (finished) return;
+    const name = input.value.trim();
+    if (name === pathFilename(item.relativePath)) {
+      cancel();
+      return;
+    }
+    finished = true;
+    input.disabled = true;
+    clearError();
+    try {
+      const response = await api(`api/items/${item.itemId}/name`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      applyRenamedItem(await response.json());
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      renderFileList();
+    }
+  };
+
+  ["click", "dblclick"].forEach((eventName) => {
+    input.addEventListener(eventName, (event) => event.stopPropagation());
+  });
+  input.addEventListener("keydown", (event) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener("blur", commit);
+}
+
+async function resetItemNames() {
+  if (!state.batch?.batchId) return;
+  const changedCount = state.items.filter(
+    (item) => item.itemId && item.originalRelativePath && item.relativePath !== item.originalRelativePath,
+  ).length;
+  if (!changedCount) return;
+  if (!window.confirm(`수정한 파일 이름 ${changedCount}개를 원본 이름으로 되돌릴까요?`)) return;
+  clearError();
+  try {
+    const response = await api(`api/batches/${state.batch.batchId}/reset-item-names`, {
+      method: "POST",
+    });
+    const result = await response.json();
+    (result.items || []).forEach(applyRenamedItem);
+    state.batch = { ...state.batch, ...result, items: state.items };
+    renderFileList();
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
 function renderFileList() {
   const list = $("#file-list");
   list.innerHTML = "";
   const items = visibleItems();
   $("#file-count").textContent = `${items.length}/${state.items.length}`;
+  $("#reset-file-names").disabled = !state.batch || !state.items.some(
+    (item) => item.itemId && item.originalRelativePath && item.relativePath !== item.originalRelativePath,
+  );
   $("#empty-list").classList.toggle("hidden", items.length > 0);
   list.classList.toggle("hidden", items.length === 0);
 
@@ -526,6 +628,14 @@ function renderFileList() {
     titleLine.className = "file-row-title";
     const strong = document.createElement("strong");
     strong.textContent = filename;
+    if (item.itemId && !item.error) {
+      strong.title = "더블클릭하여 파일 이름 수정";
+      strong.addEventListener("click", (event) => event.stopPropagation());
+      strong.addEventListener("dblclick", (event) => {
+        event.stopPropagation();
+        beginItemNameEdit(item, strong);
+      });
+    }
     titleLine.appendChild(strong);
     if (["time60", "counts200000"].includes(item.acquisition?.type)) {
       const acquisitionBadge = document.createElement("span");
@@ -1855,6 +1965,7 @@ function bindEvents() {
     event.target.value = "";
   });
   $("#cancel-import").addEventListener("click", cancelImport);
+  $("#reset-file-names").addEventListener("click", resetItemNames);
   $("#file-search").addEventListener("input", renderFileList);
   $("#status-filter").addEventListener("change", renderFileList);
   $("#acquisition-filter").addEventListener("change", renderFileList);

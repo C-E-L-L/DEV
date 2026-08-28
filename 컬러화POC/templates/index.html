@@ -83,7 +83,11 @@
 
       <section class="control-section file-worklist">
         <div class="section-title-row">
-          <h2>불러온 파일</h2><span id="file-count" class="count-badge">0</span>
+          <h2>불러온 파일</h2>
+          <div class="file-list-heading-actions">
+            <button id="reset-file-names" class="list-reset-button" type="button" disabled>이름 초기화</button>
+            <span id="file-count" class="count-badge">0</span>
+          </div>
         </div>
         <div class="list-tools">
           <input id="file-search" type="search" placeholder="파일 이름 검색" aria-label="파일 이름 검색">

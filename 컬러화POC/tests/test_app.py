@@ -612,6 +612,81 @@ class DicomBatchAppTests(unittest.TestCase):
             self.assertFalse(any(name.endswith(".png") for name in names))
         jpg_result.close()
 
+    def test_item_name_edit_is_persisted_used_for_downloads_and_can_be_reset(self):
+        batch = self.create_upload_batch()
+        items = self.upload(
+            batch["batchId"],
+            [
+                (self.sample, "image.dcm", "series/image.dcm"),
+                (self.sample, "other.dcm", "series/other.dcm"),
+            ],
+        )
+
+        renamed = self.client.patch(
+            f"/api/items/{items[0]['itemId']}/name", json={"name": "renamed image"}
+        )
+        self.assertEqual(renamed.status_code, 200, renamed.data)
+        renamed_item = renamed.get_json()
+        self.assertEqual(renamed_item["relativePath"], "series/renamed image.dcm")
+        self.assertEqual(renamed_item["originalRelativePath"], "series/image.dcm")
+
+        duplicate = self.client.patch(
+            f"/api/items/{items[1]['itemId']}/name", json={"name": "renamed image.dcm"}
+        )
+        self.assertEqual(duplicate.status_code, 400)
+        traversal = self.client.patch(
+            f"/api/items/{items[0]['itemId']}/name", json={"name": "../escape.dcm"}
+        )
+        self.assertEqual(traversal.status_code, 400)
+
+        individual = self.client.post(
+            f"/api/items/{items[0]['itemId']}/download",
+            json=application.DEFAULT_SETTINGS,
+        )
+        self.assertEqual(individual.status_code, 200)
+        self.assertIn("renamed image_colored.png", individual.headers["Content-Disposition"])
+        individual.close()
+
+        job_response = self.client.post(
+            "/api/export-jobs",
+            json={
+                "batchId": batch["batchId"],
+                "scope": "all",
+                "format": "PNG",
+                "fallbackSettings": application.DEFAULT_SETTINGS,
+            },
+        )
+        self.assertEqual(job_response.status_code, 202, job_response.data)
+        job_id = job_response.get_json()["jobId"]
+        for _ in range(200):
+            job = self.client.get(f"/api/export-jobs/{job_id}").get_json()
+            if job["status"] not in {"queued", "running"}:
+                break
+            time.sleep(0.02)
+        self.assertEqual(job["status"], "completed", job)
+        archive_response = self.client.get(f"/api/export-jobs/{job_id}/download")
+        with ZipFile(BytesIO(archive_response.data)) as archive:
+            self.assertIn("series/renamed image.png", archive.namelist())
+        archive_response.close()
+
+        with application._state_lock:
+            application._batches.clear()
+            application._items.clear()
+        restored_batch = self.client.get(f"/api/batches/{batch['batchId']}").get_json()
+        restored_item = next(
+            item for item in restored_batch["items"] if item["itemId"] == items[0]["itemId"]
+        )
+        self.assertEqual(restored_item["relativePath"], "series/renamed image.dcm")
+        self.assertEqual(restored_item["originalRelativePath"], "series/image.dcm")
+
+        reset = self.client.post(f"/api/batches/{batch['batchId']}/reset-item-names")
+        self.assertEqual(reset.status_code, 200, reset.data)
+        self.assertEqual(reset.get_json()["resetCount"], 1)
+        reset_item = next(
+            item for item in reset.get_json()["items"] if item["itemId"] == items[0]["itemId"]
+        )
+        self.assertEqual(reset_item["relativePath"], "series/image.dcm")
+
     def test_page_uses_action_level_png_and_jpg_exports(self):
         page = self.client.get("/")
         self.assertEqual(page.status_code, 200)
@@ -626,6 +701,7 @@ class DicomBatchAppTests(unittest.TestCase):
         self.assertIn('id="start-batch-jpg"', html)
         self.assertIn('id="jpeg-quality"', html)
         self.assertIn('id="import-summary"', html)
+        self.assertIn('id="reset-file-names"', html)
         self.assertIn('id="acquisition-filter"', html)
         self.assertIn('id="batch-scope-help"', html)
         self.assertIn('id="batch-scope-help-text"', html)

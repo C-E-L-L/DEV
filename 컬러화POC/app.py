@@ -146,6 +146,7 @@ class BatchItem:
     batch_id: str
     user_id: str
     relative_path: str
+    original_relative_path: str
     source_path: Path
     content_hash: str
     image_hash: str | None = None
@@ -556,6 +557,38 @@ def unique_relative_path(batch: Batch, relative_path: str) -> str:
         counter += 1
 
 
+def clean_item_filename(raw_name: Any, current_path: str) -> str:
+    filename = str(raw_name or "").strip()
+    if not filename:
+        raise ValueError("새 파일 이름을 입력해 주세요.")
+    if filename in {".", ".."} or "/" in filename or "\\" in filename:
+        raise ValueError("폴더 경로를 제외한 파일 이름만 입력해 주세요.")
+    if re.search(r'[<>:"|?*\x00-\x1f]', filename) or filename.endswith((" ", ".")):
+        raise ValueError("파일 이름에 사용할 수 없는 문자가 포함되어 있습니다.")
+    if len(filename) > 255:
+        raise ValueError("파일 이름은 255자 이하여야 합니다.")
+
+    current_suffix = PurePosixPath(current_path).suffix
+    candidate = PurePosixPath(filename)
+    if not candidate.suffix:
+        filename += current_suffix
+        candidate = PurePosixPath(filename)
+    if candidate.suffix.lower() not in {".dcm", ".dicom"}:
+        raise ValueError("파일 확장자는 .dcm 또는 .dicom이어야 합니다.")
+    if not candidate.stem.strip(" ."):
+        raise ValueError("파일 이름을 입력해 주세요.")
+    return filename
+
+
+def renamed_relative_path(batch: Batch, item: BatchItem, raw_name: Any) -> str:
+    filename = clean_item_filename(raw_name, item.relative_path)
+    candidate = (PurePosixPath(item.relative_path).parent / filename).as_posix()
+    for other in batch.items.values():
+        if other.item_id != item.item_id and other.relative_path.casefold() == candidate.casefold():
+            raise ValueError("같은 폴더에 동일한 파일 이름이 이미 있습니다.")
+    return candidate
+
+
 IMAGE_FINGERPRINT_FIELDS = (
     "Rows",
     "Columns",
@@ -718,6 +751,7 @@ def add_batch_item(
         batch_id=batch.batch_id,
         user_id=batch.user_id,
         relative_path=relative_path,
+        original_relative_path=relative_path,
         source_path=source_path,
         content_hash=content_hash or hash_file(source_path),
         image_hash=image_hash,
@@ -730,6 +764,7 @@ def add_batch_item(
             "batch_id": batch.batch_id,
             "user_id": batch.user_id,
             "relative_path": relative_path,
+            "original_relative_path": relative_path,
             "storage_path": source_path.resolve().relative_to(DATA_DIR).as_posix(),
             "content_hash": item.content_hash,
             "image_hash": image_hash,
@@ -755,6 +790,9 @@ def _item_from_record(record: dict[str, Any]) -> BatchItem:
         batch_id=str(record["batch_id"]),
         user_id=str(record["user_id"]),
         relative_path=str(record["relative_path"]),
+        original_relative_path=str(
+            record.get("original_relative_path") or record["relative_path"]
+        ),
         source_path=source_path,
         content_hash=str(record["content_hash"]),
         image_hash=record.get("image_hash"),
@@ -823,6 +861,7 @@ def item_summary(item: BatchItem) -> dict[str, Any]:
     return {
         "itemId": item.item_id,
         "relativePath": item.relative_path,
+        "originalRelativePath": item.original_relative_path,
         "contentHash": item.content_hash,
         "imageHash": item.image_hash,
         "error": item.error,
@@ -1397,6 +1436,17 @@ def api_get_batch(batch_id: str):
     return jsonify(batch_summary(get_batch(batch_id, current_user_id())))
 
 
+@app.post("/api/batches/<batch_id>/reset-item-names")
+def api_reset_batch_item_names(batch_id: str):
+    user_id = current_user_id()
+    batch = get_batch(batch_id, user_id)
+    reset_count = store.reset_item_relative_paths(batch_id, user_id)
+    with _state_lock:
+        for item in batch.items.values():
+            item.relative_path = item.original_relative_path
+    return jsonify({"resetCount": reset_count, **batch_summary(batch)})
+
+
 @app.delete("/api/batches/<batch_id>")
 def api_delete_batch(batch_id: str):
     user_id = current_user_id()
@@ -1423,6 +1473,21 @@ def api_get_item(item_id: str):
     item = get_item(item_id, current_user_id())
     image = load_item_image(item)
     return jsonify(source_information(item, image))
+
+
+@app.patch("/api/items/<item_id>/name")
+def api_rename_item(item_id: str):
+    user_id = current_user_id()
+    item = get_item(item_id, user_id)
+    batch = get_batch(item.batch_id, user_id)
+    payload = request.get_json(force=True)
+    with _state_lock:
+        relative_path = renamed_relative_path(batch, item, payload.get("name"))
+        if relative_path != item.relative_path:
+            if not store.update_item_relative_path(item.item_id, user_id, relative_path):
+                raise ValueError("이름을 수정할 파일을 찾을 수 없습니다.")
+            item.relative_path = relative_path
+    return jsonify(item_summary(item))
 
 
 @app.post("/api/items/<item_id>/render")
