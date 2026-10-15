@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { fetchAuthImage } from '../utils/fetchAuthImage';
 
 export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, className, loadingText, errorText, placeholderStyle, ...props }) {
   const [blobUrl, setBlobUrl] = useState(null);
@@ -18,21 +19,16 @@ export default function AuthImage({ src, fallbackSrc, alt, style, onLoad, classN
     }
 
     let cancelled = false;
-    const token = localStorage.getItem('token');
-    const authHeaders = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-
     const load = (url, allowFallback) => {
-      fetch(url, authHeaders)
-        .then(res => res.ok ? res.blob() : Promise.reject(res.status))
-        .then(blob => {
-          if (cancelled) return;
+      fetchAuthImage(url)
+        .then(objectUrl => {
+          if (cancelled) { URL.revokeObjectURL(objectUrl); return; }
           if (currentBlobUrl.current) URL.revokeObjectURL(currentBlobUrl.current);
-          const objectUrl = URL.createObjectURL(blob);
           currentBlobUrl.current = objectUrl;
           setBlobUrl(objectUrl);
         })
-        .catch(() => {
-          if (cancelled) return;
+        .catch(error => {
+          if (cancelled || error.name === 'AbortError') return;
           if (allowFallback && fallbackSrc) load(fallbackSrc, false);
           else setLoadError(true);
         });

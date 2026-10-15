@@ -1103,8 +1103,7 @@
 
   /* ─────── LEADERBOARD ─────── */
   function authHeaders(){
-    const t=localStorage.getItem('token');
-    return t?{'Authorization':'Bearer '+t,'Content-Type':'application/json'}:{'Content-Type':'application/json'};
+    return window.frameElement.cellAuthHeaders();
   }
 
   async function lbRecord(players,isHard){

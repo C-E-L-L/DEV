@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { authSession } from '../utils/browserAuthSession';
 
 const STORAGE_KEY = 'cell-image-display-settings-v1';
 export const DEFAULT_IMAGE_DISPLAY_SETTINGS = { brightness: 100, contrast: 100, saturation: 100 };
@@ -16,7 +17,7 @@ export function getImageDisplayFilter(settings = DEFAULT_IMAGE_DISPLAY_SETTINGS)
 }
 
 export function useImageDisplaySettings(imageKey) {
-  const username = localStorage.getItem('username') || 'anonymous';
+  const username = authSession.getSession()?.username || 'anonymous';
   const storageId = `${username}:${imageKey || 'default'}`;
   const [storedSettings, setStoredSettings] = useState(readStoredSettings);
   const settings = storedSettings[storageId] || DEFAULT_IMAGE_DISPLAY_SETTINGS;
