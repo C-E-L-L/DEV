@@ -9,6 +9,7 @@ import SpeciesBadge from '../components/SpeciesBadge';
 import SpeciesSelector from '../components/SpeciesSelector';
 import TaskSpeciesEditor from '../components/TaskSpeciesEditor';
 import SpeciesDataSettings from '../components/SpeciesDataSettings';
+import StudentResponsesPanel from '../components/StudentResponsesPanel';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -385,6 +386,10 @@ export default function ExpertPage() {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
   const [stats, setStats] = useState([]);
   const [selectedCrop, setSelectedCrop] = useState(null);
+  const [taskPanelView, setTaskPanelView] = useState('cells');
+  const [taskStatsLoading, setTaskStatsLoading] = useState(false);
+  const [taskStatsError, setTaskStatsError] = useState('');
+  const taskStatsRequestRef = useRef(0);
   const [editingGt, setEditingGt] = useState(false);
   const [allCellStats, setAllCellStats] = useState([]);
   const [gtProgressStatus, setGtProgressStatus] = useState('idle');
@@ -561,26 +566,46 @@ export default function ExpertPage() {
 
   /* ── Task 선택 → stats + 원본 이미지 로드 ── */
   const fetchTaskStats = useCallback(async (taskId, preferredCropId = null) => {
+    const requestId = ++taskStatsRequestRef.current;
     setSelectedTaskId(taskId);
     setSelectedCrop(null);
-    const { data } = await statsApi.getByTaskId(taskId);
-    setStats(data);
-    setSelectedCrop(data.find(crop => crop.cropId === preferredCropId) || data[0] || null);
+    setStats([]);
+    setTaskPanelView('cells');
+    setTaskStatsLoading(true);
+    setTaskStatsError('');
+    setOriginalImage(null);
+    setImageLoaded(false);
+    try {
+      const { data } = await statsApi.getByTaskId(taskId);
+      if (requestId !== taskStatsRequestRef.current) return;
+      setStats(data);
+      setSelectedCrop(data.find(crop => crop.cropId === preferredCropId) || data[0] || null);
 
-    const task = tasks.find(t => t.id === taskId) || (await taskApi.getAll()).data.find(t => t.id === taskId);
-    if (task?.originalFilename) {
-      setImageLoaded(false);
-      fetchAuthImage(imageUrl.original(task.originalFilename))
-        .then(url => {
-          const img = new Image();
-          img.onload = () => { URL.revokeObjectURL(url); setOriginalImage(img); setImageLoaded(true); };
-          img.onerror = () => URL.revokeObjectURL(url);
-          img.src = url;
-        })
-        .catch(() => {});
-    } else {
-      setOriginalImage(null);
-      setImageLoaded(false);
+      const task = tasks.find(t => t.id === taskId) || (await taskApi.getAll()).data.find(t => t.id === taskId);
+      if (requestId !== taskStatsRequestRef.current) return;
+      if (task?.originalFilename) {
+        fetchAuthImage(imageUrl.original(task.originalFilename))
+          .then(url => {
+            if (requestId !== taskStatsRequestRef.current) { URL.revokeObjectURL(url); return; }
+            const img = new Image();
+            img.onload = () => {
+              URL.revokeObjectURL(url);
+              if (requestId !== taskStatsRequestRef.current) return;
+              setOriginalImage(img);
+              setImageLoaded(true);
+            };
+            img.onerror = () => URL.revokeObjectURL(url);
+            img.src = url;
+          })
+          .catch(() => {});
+      }
+    } catch (error) {
+      if (requestId !== taskStatsRequestRef.current) return;
+      setStats([]);
+      setSelectedCrop(null);
+      setTaskStatsError('도말 분석 정보를 불러오지 못했습니다.');
+    } finally {
+      if (requestId === taskStatsRequestRef.current) setTaskStatsLoading(false);
     }
   }, [tasks]);
 
@@ -1357,8 +1382,18 @@ export default function ExpertPage() {
 
                   {/* 오른쪽: Cell Classification Panel */}
                   <div style={{ flex: 1, minWidth: '350px' }}>
-                    <h3 style={sectionHeader}>Cell Classification Panel</h3>
-                    {selectedCrop ? (
+                    <div style={{ ...sectionHeader, display: 'flex', gap: '8px' }} role="group" aria-label="도말 분석 메뉴">
+                      {[['cells', '세포 분석'], ['students', '학생별 응답']].map(([view, label]) => (
+                        <button key={view} type="button" aria-pressed={taskPanelView === view} onClick={() => setTaskPanelView(view)} style={{
+                          padding: '8px 14px', borderRadius: '6px', border: `1px solid ${taskPanelView === view ? '#0056b3' : '#dee2e6'}`,
+                          background: taskPanelView === view ? '#0056b3' : '#fff', color: taskPanelView === view ? '#fff' : '#495057',
+                          cursor: 'pointer', fontSize: '14px', fontWeight: '600',
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                    {taskPanelView === 'students' ? (
+                      <StudentResponsesPanel key={selectedTaskId} crops={stats} selectedCrop={selectedCrop} onSelectCrop={setSelectedCrop} imageFilter={expertImageDisplay.filter} smearFilename={selectedCrop ? displaySmearFilename(selectedCrop) : '-'} />
+                    ) : selectedCrop ? (
                       <div style={cellPanelStyle}>
                         {/* 셀 이미지 */}
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
@@ -1461,7 +1496,16 @@ export default function ExpertPage() {
                 </div>
               )}
 
-              {selectedTaskId && stats.length === 0 && (
+              {selectedTaskId && taskStatsLoading && (
+                <div role="status" style={{ textAlign: 'center', padding: '40px', color: '#6c757d' }}>도말 분석 정보를 불러오는 중입니다.</div>
+              )}
+              {selectedTaskId && taskStatsError && (
+                <div role="alert" style={{ textAlign: 'center', padding: '40px', color: '#dc3545' }}>
+                  {taskStatsError}
+                  <button type="button" onClick={() => fetchTaskStats(selectedTaskId)} style={{ marginLeft: '12px', cursor: 'pointer' }}>다시 시도</button>
+                </div>
+              )}
+              {selectedTaskId && !taskStatsLoading && !taskStatsError && stats.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#6c757d' }}>No cells found for this task.</div>
               )}
             </div>
