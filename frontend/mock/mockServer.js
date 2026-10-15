@@ -1,3 +1,5 @@
+import { mockLearningHistory, mockTaskDetail, mockStudentMatrices } from './studentAnalytics.js';
+
 const CELL_LABELS = ['Segment', 'Band', 'Eosinophil', 'NucleatedRBC', 'Lymphocyte', 'Monocyte'];
 
 let animalSpecies = [
@@ -92,7 +94,31 @@ let mockUsers = [
   { id: 1, username: 'admin', name: '로컬 관리자', role: 'ADMIN', status: 'ACTIVE', createdAt: '2026-08-18T09:00:00' },
   { id: 2, username: 'professor', name: '로컬 테스트 교수', role: 'EXPERT', status: 'ACTIVE', createdAt: '2026-08-18T09:05:00' },
   { id: 3, username: 'student', name: '로컬 테스트 학생', role: 'STUDENT', status: 'ACTIVE', createdAt: '2026-08-18T09:10:00' },
+  { id: 4, username: '20260006', name: '미응시 학생', role: 'STUDENT', status: 'ACTIVE', createdAt: '2026-08-18T09:15:00' },
 ];
+for (const crops of cropStats.values()) {
+  for (const crop of crops) {
+    for (const [label, voters] of Object.entries(crop.votersByLabel)) {
+      for (const voter of voters) {
+        if (!studentAnswers.has(voter.studentId)) studentAnswers.set(voter.studentId, {});
+        studentAnswers.get(voter.studentId)[crop.cropId] = label;
+      }
+    }
+  }
+}
+
+function analyticsStudents() {
+  const students = new Map(mockUsers.filter(user => user.role === 'STUDENT').map(user => [user.username,
+    { studentId: user.username, studentName: user.name, studentDisplayName: user.name ? `${user.username}_${user.name}` : user.username }]));
+  for (const crops of cropStats.values()) {
+    for (const crop of crops) {
+      for (const voters of Object.values(crop.votersByLabel || {})) {
+        for (const voter of voters) if (!students.has(voter.studentId)) students.set(voter.studentId, voter);
+      }
+    }
+  }
+  return [...students.values()];
+}
 let mockRoster = [
   { id: 1, studentId: 'student', registeredBy: 'admin', claimedUserId: 3, createdAt: '2026-08-18T09:00:00' },
   { id: 2, studentId: '20260001', registeredBy: 'admin', claimedUserId: null, createdAt: '2026-08-18T09:00:00' },
@@ -695,7 +721,22 @@ export function mockServerPlugin() {
           return;
         }
         if (req.method === 'GET' && pathname === '/api/tasks/diagnostic/student-matrices') {
-          json(res, { studentMatrices: [] });
+          if (studentRequest) { json(res, { message: 'Forbidden' }, 403); return; }
+          json(res, mockStudentMatrices(analyticsStudents(), tasks, cropStats, studentAnswers, CELL_LABELS));
+          return;
+        }
+        const studentHistoryMatch = pathname.match(/^\/api\/analytics\/students\/([^/]+)\/history$/);
+        const studentTaskMatch = pathname.match(/^\/api\/analytics\/students\/([^/]+)\/tasks\/(\d+)$/);
+        if (req.method === 'GET' && (studentHistoryMatch || studentTaskMatch)) {
+          if (studentRequest) { json(res, { message: 'Forbidden' }, 403); return; }
+          const studentId = decodeURIComponent((studentHistoryMatch || studentTaskMatch)[1]);
+          if (studentHistoryMatch) {
+            json(res, mockLearningHistory(tasks, cropStats, answersFor(studentId), studentId));
+          } else {
+            const task = tasks.find(item => item.id === Number(studentTaskMatch[2]));
+            if (!task) { json(res, { message: 'Task not found' }, 404); return; }
+            json(res, mockTaskDetail(task, cropStats.get(task.id) || [], answersFor(studentId), studentId));
+          }
           return;
         }
         if (req.method === 'GET' && pathname === '/api/tasks/diagnostic/pool-stats') {

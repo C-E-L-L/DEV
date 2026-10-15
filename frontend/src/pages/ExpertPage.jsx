@@ -10,6 +10,7 @@ import SpeciesSelector from '../components/SpeciesSelector';
 import TaskSpeciesEditor from '../components/TaskSpeciesEditor';
 import SpeciesDataSettings from '../components/SpeciesDataSettings';
 import StudentResponsesPanel from '../components/StudentResponsesPanel';
+import StudentManagement from '../components/StudentManagement';
 
 /* ──────────────── 정답률 → 색상 ──────────────── */
 function getAccuracyColor(accuracy, totalAnswers = 1) {
@@ -223,27 +224,6 @@ function autoDistributeByTotal(total, availableByClass) {
   return result;
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function getMatrixCellStyle(count, rowTotal, isCorrect) {
-  if (!rowTotal || count === 0) {
-    return { background: '#fff', color: '#adb5bd', fontWeight: 'normal' };
-  }
-
-  const pct = count / rowTotal;
-  const alpha = clamp(0.15 + pct * 0.85, 0.15, 0.95);
-  const base = isCorrect ? '40, 167, 69' : '220, 53, 69';
-  const textColor = isCorrect ? '#155724' : '#721c24';
-
-  return {
-    background: `rgba(${base}, ${alpha})`,
-    color: textColor,
-    fontWeight: '600',
-  };
-}
-
 function getReportCategory(reason) {
   const normalized = (reason || '').trim();
   if (REPORT_REASONS.includes(normalized)) return normalized;
@@ -413,10 +393,6 @@ export default function ExpertPage() {
   const resultCanvasRef = useRef(null);
   const [originalImage, setOriginalImage] = useState(null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  // ========================================================
-  // ⭐ [여기에 아래 상태 변수와 함수를 꼭 추가해 주세요!] ⭐
-  const [studentMatrices, setStudentMatrices] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
 
   const diagnosticTaskOrder = [...tasks]
     .filter(isDiagnosticTask)
@@ -514,32 +490,11 @@ export default function ExpertPage() {
     }
   }, []);
 
-  const fetchStudentMatrices = useCallback(async () => {
-    setSelectedStudent(null);
-    try {
-      const { data } = await diagnosticApi.getStudentMatrices();
-      setStudentMatrices(data.studentMatrices || []);
-      if (data.studentMatrices && data.studentMatrices.length > 0) {
-        setSelectedStudent(data.studentMatrices[0]);
-      }
-    } catch (error) {
-      console.error("학생 누적 혼동행렬 조회 실패:", error);
-      alert("혼동행렬 데이터를 불러오는데 실패했습니다.");
-    }
-  }, []);
-  // ========================================================
-
-  /* ── Analytics 탭 열릴 때 데이터 로드 ── */
   useEffect(() => {
     if (activeTab !== 2) return;
     taskApi.getAll().then(({ data }) => setTasks(data)).catch(console.error);
     refreshAllCellStats();
   }, [activeTab, refreshAllCellStats]);
-
-  useEffect(() => {
-    if (activeTab !== 2 || analyticsSubTab !== 'students') return;
-    fetchStudentMatrices();
-  }, [activeTab, analyticsSubTab, fetchStudentMatrices]);
 
   useEffect(() => {
     if (activeTab !== 2 || analyticsSubTab !== 'reports') return;
@@ -1055,7 +1010,7 @@ export default function ExpertPage() {
           <div style={subTabBar}>
             <button onClick={() => setAnalyticsSubTab('tasks')} style={analyticsSubTab === 'tasks' ? subTabActive : subTabInactive}>📋 Tasks</button>
             <button onClick={() => setAnalyticsSubTab('cells')} style={analyticsSubTab === 'cells' ? subTabActive : subTabInactive}>🔬 Cells</button>
-            <button onClick={() => setAnalyticsSubTab('students')} style={analyticsSubTab === 'students' ? subTabActive : subTabInactive}>🧑‍🎓 Student Matrices</button>
+            <button onClick={() => setAnalyticsSubTab('students')} style={analyticsSubTab === 'students' ? subTabActive : subTabInactive}>🧑‍🎓 학생 관리</button>
             <button onClick={() => setAnalyticsSubTab('reports')} style={analyticsSubTab === 'reports' ? subTabActive : subTabInactive}>Reports</button>
           </div>
 
@@ -1566,115 +1521,8 @@ export default function ExpertPage() {
             
             </div>
           )}
-          {/* ==================================================== */}
-          {/* [여기에 통째로 복사해서 붙여넣으세요!] */}
-          {/* ───── Students 서브탭 (혼동행렬) ───── */}
-          {analyticsSubTab === 'students' && (
-            <div>
-              <h3 style={sectionHeader}>Cumulative Student Matrices</h3>
-              {/* 하단: 학생 리스트 & 혼동행렬 테이블 */}
-              <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
-                
-                {/* 왼쪽: 학생 리스트 */}
-                <div style={{ flex: '0 0 250px', background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '15px' }}>
-                  <h4 style={{ fontWeight: '600', marginBottom: '15px', color: '#495057' }}>학생 목록</h4>
-                  {studentMatrices.length === 0 ? (
-                    <div style={{ color: '#adb5bd', fontSize: '14px' }}>학생 데이터가 없습니다.</div>
-                  ) : (
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                      {studentMatrices.map((student, idx) => (
-                        <li 
-                          key={idx} 
-                          style={{
-                            padding: '10px', marginBottom: '8px', borderRadius: '6px', cursor: 'pointer',
-                            background: selectedStudent?.studentId === student.studentId ? '#e7f3ff' : '#f8f9fa',
-                            border: selectedStudent?.studentId === student.studentId ? '1px solid #74c0fc' : '1px solid #e9ecef',
-                          }}
-                          onClick={() => setSelectedStudent(student)}
-                        >
-                          <div style={{ fontWeight: '600', color: selectedStudent?.studentId === student.studentId ? '#0056b3' : '#495057' }}>
-                            {student.studentDisplayName || student.studentId}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '4px' }}>
-                            정확도: {student.accuracy}% ({student.totalSolved}문제)
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                {/* 오른쪽: 선택된 학생의 혼동행렬 테이블 */}
-                <div style={{ flex: 1, background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '20px' }}>
-                  {selectedStudent ? (
-                    <div>
-                      <h4 style={{ fontWeight: '600', marginBottom: '15px', fontSize: '18px', color: '#495057' }}>
-                        [{selectedStudent.studentDisplayName || selectedStudent.studentId}] 학생의 혼동행렬
-                      </h4>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '14px' }}>
-                          <thead>
-                            <tr>
-                              <th style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', width: '120px' }}>GT \ 응답</th>
-                              {CELL_KEYS.map(key => (
-                                <th key={key} style={{ border: '1px solid #dee2e6', padding: '10px', background: '#f8f9fa', color: '#495057' }}>
-                                  {key.substring(0, 3)}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {CELL_KEYS.map(actual => (
-                              <tr key={actual}>
-                                <td style={{ border: '1px solid #dee2e6', padding: '10px', fontWeight: 'bold', background: '#f8f9fa', color: '#495057' }}>
-                                  {actual}
-                                </td>
-                                {(() => {
-                                  const rowTotal = CELL_KEYS.reduce((sum, predicted) => {
-                                    const value = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
-                                    return sum + value;
-                                  }, 0);
-
-                                  return CELL_KEYS.map(predicted => {
-                                    const count = selectedStudent.confusionMatrix?.[actual]?.[predicted] || 0;
-                                    const isCorrect = actual === predicted;
-                                    const cellStyle = getMatrixCellStyle(count, rowTotal, isCorrect);
-                                    const pct = rowTotal > 0 ? Math.round((count / rowTotal) * 100) : 0;
-                                    const title = rowTotal > 0
-                                      ? `${count} (${pct}%)`
-                                      : '0 (0%)';
-
-                                    return (
-                                      <td
-                                        key={predicted}
-                                        title={title}
-                                        style={{
-                                          border: '1px solid #dee2e6',
-                                          padding: '10px',
-                                          ...cellStyle,
-                                        }}
-                                      >
-                                        {count}
-                                      </td>
-                                    );
-                                  });
-                                })()}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
-                      왼쪽에서 학생을 선택하면 혼동행렬이 표시됩니다.
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            </div>
-          )}
+          {/* 학생별 학습 이력 및 누적 혼동행렬 */}
+          {analyticsSubTab === 'students' && <StudentManagement />}
           {analyticsSubTab === 'reports' && (
             <div>
               <h3 style={sectionHeader}>Crop Issue Reports</h3>

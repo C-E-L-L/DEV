@@ -413,7 +413,7 @@ public class SubmissionService {
                 .orElse(false);
     }
 
-    private CellType resolveCorrectLabel(Crop crop, boolean diagnosticTask) {
+    CellType resolveCorrectLabel(Crop crop, boolean diagnosticTask) {
         if (crop.getFinalLabel() != null) {
             return crop.getFinalLabel();
         }

@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/game/**").hasRole("ADMIN")
                 .requestMatchers("/api/labeling/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/analytics/students/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/all-stats").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/student/reviews", "/api/student/reviews/**").hasRole("STUDENT")
                 .requestMatchers(HttpMethod.GET, "/api/reports").hasAnyRole("EXPERT", "ADMIN")
