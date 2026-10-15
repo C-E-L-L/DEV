@@ -42,7 +42,7 @@ export default function StudentManagement() {
 
   return (
     <div className="student-management">
-      <div className="sm-heading"><div><h3>학생 관리</h3><p>학생별 학습 이력과 채점 결과를 확인합니다.</p></div><button onClick={request.reload} disabled={request.loading}>새로고침</button></div>
+      <div className="sm-heading"><div><h3>Students</h3><p>학생별 학습 이력과 채점 결과를 확인합니다.</p></div><button onClick={request.reload} disabled={request.loading}>새로고침</button></div>
       {request.loading || request.error ? <LoadState request={request} /> : (
         <div className="sm-layout">
           <aside className="sm-card sm-students">
