@@ -8,6 +8,8 @@
 
 # --- SSL Certificates ---
 ssl/
+letsencrypt/
+ssl-renew.log
 
 # --- AI Model Weights ---
 ai-server/weights/
@@ -16,6 +18,8 @@ ai-server/weights/
 *.sql
 !backend/sql/*.sql
 *.zip
+*.tar
+*.tar.gz
 data/
 
 # --- Backend (Spring Boot / Gradle) ---
