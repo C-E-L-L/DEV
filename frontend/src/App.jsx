@@ -4,6 +4,7 @@ import { NavBar } from './components/common';
 import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import StudentPage from './pages/StudentPage';
+import StudentMyPage from './pages/StudentMyPage';
 import ExpertPage from './pages/ExpertPage';
 import AdminPage from './pages/AdminPage';
 import BombGamePage from './pages/BombGamePage';
@@ -34,6 +35,10 @@ function MainLayout() {
           <Route
             path="/student"
             element={<ProtectedRoute allowedRole="STUDENT"><StudentPage /></ProtectedRoute>}
+          />
+          <Route
+            path="/student/my-page"
+            element={<ProtectedRoute allowedRole="STUDENT"><StudentMyPage /></ProtectedRoute>}
           />
           <Route
             path="/expert"

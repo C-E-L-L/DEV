@@ -3,6 +3,7 @@ package com.cell.platform.dto.response;
 import com.cell.platform.entity.CropIssueReportEntity;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CropIssueReportResponse(
         Long id,
@@ -13,10 +14,12 @@ public record CropIssueReportResponse(
         String speciesCode,
         String speciesName,
         String reason,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        List<CropIssueReplyResponse> replies
 ) {
     public static CropIssueReportResponse from(CropIssueReportEntity entity, String cropFilename,
-                                               String speciesCode, String speciesName) {
+                                               String speciesCode, String speciesName,
+                                               List<CropIssueReplyResponse> replies) {
         return new CropIssueReportResponse(
                 entity.getId(),
                 entity.getStudentId(),
@@ -26,7 +29,8 @@ public record CropIssueReportResponse(
                 speciesCode,
                 speciesName,
                 entity.getReason(),
-                entity.getCreatedAt()
+                entity.getCreatedAt(),
+                replies
         );
     }
 }

@@ -42,6 +42,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/analytics/students/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/all-stats").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/student/reviews", "/api/student/reviews/**").hasRole("STUDENT")
+                .requestMatchers("/api/student/history/**", "/api/student/history", "/api/student/reports").hasRole("STUDENT")
+                .requestMatchers(HttpMethod.POST, "/api/reports/*/replies").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/reports").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/reports").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/tasks/diagnostic/**").hasAnyRole("EXPERT", "ADMIN")

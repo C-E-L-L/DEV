@@ -96,6 +96,22 @@ let mockUsers = [
   { id: 3, username: 'student', name: '로컬 테스트 학생', role: 'STUDENT', status: 'ACTIVE', createdAt: '2026-08-18T09:10:00' },
   { id: 4, username: '20260006', name: '미응시 학생', role: 'STUDENT', status: 'ACTIVE', createdAt: '2026-08-18T09:15:00' },
 ];
+const mockSessions = new Map([
+  ['local-mock-student-token', { username: 'student', name: '로컬 테스트 학생', role: 'STUDENT' }],
+  ['local-mock-expert-token', { username: 'professor', name: '로컬 테스트 교수', role: 'EXPERT' }],
+  ['local-mock-admin-token', { username: 'admin', name: '로컬 관리자', role: 'ADMIN' }],
+]);
+const mockReports = [
+  { id: 1, studentId: 'student', taskId: 101, cropId: cropStats.get(101)[0].cropId, reason: '헷갈림: Segment와 Band를 구분하는 기준이 궁금합니다.', createdAt: '2026-10-15T10:00:00', replies: [] },
+  { id: 2, studentId: 'student', taskId: 103, cropId: cropStats.get(103)[1].cropId, reason: '화질 문제: 이미지가 흐리게 보여요.', createdAt: '2026-10-14T10:00:00', replies: [{ id: 1, authorUsername: 'professor', authorName: '로컬 테스트 교수', authorRole: 'EXPERT', message: '확인했습니다. 원본 이미지의 확대와 밝기 조절을 이용해 보세요. 이미지 상태도 점검하겠습니다.', createdAt: '2026-10-14T11:00:00' }] },
+  { id: 3, studentId: '20260006', taskId: 104, cropId: cropStats.get(104)[0].cropId, reason: '기타: 문제를 어떻게 시작하나요?', createdAt: '2026-10-14T09:00:00', replies: [] },
+];
+let nextReportId = 4;
+let nextReplyId = 2;
+function reportDto(report) {
+  const crop = (cropStats.get(report.taskId) || []).find(item => item.cropId === report.cropId);
+  return { ...report, cropFilename: crop?.filename || null, speciesCode: crop?.speciesCode, speciesName: crop?.speciesName };
+}
 for (const crops of cropStats.values()) {
   for (const crop of crops) {
     for (const [label, voters] of Object.entries(crop.votersByLabel)) {
@@ -349,7 +365,8 @@ export function mockServerPlugin() {
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url, 'http://localhost');
         const { pathname } = url;
-        const studentRequest = String(req.headers.authorization || '').includes('local-mock-student-token');
+        const currentUser = mockSessions.get(String(req.headers.authorization || '').replace(/^Bearer /, ''));
+        const studentRequest = currentUser?.role === 'STUDENT';
 
         if (pathname.startsWith('/data/')) {
           serveImage(pathname, res);
@@ -363,9 +380,13 @@ export function mockServerPlugin() {
         if (req.method === 'POST' && pathname === '/api/auth/login') {
           const body = await readJson(req);
           const username = String(body.username || 'professor').toLowerCase();
-          const role = username === 'admin' ? 'ADMIN' : username === 'student' ? 'STUDENT' : 'EXPERT';
+          const knownUser = mockUsers.find(user => user.username === username);
+          const role = knownUser?.role || (analyticsStudents().some(user => user.studentId === username) ? 'STUDENT' : 'EXPERT');
           const names = { ADMIN: '로컬 관리자', STUDENT: '로컬 테스트 학생', EXPERT: '로컬 테스트 교수' };
-          json(res, { username, name: names[role], role, accessToken: `local-mock-${role.toLowerCase()}-token` });
+          const accessToken = ['student', 'professor', 'admin'].includes(username) ? `local-mock-${role.toLowerCase()}-token` : `local-mock-${role.toLowerCase()}-${encodeURIComponent(username)}-token`;
+          const session = { username, name: knownUser?.name || names[role], role };
+          mockSessions.set(accessToken, session);
+          json(res, { ...session, accessToken });
           return;
         }
         if (req.method === 'POST' && pathname === '/api/assignments') {
@@ -486,7 +507,27 @@ export function mockServerPlugin() {
           return;
         }
         if (req.method === 'GET' && pathname === '/api/student/reviews') {
-          json(res, { reviews: getStudentReviews('student') });
+          if (!studentRequest) { json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return; }
+          json(res, { reviews: getStudentReviews(currentUser.username) });
+          return;
+        }
+
+        const ownHistoryTask = pathname.match(/^\/api\/student\/history\/tasks\/(\d+)$/);
+        if (req.method === 'GET' && (pathname === '/api/student/history' || ownHistoryTask)) {
+          if (!studentRequest) { json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return; }
+          if (ownHistoryTask) {
+            const task = tasks.find(item => item.id === Number(ownHistoryTask[1]));
+            if (!task) { json(res, { message: 'Task not found' }, 404); return; }
+            const detail = mockTaskDetail(task, cropStats.get(task.id) || [], answersFor(currentUser.username), currentUser.username);
+            json(res, detail.cells.filter(cell => cell.studentLabel).map(({ cropId, cropFilename, studentLabel, submittedAt }) => ({ cropId, cropFilename, studentLabel, submittedAt })));
+          } else {
+            const history = mockLearningHistory(tasks, cropStats, answersFor(currentUser.username), currentUser.username);
+            json(res, { activities: history.activities.filter(item => item.summary.answeredCells > 0).map(item => ({
+              scopeType: item.scopeType, scopeId: item.scopeId, title: item.title, deadlineAt: item.deadlineAt,
+              totalCells: item.summary.totalCells, answeredCells: item.summary.answeredCells,
+              tasks: item.tasks.map(task => ({ taskId: task.taskId, filename: task.filename, totalCells: task.summary.totalCells, answeredCells: task.summary.answeredCells })),
+            })) });
+          }
           return;
         }
 
@@ -634,13 +675,38 @@ export function mockServerPlugin() {
           return;
         }
 
-        if (req.method === 'GET' && pathname === '/api/reports') {
-          json(res, []);
+        if (req.method === 'GET' && (pathname === '/api/reports' || pathname === '/api/student/reports')) {
+          const mine = pathname === '/api/student/reports';
+          if (!currentUser || (mine ? !studentRequest : !['EXPERT', 'ADMIN'].includes(currentUser.role))) {
+            json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return;
+          }
+          json(res, mockReports.filter(item => !mine || item.studentId === currentUser.username)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id).map(reportDto));
           return;
         }
         if (req.method === 'POST' && pathname === '/api/reports') {
-          await readJson(req);
+          if (!currentUser) { json(res, { message: 'Unauthorized' }, 401); return; }
+          const body = await readJson(req);
+          const crop = [...cropStats.values()].flat().find(item => item.cropId === body.cropId);
+          if (!crop) { json(res, { message: 'Cell not found' }, 404); return; }
+          if (crop.taskId !== body.taskId || typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length > 2000) {
+            json(res, { message: 'Invalid report' }, 400); return;
+          }
+          mockReports.push({ id: nextReportId++, studentId: currentUser.username, taskId: body.taskId, cropId: body.cropId, reason: body.reason.trim(), createdAt: new Date().toISOString(), replies: [] });
           json(res, { success: true });
+          return;
+        }
+
+        const replyMatch = pathname.match(/^\/api\/reports\/(\d+)\/replies$/);
+        if (req.method === 'POST' && replyMatch) {
+          if (!currentUser || !['EXPERT', 'ADMIN'].includes(currentUser.role)) { json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return; }
+          const report = mockReports.find(item => item.id === Number(replyMatch[1]));
+          if (!report) { json(res, { message: 'Report not found' }, 404); return; }
+          const body = await readJson(req);
+          if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 4000) { json(res, { message: '답변은 1~4000자로 입력해주세요.' }, 400); return; }
+          const reply = { id: nextReplyId++, authorUsername: currentUser.username, authorName: currentUser.name, authorRole: currentUser.role, message: body.message.trim(), createdAt: new Date().toISOString() };
+          report.replies.push(reply);
+          json(res, reply);
           return;
         }
 

@@ -313,17 +313,18 @@ export default function StudentPage() {
   const [reportReason, setReportReason] = useState('이미지 잘림');
   const [reportOtherReason, setReportOtherReason] = useState('');
   const [showReportForm, setShowReportForm] = useState(false);
+  const [reportSending, setReportSending] = useState(false);
 
   const handleReportCrop = () => {
-    if (!currentCrop || !selectedTask) return;
-    const reason = reportReason === '기타'
-      ? reportOtherReason.trim()
-      : reportReason;
-    if (!reason) {
+    if (!currentCrop || !selectedTask || reportSending) return;
+    const detail = reportOtherReason.trim();
+    const reason = detail ? `${reportReason}: ${detail}` : reportReason;
+    if (reportReason === '기타' && !detail) {
       alert('기타 사유를 입력해주세요.');
       return;
     }
 
+    setReportSending(true);
     reportApi.create({
       taskId: currentCrop.taskId,
       cropId: currentCrop.id,
@@ -331,11 +332,12 @@ export default function StudentPage() {
       reason,
     })
       .then(() => {
-        alert('신고가 접수되었습니다.');
+        alert('신고·질문이 접수되었습니다. 답변은 My Page → My Reports에서 확인할 수 있습니다.');
         setReportOtherReason('');
         setShowReportForm(false);
       })
-      .catch(() => alert('신고 접수에 실패했습니다.'));
+      .catch(() => alert('신고·질문 접수에 실패했습니다.'))
+      .finally(() => setReportSending(false));
   };
 
   const currentCrop = crops[currentCropIndex];
@@ -411,6 +413,7 @@ export default function StudentPage() {
           <button onClick={() => setTaskTab('practice')} style={taskTab === 'practice' ? tabActive : tabInactive}>일반 과제</button>
           <button onClick={() => setTaskTab('diagnostic')} style={taskTab === 'diagnostic' ? tabActive : tabInactive}>진단평가</button>
           <button onClick={() => setTaskTab('review')} style={taskTab === 'review' ? tabActive : tabInactive}>학습 결과</button>
+          <button onClick={() => navigate('/student/my-page')} style={tabInactive}>My Page</button>
         </div>
 
         {taskTab === 'review' ? (
@@ -704,7 +707,7 @@ export default function StudentPage() {
       <div style={reportModalOverlayStyle}>
         <div style={reportModalStyle}>
           <div style={{ fontSize: '15px', fontWeight: '700', marginBottom: '10px', color: '#343a40' }}>
-            신고 사유 선택
+            신고 및 질문
           </div>
           <select
             value={reportReason}
@@ -715,19 +718,21 @@ export default function StudentPage() {
               <option key={reason} value={reason}>{reason}</option>
             ))}
           </select>
-          {reportReason === '기타' && (
-            <input
+            <textarea
               value={reportOtherReason}
               onChange={(e) => setReportOtherReason(e.target.value)}
-              placeholder="기타 사유 입력"
+              placeholder="궁금한 점이나 문제 상황을 입력하세요. (기타 선택 시 필수)"
+              rows={4}
+              maxLength={1900}
+              disabled={reportSending}
               style={reportInputStyle}
             />
-          )}
+          <div style={{ color: '#6c757d', fontSize: '12px' }}>답변은 My Page → My Reports에서 확인할 수 있습니다.</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button onClick={handleReportCrop} style={reportBtnStyle}>
-              신고하기
+            <button onClick={handleReportCrop} disabled={reportSending} style={reportBtnStyle}>
+              {reportSending ? '접수 중…' : '보내기'}
             </button>
-            <button onClick={() => setShowReportForm(false)} style={reportCancelBtnStyle}>
+            <button onClick={() => setShowReportForm(false)} disabled={reportSending} style={reportCancelBtnStyle}>
               취소
             </button>
           </div>

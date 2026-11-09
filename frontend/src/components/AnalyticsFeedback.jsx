@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { taskApi, statsApi, cropApi, reportApi, labelingApi, speciesApi } from '../api';
-import { CELL_KEYS, REPORT_REASONS, imageUrl } from '../constants';
+import { taskApi, statsApi, cropApi, labelingApi, speciesApi } from '../api';
+import { CELL_KEYS, imageUrl } from '../constants';
 import AuthImage from './AuthImage';
 import ImageDisplayControls, { useImageDisplaySettings } from './ImageDisplayControls';
 import { fetchAuthImage } from '../utils/fetchAuthImage';
@@ -8,6 +8,7 @@ import SpeciesBadge from './SpeciesBadge';
 import TaskSpeciesEditor from './TaskSpeciesEditor';
 import StudentResponsesPanel from './StudentResponsesPanel';
 import StudentManagement from './StudentManagement';
+import ReportsPanel from './ReportsPanel';
 
 function getAccuracyColor(accuracy, totalAnswers = 1) {
   if (totalAnswers === 0) return '#adb5bd';
@@ -185,12 +186,6 @@ function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
 }
 
-function getReportCategory(reason) {
-  const normalized = (reason || '').trim();
-  if (REPORT_REASONS.includes(normalized)) return normalized;
-  return '기타';
-}
-
 export default function AnalyticsFeedback() {
   const [analyticsSubTab, setAnalyticsSubTab] = useState('tasks');
   const [tasks, setTasks] = useState([]);
@@ -205,12 +200,6 @@ export default function AnalyticsFeedback() {
   const [editingGt, setEditingGt] = useState(false);
   const [allCellStats, setAllCellStats] = useState([]);
   const [gtProgressStatus, setGtProgressStatus] = useState('idle');
-  const [reportItems, setReportItems] = useState([]);
-  const [reportLoading, setReportLoading] = useState(false);
-  const [reportFilters, setReportFilters] = useState(
-    () => Object.fromEntries(REPORT_REASONS.map((reason) => [reason, true]))
-  );
-
   const canvasRef = useRef(null);
   const [originalImage, setOriginalImage] = useState(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -322,14 +311,7 @@ export default function AnalyticsFeedback() {
     refreshAllCellStats();
   }, [refreshAllCellStats]);
 
-  useEffect(() => {
-    if (analyticsSubTab !== 'reports') return;
-    setReportLoading(true);
-    reportApi.getAll()
-      .then(({ data }) => setReportItems(data || []))
-      .catch(() => setReportItems([]))
-      .finally(() => setReportLoading(false));
-  }, [analyticsSubTab]);
+
 
   const fetchTaskStats = useCallback(async (taskId, preferredCropId = null) => {
     const requestId = ++taskStatsRequestRef.current;
@@ -1028,85 +1010,7 @@ export default function AnalyticsFeedback() {
           )}
           {/* 학생별 학습 이력 및 누적 혼동행렬 */}
           {analyticsSubTab === 'students' && <StudentManagement />}
-          {analyticsSubTab === 'reports' && (
-            <div>
-              <h3 style={sectionHeader}>Crop Issue Reports</h3>
-              <div style={{ marginBottom: '15px' }}>
-                <div style={{ fontSize: '13px', color: '#6c757d', marginBottom: '8px' }}>사유 필터</div>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  {Object.keys(reportFilters).map((key) => (
-                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#495057' }}>
-                      <input
-                        type="checkbox"
-                        checked={reportFilters[key]}
-                        onChange={(e) => setReportFilters(prev => ({ ...prev, [key]: e.target.checked }))}
-                      />
-                      {key}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              {reportLoading ? (
-                <div style={{ color: '#6c757d' }}>불러오는 중...</div>
-              ) : reportItems.length === 0 ? (
-                <div style={{ color: '#adb5bd' }}>신고된 항목이 없습니다.</div>
-              ) : (
-                (() => {
-                  const activeFilters = Object.entries(reportFilters)
-                    .filter(([, enabled]) => enabled)
-                    .map(([key]) => key);
-                  const filteredItems = activeFilters.length === 0
-                    ? []
-                    : reportItems.filter(item => activeFilters.includes(getReportCategory(item.reason)));
-
-                  if (filteredItems.length === 0) {
-                    return <div style={{ color: '#adb5bd' }}>해당 사유의 신고가 없습니다.</div>;
-                  }
-
-                  return (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-                    <thead>
-                      <tr>
-                        <th style={reportHeadStyle}>이미지</th>
-                        <th style={reportHeadStyle}>시간</th>
-                        <th style={reportHeadStyle}>학생</th>
-                        <th style={reportHeadStyle}>Task</th>
-                        <th style={reportHeadStyle}>Crop</th>
-                        <th style={reportHeadStyle}>동물 종</th>
-                        <th style={reportHeadStyle}>사유</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredItems.map((item) => (
-                        <tr key={item.id}>
-                          <td style={reportCellStyle}>
-                            {item.cropFilename ? (
-                              <AuthImage
-                                src={imageUrl.crop(item.cropFilename)}
-                                alt={`Crop ${item.cropId}`}
-                                style={reportThumbStyle}
-                              />
-                            ) : (
-                              <div style={{ color: '#adb5bd' }}>N/A</div>
-                            )}
-                          </td>
-                          <td style={reportCellStyle}>{item.createdAt || '-'}</td>
-                          <td style={reportCellStyle}>{item.studentId}</td>
-                          <td style={reportCellStyle}>#{item.taskId}</td>
-                          <td style={reportCellStyle}>#{item.cropId}</td>
-                          <td style={reportCellStyle}><SpeciesBadge name={item.speciesName} code={item.speciesCode} compact /></td>
-                          <td style={reportCellStyle}>{item.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                  );
-                })()
-              )}
-            </div>
-          )}
+          {analyticsSubTab === 'reports' && <ReportsPanel />}
           {/* ==================================================== */}
         </div>
   );
@@ -1126,6 +1030,3 @@ const professorPanelHeader = { background: '#495057', color: '#fff', padding: '1
 const professorCellNavBtn = { width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
 const labelingToolsStyle = { marginBottom: '18px', padding: '14px 16px', border: '1px solid #b6d4fe', borderRadius: '8px', background: '#eef6ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' };
 const labelingActionStyle = { display: 'inline-flex', alignItems: 'center', padding: '9px 13px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' };
-const reportHeadStyle = { borderBottom: '2px solid #dee2e6', padding: '10px', background: '#f8f9fa', fontWeight: '600', color: '#495057' };
-const reportCellStyle = { borderBottom: '1px solid #dee2e6', padding: '10px', color: '#495057' };
-const reportThumbStyle = { width: '48px', height: '48px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #dee2e6', background: '#f8f9fa' };
