@@ -25,16 +25,16 @@ class CropEntityTest {
             // when
             CropEntity crop = CropEntity.builder()
                     .id(1L).task(task).cropFilename("crop_abc.jpg")
-                    .bbox("[10, 20, 30, 40]").aiPrediction(CellType.Lymphocyte)
-                    .aiConfidence(0.95).build();
+                    .bbox("[10, 20, 30, 40]").pseudoLabel(CellType.Lymphocyte)
+                    .aiClassificationConfidence(0.95).build();
 
             // then
             assertAll(
                     () -> assertThat(crop.getId()).isEqualTo(1L),
                     () -> assertThat(crop.getTask()).isEqualTo(task),
                     () -> assertThat(crop.getCropFilename()).isEqualTo("crop_abc.jpg"),
-                    () -> assertThat(crop.getAiPrediction()).isEqualTo(CellType.Lymphocyte),
-                    () -> assertThat(crop.getAiConfidence()).isEqualTo(0.95),
+                    () -> assertThat(crop.getPseudoLabel()).isEqualTo(CellType.Lymphocyte),
+                    () -> assertThat(crop.getAiClassificationConfidence()).isEqualTo(0.95),
                     () -> assertThat(crop.getFinalLabel()).isNull()
             );
         }
@@ -48,7 +48,7 @@ class CropEntityTest {
             // given
             CropEntity crop = CropEntity.builder()
                     .id(1L).cropFilename("crop.jpg").bbox("[0,0,10,10]")
-                    .aiPrediction(CellType.Band).aiConfidence(0.8).build();
+                    .pseudoLabel(CellType.Band).aiClassificationConfidence(0.8).build();
 
             // when
             crop.updateFinalLabel(CellType.Monocyte);
@@ -66,7 +66,7 @@ class CropEntityTest {
             // given
             CropEntity crop = CropEntity.builder()
                     .id(1L).cropFilename("crop.jpg").bbox("[0,0,10,10]")
-                    .aiPrediction(CellType.Band).aiConfidence(0.8).build();
+                    .pseudoLabel(CellType.Band).aiClassificationConfidence(0.8).build();
 
             // when & then
             assertThat(crop.getTaskId()).isNull();

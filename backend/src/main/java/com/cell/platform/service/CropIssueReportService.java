@@ -38,6 +38,9 @@ public class CropIssueReportService {
         if (!Objects.equals(crop.getTaskId(), request.taskId())) {
             throw new BadRequestException("해당 과제의 세포가 아닙니다.", ErrorCode.G000);
         }
+        if (crop.isExcluded() || !crop.isTaskPublished()) {
+            throw new BadRequestException("게시된 과제의 출제 문항에만 질문할 수 있습니다.", ErrorCode.G000);
+        }
         CropIssueReportEntity entity = new CropIssueReportEntity();
         entity.setStudentId(username);
         entity.setTaskId(request.taskId());

@@ -1,3 +1,5 @@
+[Coursework workflow, migration and verification](COURSEWORK_WORKFLOW.md)
+
 # C.E.L.L. Platform
 
 **Hierarchical Human-in-the-Loop (HITL) Labeling Platform for WBC Dataset Construction and Education**

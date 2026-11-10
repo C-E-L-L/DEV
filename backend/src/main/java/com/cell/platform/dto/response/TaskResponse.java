@@ -15,13 +15,21 @@ public record TaskResponse(
         String speciesName,
         LocalDateTime createdAt,
         LocalDateTime deadlineAt,
-        int cropCount
+        int cropCount,
+        String kind,
+        boolean requireLabels,
+        boolean resultsAfterDeadline,
+        Long revision,
+        LocalDateTime publishedAt,
+        int excludedCount,
+        int labeledCount,
+        java.util.Map<String,String> classLabels
 ) {
     public TaskResponse(Long id, String status, String originalFilename, String uploadedFilename,
                         Long assignmentId, String title, LocalDateTime createdAt,
                         LocalDateTime deadlineAt, int cropCount) {
         this(id, status, originalFilename, uploadedFilename, assignmentId, title,
-                null, null, null, createdAt, deadlineAt, cropCount);
+                null, null, null, createdAt, deadlineAt, cropCount, "PRACTICE", false, false, null, null, 0, 0, com.cell.platform.domain.crop.CellType.defaultLabels());
     }
 
     public static TaskResponse from(Task task) {
@@ -37,7 +45,11 @@ public record TaskResponse(
                 task.getSpeciesName(),
                 task.getCreatedAt(),
                 task.getDeadlineAt(),
-                task.getCrops().size()
+                (int) task.getCrops().stream().filter(c -> !c.isExcluded()).count(),
+                task.getKind().name(), task.isRequireLabels(), task.isResultsAfterDeadline(),
+                task.getRevision(), task.getPublishedAt(),
+                (int) task.getCrops().stream().filter(c -> c.isExcluded()).count(),
+                (int) task.getCrops().stream().filter(c -> !c.isExcluded() && c.getFinalLabel() != null).count(), task.getClassLabels()
         );
     }
 }

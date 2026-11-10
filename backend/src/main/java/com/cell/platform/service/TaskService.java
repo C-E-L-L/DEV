@@ -42,9 +42,15 @@ public class TaskService {
     private final AssignmentJpaRepository assignmentJpaRepository;
     private final CropRepository cropRepository;
     private final AnimalSpeciesService animalSpeciesService;
+    private final CellClassService cellClassService;
 
     public List<TaskResponse> getAllTasks() {
+        return getAllTasks(false);
+    }
+
+    public List<TaskResponse> getAllTasks(boolean studentView) {
         return taskRepository.findAllByOrderByIdDesc().stream()
+                .filter(task -> !studentView || task.isPublished())
                 .map(TaskResponse::from)
                 .toList();
     }
@@ -74,9 +80,11 @@ public class TaskService {
         String filename = fileStorageService.saveOriginal(file, species.getCode());
         Task task = Task.create(filename, file.getOriginalFilename(), deadlineAt,
                 species.getId(), species.getCode(), species.getName());
+        task.prepareDraft(com.cell.platform.domain.task.TaskKind.PRACTICE, file.getOriginalFilename());
         AiAnalysisResponse aiResult = aiClientService.analyze(file);
         addCropsToTask(task, aiResult);
 
+        task.setClassLabels(cellClassService.activeLabels(species.getId()));
         Task savedTask = taskRepository.save(task);
 
         List<CropResponse> cropResponses = savedTask.getCrops().stream()
@@ -143,9 +151,11 @@ public class TaskService {
             Task task = Task.createForAssignment(filename, file.getOriginalFilename(),
                     assignment.getId(), title, deadlineAt,
                     species.getId(), species.getCode(), species.getName());
+            task.prepareDraft(com.cell.platform.domain.task.TaskKind.PRACTICE, title);
             AiAnalysisResponse aiResult = aiClientService.analyze(file);
             addCropsToTask(task, aiResult);
-            Task savedTask = taskRepository.save(task);
+            task.setClassLabels(cellClassService.activeLabels(species.getId()));
+        Task savedTask = taskRepository.save(task);
             totalCrops += savedTask.getCrops().size();
 
             List<CropResponse> cropResponses = savedTask.getCrops().stream()
@@ -184,9 +194,6 @@ public class TaskService {
         Task task = getTaskById(taskId);
         if (task.getAssignmentId() != null) {
             throw new BadRequestException("Assignment 소속 도말은 과제 단위로 마감일을 변경해 주세요.", ErrorCode.G000);
-        }
-        if (isDiagnosticTask(task)) {
-            throw new BadRequestException("진단평가에는 마감일을 설정할 수 없습니다.", ErrorCode.G000);
         }
         validateDeadlineChange(List.of(task), deadlineAt);
         taskRepository.updateDeadlineAt(taskId, deadlineAt);

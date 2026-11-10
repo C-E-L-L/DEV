@@ -24,7 +24,7 @@ class SubmissionEntityTest {
                     .originalFilename("o.jpg").uploadedFilename("u.jpg").build();
             CropEntity crop = CropEntity.builder()
                     .id(10L).task(task).cropFilename("crop.jpg")
-                    .bbox("[0,0,10,10]").aiPrediction(CellType.Band).aiConfidence(0.7).build();
+                    .bbox("[0,0,10,10]").pseudoLabel(CellType.Band).aiClassificationConfidence(0.7).build();
 
             // when
             SubmissionEntity submission = SubmissionEntity.builder()

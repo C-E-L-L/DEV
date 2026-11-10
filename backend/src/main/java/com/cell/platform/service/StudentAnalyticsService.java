@@ -28,7 +28,7 @@ public class StudentAnalyticsService {
     private final SubmissionService submissionService;
 
     public StudentLearningResponse getHistory(String studentId) {
-        List<Task> tasks = taskRepository.findAllByOrderByIdDesc();
+        List<Task> tasks = taskRepository.findAllByOrderByIdDesc().stream().filter(Task::isPublished).toList();
         if (tasks.isEmpty()) return new StudentLearningResponse(studentId, List.of());
         List<Crop> crops = cropRepository.findAllByTaskIdIn(tasks.stream().map(Task::getId).toList());
         Map<Long, Submission> answers = getAnswers(crops, studentId);
@@ -62,6 +62,7 @@ public class StudentAnalyticsService {
     public TaskDetail getTaskDetail(String studentId, Long taskId) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("과제를 찾을 수 없습니다. taskId=" + taskId, ErrorCode.T000));
+        if (!task.isPublished()) throw new NotFoundException("게시된 과제를 찾을 수 없습니다.", ErrorCode.T000);
         List<Crop> crops = cropRepository.findAllByTaskId(taskId);
         List<CellResult> cells = buildCells(task, crops, getAnswers(crops, studentId));
         return new TaskDetail(studentId, toTaskResult(task, summarize(cells)), cells);
@@ -78,7 +79,7 @@ public class StudentAnalyticsService {
             Submission answer = answers.get(crop.getId());
             var label = submissionService.resolveCorrectLabel(crop, isDiagnostic(task));
             String correctLabel = label == null ? null : label.name();
-            String studentLabel = answer == null ? null : answer.getStudentLabel().name();
+            String studentLabel = answer == null ? null : answer.getAnswerLabel();
             Boolean correct = studentLabel == null || correctLabel == null ? null : studentLabel.equals(correctLabel);
             return new CellResult(crop.getId(), crop.getCropFilename(), studentLabel, correctLabel, correct,
                     answer == null ? null : answer.getSubmittedAt());
@@ -111,11 +112,11 @@ public class StudentAnalyticsService {
     }
 
     private boolean isDiagnostic(Task task) {
-        return task.getUploadedFilename() != null && task.getUploadedFilename().startsWith("diagnostic-");
+        return task.isDiagnostic();
     }
 
     private String title(Task task) {
-        if (isDiagnostic(task)) return "Diagnostic #" + task.getId();
+        if (isDiagnostic(task) && (task.getTitle() == null || task.getTitle().isBlank())) return "진단평가 #" + task.getId();
         return task.getTitle() != null && !task.getTitle().isBlank() ? task.getTitle() : "Task #" + task.getId();
     }
 }

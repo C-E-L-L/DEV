@@ -22,6 +22,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(CropIssueReportController.class)
 @Import(SecurityConfig.class)
 class ReportReplyControllerTest {
+    @MockBean private com.cell.platform.infra.task.TaskJpaRepository imageTasks;
+    @MockBean private com.cell.platform.infra.crop.CropJpaRepository imageCrops;
+
     @Autowired MockMvc mvc;
     @MockBean CropIssueReportService service;
     @MockBean JwtTokenProvider jwtTokenProvider;

@@ -1,4 +1,7 @@
+import { createProfessorMock } from './professor.js';
 import { mockLearningHistory, mockTaskDetail, mockStudentMatrices } from './studentAnalytics.js';
+import { createCourseworkMock } from './coursework.js';
+import { isPublished } from '../src/utils/coursework.js';
 
 const CELL_LABELS = ['Segment', 'Band', 'Eosinophil', 'NucleatedRBC', 'Lymphocyte', 'Monocyte'];
 
@@ -142,6 +145,8 @@ let mockRoster = [
 
 function cropDto(crop, studentView = false) {
   return {
+    classLabels:tasks.find(t=>t.id===crop.taskId)?.classLabels || Object.fromEntries(CELL_LABELS.map(l=>[l,l])),
+    excluded: Boolean(crop.excluded), exclusionReason: studentView ? null : crop.exclusionReason,
     id: crop.cropId,
     taskId: crop.taskId,
     originalSmearFilename: crop.originalSmearFilename,
@@ -166,7 +171,7 @@ function answersFor(studentId = 'student') {
 function resultFor(crops, studentId) {
   const answers = answersFor(studentId);
   const details = crops
-    .filter(crop => answers[crop.cropId])
+    .filter(crop => !crop.excluded && answers[crop.cropId])
     .map(crop => {
       const studentLabel = answers[crop.cropId];
       const correctLabel = crop.finalLabel;
@@ -192,8 +197,9 @@ function resultFor(crops, studentId) {
 }
 
 function reviewFor(taskGroup, studentId) {
+  if (!taskGroup.length || taskGroup.some(t => !isPublished(t))) return null;
   const answers = answersFor(studentId);
-  const crops = taskGroup.flatMap(task => cropStats.get(task.id) || []);
+  const crops = taskGroup.flatMap(task => (cropStats.get(task.id) || []).filter(c => !c.excluded));
   const submitted = crops.filter(crop => answers[crop.cropId]);
   if (submitted.length === 0) return null;
   const representative = taskGroup[0];
@@ -202,7 +208,8 @@ function reviewFor(taskGroup, studentId) {
   const deadlinePassed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= Date.now());
   const allAnswered = submitted.length >= crops.length;
   const allGraded = crops.length > 0 && crops.every(crop => crop.finalLabel);
-  if (!(diagnostic ? allAnswered : deadlinePassed || (allAnswered && allGraded))) return null;
+  if (representative.resultsAfterDeadline && !deadlinePassed) return null;
+  if (!(deadlinePassed || (coursework.finalized(taskGroup, studentId) && allGraded))) return null;
 
   const cells = submitted.map(crop => {
     const studentLabel = answers[crop.cropId];
@@ -264,7 +271,7 @@ function isMockSubmissionLocked(taskId, studentId) {
   const task = tasks.find(item => item.id === taskId);
   if (!task) return false;
   const group = task.assignmentId ? tasks.filter(item => item.assignmentId === task.assignmentId) : [task];
-  return Boolean(reviewFor(group, studentId)) || Boolean(task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now());
+  return group.some(t => !isPublished(t)) || coursework.finalized(group, studentId) || coursework.expired(group);
 }
 
 function refreshScore(crop) {
@@ -272,6 +279,21 @@ function refreshScore(crop) {
   crop.accuracyRate = crop.finalLabel ? Math.round((correctAnswers / crop.totalAnswers) * 1000) / 10 : 0;
   crop.errorRate = crop.finalLabel ? Math.round((100 - crop.accuracyRate) * 10) / 10 : 0;
   crop.hardScore = crop.errorRate;
+}
+
+function currentStats(crop) {
+  const classLabels=tasks.find(t=>t.id===crop.taskId)?.classLabels || Object.fromEntries(CELL_LABELS.map(l=>[l,l]));
+  const votersByLabel=Object.fromEntries([...Object.keys(classLabels),'UNKNOWN'].map(label=>[label,[]]));
+  for(const [studentId,answers] of studentAnswers){
+    const label=answers[crop.cropId];if(!label)continue;
+    const user=mockUsers.find(u=>u.username===studentId);
+    (votersByLabel[label]||=[]).push({studentId,studentName:user?.name,studentDisplayName:user?.name ? `${studentId}_${user.name}` : studentId});
+  }
+  const voteDistribution=Object.fromEntries(Object.entries(votersByLabel).map(([label,voters])=>[label,voters.length]));
+  const totalAnswers=Object.values(voteDistribution).reduce((sum,n)=>sum+n,0);
+  const correct=crop.finalLabel? voteDistribution[crop.finalLabel]||0:0;
+  const errorRate=crop.finalLabel&&totalAnswers?Math.round((totalAnswers-correct)*1000/totalAnswers)/10:0;
+  return {...crop,classLabels,votersByLabel,voteDistribution,totalAnswers,errorRate,hardScore:errorRate,accuracyRate:crop.finalLabel&&totalAnswers?100-errorRate:0};
 }
 
 function json(res, data, status = 200) {
@@ -358,6 +380,9 @@ function serveImage(pathname, res) {
   res.end(svg);
 }
 
+const professor = createProfessorMock({tasks,cropStats,species:()=>animalSpecies,users:()=>mockUsers,roster:()=>mockRoster,students:analyticsStudents,answersFor,finalized:(...args)=>coursework.finalized(...args),labels:CELL_LABELS,json,readJson});
+const coursework = createCourseworkMock({ classLabelsFor:professor.activeLabels, tasks, cropStats, species: () => animalSpecies, labels: CELL_LABELS, makeCrop, cropDto, answersFor, json, readJson, reviewFor });
+
 export function mockServerPlugin() {
   return {
     name: 'cell-local-mock-server',
@@ -389,7 +414,15 @@ export function mockServerPlugin() {
           json(res, { ...session, accessToken });
           return;
         }
+        if (await professor.handle(req,res,url,currentUser)) return;
+        if (await coursework.handle(req, res, url, currentUser)) return;
+        const scopedStudentRead = pathname.match(/^\/api\/(tasks|assignments)\/(\d+)(?:\/|$)/);
+        if (studentRequest && scopedStudentRead) {
+          const group = scopedStudentRead[1] === 'tasks' ? coursework.scope(Number(scopedStudentRead[2])) : tasks.filter(t => t.assignmentId === Number(scopedStudentRead[2]));
+          if (!group.length || group.some(t => !isPublished(t))) { json(res, { message: '게시된 과제를 찾을 수 없습니다.' }, 404); return; }
+        }
         if (req.method === 'POST' && pathname === '/api/assignments') {
+          if (!currentUser || studentRequest) { json(res, { message: '교수 계정이 필요합니다.' }, 403); return; }
           const multipart = await readMultipart(req);
           const title = multipart.fields.title?.[0] || '목업 도말 과제';
           const speciesIds = (multipart.fields.speciesIds || []).map(Number);
@@ -400,6 +433,7 @@ export function mockServerPlugin() {
           multipart.files.filter(file => file.fieldName === 'files').forEach((file, index) => {
             const species = animalSpecies.find(item => item.id === speciesIds[index]) || animalSpecies[0];
             const task = {
+              status: 'DRAFT', kind: 'PRACTICE', revision: 0, requireLabels: false, classLabels:professor.activeLabels(species.id),
               id: Math.max(...tasks.map(item => item.id), 0) + 1,
               assignmentId,
               title,
@@ -413,7 +447,7 @@ export function mockServerPlugin() {
               createdAt: new Date().toISOString(),
             };
             tasks.push(task);
-            const crops = boxes.map((_, cropIndex) => makeCrop(task.id, cropIndex));
+            const crops = boxes.map((_, cropIndex) => ({ ...makeCrop(task.id, cropIndex), finalLabel: null, gtLabel: null, totalAnswers: 0, voteDistribution: {}, votersByLabel: {} }));
             cropStats.set(task.id, crops);
             createdTasks.push({
               taskId: task.id,
@@ -437,7 +471,7 @@ export function mockServerPlugin() {
           return;
         }
         if (req.method === 'GET' && pathname === '/api/tasks') {
-          json(res, tasks);
+          json(res, tasks.filter(t => !studentRequest || isPublished(t)).map(coursework.taskDto));
           return;
         }
         if (req.method === 'GET' && pathname === '/api/species') {
@@ -503,7 +537,7 @@ export function mockServerPlugin() {
           return;
         }
         if (req.method === 'GET' && pathname === '/api/all-stats') {
-          json(res, [...cropStats.values()].flat());
+          json(res, [...cropStats.values()].flat().filter(c=>!c.excluded).map(currentStats));
           return;
         }
         if (req.method === 'GET' && pathname === '/api/student/reviews') {
@@ -533,7 +567,7 @@ export function mockServerPlugin() {
 
         const taskCropsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/crops$/);
         if (req.method === 'GET' && taskCropsMatch) {
-          json(res, (cropStats.get(Number(taskCropsMatch[1])) || []).map(crop => cropDto(crop, studentRequest)));
+          json(res, coursework.activeCrops(Number(taskCropsMatch[1])).map(crop => cropDto(crop, studentRequest)));
           return;
         }
 
@@ -541,7 +575,7 @@ export function mockServerPlugin() {
         if (req.method === 'GET' && assignmentCropsMatch) {
           const assignmentId = Number(assignmentCropsMatch[1]);
           const assignmentTaskIds = tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id);
-          json(res, assignmentTaskIds.flatMap(taskId => cropStats.get(taskId) || []).map(crop => cropDto(crop, studentRequest)));
+          json(res, assignmentTaskIds.flatMap(taskId => coursework.activeCrops(taskId)).map(crop => cropDto(crop, studentRequest)));
           return;
         }
 
@@ -549,7 +583,7 @@ export function mockServerPlugin() {
         if (req.method === 'GET' && taskLabelsMatch) {
           const taskId = Number(taskLabelsMatch[1]);
           const studentId = decodeURIComponent(taskLabelsMatch[2]);
-          const taskCropIds = new Set((cropStats.get(taskId) || []).map(crop => crop.cropId));
+          const taskCropIds = new Set(coursework.activeCrops(taskId).map(crop => crop.cropId));
           const labels = Object.fromEntries(Object.entries(answersFor(studentId)).filter(([cropId]) => taskCropIds.has(Number(cropId))));
           json(res, labels);
           return;
@@ -560,7 +594,7 @@ export function mockServerPlugin() {
           const assignmentId = Number(assignmentLabelsMatch[1]);
           const studentId = decodeURIComponent(assignmentLabelsMatch[2]);
           const assignmentTaskIds = new Set(tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id));
-          const cropIds = new Set([...cropStats.values()].flat().filter(crop => assignmentTaskIds.has(crop.taskId)).map(crop => crop.cropId));
+          const cropIds = new Set([...cropStats.values()].flat().filter(crop => !crop.excluded && assignmentTaskIds.has(crop.taskId)).map(crop => crop.cropId));
           const labels = Object.fromEntries(Object.entries(answersFor(studentId)).filter(([cropId]) => cropIds.has(Number(cropId))));
           json(res, labels);
           return;
@@ -570,7 +604,7 @@ export function mockServerPlugin() {
         if (req.method === 'GET' && taskSolvedMatch) {
           const taskId = Number(taskSolvedMatch[1]);
           const studentId = decodeURIComponent(taskSolvedMatch[2]);
-          const taskCropIds = new Set((cropStats.get(taskId) || []).map(crop => crop.cropId));
+          const taskCropIds = new Set(coursework.activeCrops(taskId).map(crop => crop.cropId));
           json(res, Object.keys(answersFor(studentId)).map(Number).filter(cropId => taskCropIds.has(cropId)));
           return;
         }
@@ -580,7 +614,7 @@ export function mockServerPlugin() {
           const assignmentId = Number(assignmentSolvedMatch[1]);
           const studentId = decodeURIComponent(assignmentSolvedMatch[2]);
           const assignmentTaskIds = new Set(tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id));
-          const cropIds = new Set([...cropStats.values()].flat().filter(crop => assignmentTaskIds.has(crop.taskId)).map(crop => crop.cropId));
+          const cropIds = new Set([...cropStats.values()].flat().filter(crop => !crop.excluded && assignmentTaskIds.has(crop.taskId)).map(crop => crop.cropId));
           json(res, Object.keys(answersFor(studentId)).map(Number).filter(cropId => cropIds.has(cropId)));
           return;
         }
@@ -588,11 +622,12 @@ export function mockServerPlugin() {
         if (req.method === 'POST' && pathname === '/api/submit') {
           const body = await readJson(req);
           const crop = [...cropStats.values()].flat().find(item => item.cropId === Number(body.cropId));
-          if (crop && isMockSubmissionLocked(crop.taskId, body.studentId || 'student')) {
+          if (!crop || crop.excluded || !currentUser || ![...Object.keys(tasks.find(t=>t.id===crop?.taskId)?.classLabels||Object.fromEntries(CELL_LABELS.map(l=>[l,l]))), 'UNKNOWN'].includes(body.studentLabel)) { json(res, { message: '출제 문항과 응답을 확인해주세요.' }, 400); return; }
+          if (isMockSubmissionLocked(crop.taskId, currentUser.username)) {
             json(res, { message: '이미 마감되었거나 결과가 공개된 과제의 답안은 수정할 수 없습니다.' }, 400);
             return;
           }
-          answersFor(body.studentId)[body.cropId] = body.studentLabel;
+          answersFor(currentUser.username)[body.cropId] = body.studentLabel;
           json(res, { success: true });
           return;
         }
@@ -614,7 +649,7 @@ export function mockServerPlugin() {
         if (req.method === 'GET' && assignmentResultsMatch) {
           const assignmentId = Number(assignmentResultsMatch[1]);
           const assignmentTaskIds = new Set(tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id));
-          const crops = [...cropStats.values()].flat().filter(crop => assignmentTaskIds.has(crop.taskId));
+          const crops = [...cropStats.values()].flat().filter(crop => !crop.excluded && assignmentTaskIds.has(crop.taskId));
           if (!reviewFor(tasks.filter(task => task.assignmentId === assignmentId), decodeURIComponent(assignmentResultsMatch[2]))) {
             json(res, { message: '채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.' }, 400);
             return;
@@ -625,7 +660,7 @@ export function mockServerPlugin() {
 
         const statsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/stats$/);
         if (req.method === 'GET' && statsMatch) {
-          json(res, cropStats.get(Number(statsMatch[1])) || []);
+          json(res, coursework.activeCrops(Number(statsMatch[1])).map(currentStats));
           return;
         }
 

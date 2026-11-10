@@ -19,6 +19,18 @@ public class SubmissionController {
 
     private final SubmissionService submissionService;
 
+    @PostMapping("/student/tasks/{taskId}/finalize")
+    public ResponseEntity<java.util.Map<String, Boolean>> finalizeAttempt(@PathVariable Long taskId,
+                                                                         @AuthenticationPrincipal String username) {
+        return ResponseEntity.ok(submissionService.finalizeAttempt(taskId, username));
+    }
+
+    @GetMapping("/student/tasks/{taskId}/attempt")
+    public ResponseEntity<java.util.Map<String, Boolean>> attemptState(@PathVariable Long taskId,
+                                                                      @AuthenticationPrincipal String username) {
+        return ResponseEntity.ok(submissionService.getAttemptState(taskId, username));
+    }
+
     @PostMapping("/submit")
     public ResponseEntity<Void> submit(
             @RequestBody SubmissionRequest request,

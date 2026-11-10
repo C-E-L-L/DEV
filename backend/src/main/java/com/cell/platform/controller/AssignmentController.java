@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -41,9 +42,11 @@ public class AssignmentController {
     }
 
     @GetMapping("/{assignmentId}/tasks")
-    public ResponseEntity<List<TaskResponse>> getTasksForAssignment(@PathVariable Long assignmentId) {
+    public ResponseEntity<List<TaskResponse>> getTasksForAssignment(@PathVariable Long assignmentId, Authentication authentication) {
         List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
-        return ResponseEntity.ok(tasks.stream().map(TaskResponse::from).toList());
+        boolean student = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"));
+        return ResponseEntity.ok(tasks.stream().filter(t -> !student || t.isPublished()).map(TaskResponse::from).toList());
     }
 
     @DeleteMapping("/{assignmentId}")

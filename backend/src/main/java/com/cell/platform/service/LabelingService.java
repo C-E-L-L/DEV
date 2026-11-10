@@ -41,6 +41,7 @@ public class LabelingService {
     private final CropJpaRepository cropJpaRepository;
     private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
+    private final CropService cropService;
 
     // ── Export ──────────────────────────────────────────────────
 
@@ -79,8 +80,9 @@ public class LabelingService {
                                               String smearExportName, long fileSize) {
         // options: {"1": "Segment", "2": "Band", ...}
         Map<String, String> options = new LinkedHashMap<>();
-        for (int i = 0; i < CELL_TYPE_ORDER.size(); i++) {
-            options.put(String.valueOf(i + 1), CELL_TYPE_ORDER.get(i));
+        List<String> order = new ArrayList<>(task.getClassLabels().keySet());
+        for (int i = 0; i < order.size(); i++) {
+            options.put(String.valueOf(i + 1), order.get(i));
         }
 
         List<Map<String, Object>> regions = new ArrayList<>();
@@ -98,7 +100,7 @@ public class LabelingService {
             CellType labelToUse = crop.getFinalLabel() != null ? crop.getFinalLabel() : crop.getGtLabel();
             Map<String, Object> checkboxVal = new LinkedHashMap<>();
             if (labelToUse != null) {
-                String optionIdx = optionIndex(labelToUse.name());
+                String optionIdx = order.contains(labelToUse.name()) ? String.valueOf(order.indexOf(labelToUse.name()) + 1) : null;
                 if (optionIdx != null) checkboxVal.put(optionIdx, true);
             }
 
@@ -188,11 +190,13 @@ public class LabelingService {
 
     @Transactional
     public int importLabels(Long taskId, JsonNode viaJson) {
-        findUploadedSmearTask(taskId);
+        TaskEntity task = findUploadedSmearTask(taskId);
+        task.updatePreparation(task.getTitle(), task.getDeadlineAt(), task.isRequireLabels(), task.isResultsAfterDeadline());
+        if (viaJson.has("annotations")) return importAnnotations(taskId, viaJson.get("annotations"));
 
         JsonNode imgMetadata = viaJson.get("_via_img_metadata");
         if (imgMetadata == null || !imgMetadata.isObject()) {
-            throw new BadRequestException("VIA 형식의 annotations.json이 아닙니다.", ErrorCode.G000);
+            throw new BadRequestException("annotations 배열 또는 VIA 형식의 라벨 JSON을 올려주세요.", ErrorCode.G000);
         }
 
         Map<Long, CropEntity> cropsById = new HashMap<>();
@@ -234,8 +238,9 @@ public class LabelingService {
                     if (entry.getValue().asBoolean(false)) {
                         int idx = Integer.parseInt(entry.getKey()) - 1;
                         if (idx >= 0 && idx < CELL_TYPE_ORDER.size()) {
-                            selectedLabel = CELL_TYPE_ORDER.get(idx);
+                            selectedLabel = viaJson.path("_via_attributes").path("region").path("1").path("options").path(entry.getKey()).asText(CELL_TYPE_ORDER.get(idx));
                         }
+                        if (viaJson.path("_via_attributes").path("region").path("1").path("options").has(entry.getKey())) selectedLabel = viaJson.path("_via_attributes").path("region").path("1").path("options").path(entry.getKey()).asText();
                         break;
                     }
                 }
@@ -243,11 +248,51 @@ public class LabelingService {
                 if (selectedLabel == null) continue;
                 CellType label = parseCellType(selectedLabel);
                 crop.updateGtLabel(label);
-                crop.updateFinalLabel(label);
+                cropService.confirmLabel(crop.getId(), label.name());
                 updated++;
             }
         }
         return updated;
+    }
+
+    private int importAnnotations(Long taskId, JsonNode annotations) {
+        if (!annotations.isArray() || annotations.isEmpty()) throw new BadRequestException("annotations 배열이 비어 있습니다.", ErrorCode.G000);
+        List<CropEntity> available = cropJpaRepository.findAllByTask_Id(taskId);
+        java.util.Set<Long> matched = new java.util.HashSet<>();
+        int updated = 0;
+        for (JsonNode item : annotations) {
+            String text = item.path("label").asText("");
+            if (text.isBlank()) continue;
+            CellType label = parseCellType(text);
+            List<CropEntity> candidates;
+            if (item.hasNonNull("cropId")) {
+                candidates = available.stream().filter(c -> c.getId().equals(item.path("cropId").asLong())).toList();
+            } else if (item.hasNonNull("cropFilename")) {
+                candidates = available.stream().filter(c -> c.getCropFilename().equals(item.path("cropFilename").asText())).toList();
+            } else if (item.path("bbox").isArray() && item.path("bbox").size() == 4) {
+                int[] box = parseBbox(item.get("bbox").toString());
+                candidates = available.stream().filter(c -> overlap(box, parseBbox(c.getBbox())) >= 0.8).toList();
+            } else throw new BadRequestException("각 라벨에는 cropId, cropFilename 또는 bbox가 필요합니다.", ErrorCode.G000);
+            if (candidates.size() != 1 || !matched.add(candidates.get(0).getId())) {
+                throw new BadRequestException("라벨과 탐지 세포가 일대일로 연결되지 않습니다. 검토 화면에서 해당 도말의 JSON 양식을 받아 사용하거나 직접 라벨링해주세요.", ErrorCode.G000);
+            }
+            CropEntity cell = candidates.get(0);
+            cell.updateGtLabel(label);
+            cropService.confirmLabel(cell.getId(), label.name());
+            updated++;
+        }
+        if (updated == 0) throw new BadRequestException("반영할 라벨이 없습니다. label 값을 입력해주세요.", ErrorCode.G000);
+        return updated;
+    }
+
+    private double overlap(int[] a, int[] b) {
+        if (a == null || b == null || a.length != 4 || b.length != 4) return 0;
+        double areaA = Math.max(0, a[2] - a[0]) * (double) Math.max(0, a[3] - a[1]);
+        double areaB = Math.max(0, b[2] - b[0]) * (double) Math.max(0, b[3] - b[1]);
+        double intersection = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0]))
+                * (double) Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+        double union = areaA + areaB - intersection;
+        return union > 0 ? intersection / union : 0;
     }
 
     // ── Helpers ─────────────────────────────────────────────────

@@ -25,6 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(StatsController.class)
 @Import(SecurityConfig.class)
 class StatsControllerTest {
+    @MockBean private com.cell.platform.infra.task.TaskJpaRepository imageTasks;
+    @MockBean private com.cell.platform.infra.crop.CropJpaRepository imageCrops;
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -46,7 +49,7 @@ class StatsControllerTest {
 
         return CropStatsResponse.builder()
                 .taskId(1L).cropId(1L).filename("crop.jpg")
-                .bbox("[10,20,30,40]").aiLabel("Lymphocyte").aiConfidence(0.95)
+                .bbox("[10,20,30,40]").pseudoLabel("Lymphocyte").aiClassificationConfidence(0.95)
                 .finalLabel("Lymphocyte").totalAnswers(4)
                 .errorRate(25.0).accuracyRate(75.0).hardScore(30.0)
                 .wrongDetails(List.of("Band"))

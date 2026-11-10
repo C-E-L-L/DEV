@@ -30,7 +30,7 @@ class ReportReplyServiceTest {
 
     @Test
     void creationCannotImpersonateAnotherStudent() {
-        when(crops.findById(2L)).thenReturn(Optional.of(Crop.builder().id(2L).taskId(3L).build()));
+        when(crops.findById(2L)).thenReturn(Optional.of(Crop.builder().id(2L).taskId(3L).taskPublished(true).build()));
         service.createReport(new CropIssueReportRequest(3L, 2L, "s2", " question "), "s1");
         var capture = ArgumentCaptor.forClass(CropIssueReportEntity.class);
         verify(reports).save(capture.capture());
@@ -40,7 +40,7 @@ class ReportReplyServiceTest {
 
     @Test
     void invalidCropAndTaskAreRejected() {
-        when(crops.findById(2L)).thenReturn(Optional.of(Crop.builder().id(2L).taskId(3L).build()));
+        when(crops.findById(2L)).thenReturn(Optional.of(Crop.builder().id(2L).taskId(3L).taskPublished(true).build()));
         assertThatThrownBy(() -> service.createReport(new CropIssueReportRequest(9L, 2L, null, "question"), "s1"))
                 .isInstanceOf(BadRequestException.class);
         assertThatThrownBy(() -> service.createReport(new CropIssueReportRequest(3L, 99L, null, "question"), "s1"))

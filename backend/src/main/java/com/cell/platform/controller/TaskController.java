@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.Authentication;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
@@ -40,8 +41,10 @@ public class TaskController {
     private final AnimalSpeciesService animalSpeciesService;
 
     @GetMapping
-    public ResponseEntity<List<TaskResponse>> getAllTasks() {
-        return ResponseEntity.ok(taskService.getAllTasks());
+    public ResponseEntity<List<TaskResponse>> getAllTasks(Authentication authentication) {
+        boolean student = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"));
+        return ResponseEntity.ok(taskService.getAllTasks(student));
     }
 
     @PostMapping("/upload")
@@ -54,8 +57,8 @@ public class TaskController {
     }
 
     @GetMapping("/diagnostic/pool-stats")
-    public ResponseEntity<DiagnosticPoolStatsResponse> getDiagnosticPoolStats() {
-        return ResponseEntity.ok(diagnosticTaskService.getPoolStats());
+    public ResponseEntity<DiagnosticPoolStatsResponse> getDiagnosticPoolStats(@RequestParam(required = false) Long speciesId) {
+        return ResponseEntity.ok(diagnosticTaskService.getPoolStats(speciesId));
     }
 
     @PostMapping("/diagnostic/create")

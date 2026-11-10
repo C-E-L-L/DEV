@@ -53,6 +53,7 @@ public class SubmissionService {
     private final TaskRepository taskRepository;
     private final DiagnosticDatasetService diagnosticDatasetService;
     private final ConfusionMatrixRepository confusionMatrixRepository;
+    private final com.cell.platform.infra.submission.TaskAttemptJpaRepository attemptRepository;
 
     @Transactional
     public void submit(Long cropId, String studentId, String studentLabel) {
@@ -60,10 +61,16 @@ public class SubmissionService {
                 .orElseThrow(() -> new NotFoundException(
                         "크롭(Crop)을 찾을 수 없습니다. cropId=" + cropId, ErrorCode.S000));
         ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(crop.getTaskId()), studentId);
+        if (crop.isExcluded() || scope.tasks().stream().anyMatch(t -> !t.isPublished())) {
+            throw new BadRequestException("게시되지 않았거나 출제에서 제외된 문항입니다.", ErrorCode.S001);
+        }
         if (isSubmissionLocked(scope)) {
             throw new BadRequestException("이미 마감되었거나 결과가 공개된 과제의 답안은 수정할 수 없습니다.", ErrorCode.S001);
         }
-        CellType newLabel = parseCellType(studentLabel);
+        CellType newLabel = "UNKNOWN".equals(studentLabel) ? null : parseCellType(studentLabel);
+        if (newLabel != null && !crop.getClassLabels().containsKey(newLabel.name())) {
+            throw new BadRequestException("이 과제에서 선택할 수 없는 클래스입니다.", ErrorCode.S001);
+        }
         CellType correctLabel = resolveCorrectLabel(crop, isDiagnosticTask(crop.getTaskId()));
 
         submissionRepository.findByCropIdAndStudentId(cropId, studentId)
@@ -72,20 +79,43 @@ public class SubmissionService {
                             CellType oldLabel = existing.getStudentLabel();
                             submissionRepository.updateLabel(cropId, studentId, newLabel);
                             if (correctLabel != null) {
-                                subtractConfusionMatrixEntry(studentId, crop.getTaskId(),
+                                if (oldLabel != null) subtractConfusionMatrixEntry(studentId, crop.getTaskId(),
                                         correctLabel.name(), oldLabel.name());
-                                updateConfusionMatrix(studentId, crop.getTaskId(),
+                                if (newLabel != null) updateConfusionMatrix(studentId, crop.getTaskId(),
                                         correctLabel.name(), newLabel.name());
                             }
                         },
                         () -> {
                             submissionRepository.save(Submission.create(cropId, studentId, newLabel));
-                            if (correctLabel != null) {
+                            if (correctLabel != null && newLabel != null) {
                                 updateConfusionMatrix(studentId, crop.getTaskId(),
                                         correctLabel.name(), newLabel.name());
                             }
                         }
                 );
+    }
+
+    @Transactional
+    public Map<String, Boolean> finalizeAttempt(Long taskId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(taskId), studentId);
+        if (scope.tasks().isEmpty() || scope.tasks().stream().anyMatch(t -> !t.isPublished())) {
+            throw new BadRequestException("게시된 과제를 찾을 수 없습니다.", ErrorCode.S001);
+        }
+        if (!scope.finalized()) {
+            if (isDeadlinePassed(scope.tasks())) throw new BadRequestException("이미 마감된 과제입니다.", ErrorCode.S001);
+            if (scope.crops().isEmpty() || scope.submissions().size() != scope.crops().size()) {
+                throw new BadRequestException("모든 문항에 응답해주세요. 모르는 문항은 '모르겠어요'로 응답할 수 있습니다.", ErrorCode.S001);
+            }
+            scope.tasks().forEach(t -> attemptRepository.save(new com.cell.platform.entity.TaskAttemptEntity(t.getId(), studentId)));
+        }
+        ScopeSnapshot finalized = new ScopeSnapshot(scope.tasks(), scope.crops(), scope.submissions(), scope.diagnostic(), true);
+        return Map.of("submitted", true, "reviewAvailable", isReviewAvailable(finalized));
+    }
+
+    public Map<String, Boolean> getAttemptState(Long taskId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(taskId), studentId);
+        if (scope.tasks().stream().anyMatch(t -> !t.isPublished())) throw new NotFoundException("게시된 과제를 찾을 수 없습니다.", ErrorCode.T000);
+        return Map.of("submitted", scope.finalized(), "locked", isSubmissionLocked(scope), "reviewAvailable", isReviewAvailable(scope));
     }
 
     // --- 여기서부터 원래 주훈님이 가지고 계시던 소중한 코드들 복구 --- //
@@ -95,7 +125,7 @@ public class SubmissionService {
         List<Long> cropIds = crops.stream().map(Crop::getId).toList();
         Map<Long, String> result = new LinkedHashMap<>();
         submissionRepository.findAllByCropIdInAndStudentId(cropIds, studentId)
-                .forEach(sub -> result.put(sub.getCropId(), sub.getStudentLabel().name()));
+                .forEach(sub -> result.put(sub.getCropId(), sub.getAnswerLabel()));
         return result;
     }
 
@@ -107,7 +137,7 @@ public class SubmissionService {
                 .toList();
         Map<Long, String> result = new LinkedHashMap<>();
         submissionRepository.findAllByCropIdInAndStudentId(allCropIds, studentId)
-                .forEach(sub -> result.put(sub.getCropId(), sub.getStudentLabel().name()));
+                .forEach(sub -> result.put(sub.getCropId(), sub.getAnswerLabel()));
         return result;
     }
 
@@ -135,7 +165,7 @@ public class SubmissionService {
 
         int correct = 0, wrong = 0;
         List<MyResultsResponse.Detail> details = new ArrayList<>();
-        List<String> labels = Arrays.stream(CellType.values()).map(Enum::name).toList();
+        List<String> labels = allCrops.stream().flatMap(c -> c.getClassLabels().keySet().stream()).distinct().toList();
         Map<String, Map<String, Integer>> confusionMatrix = initConfusionMatrix(labels);
 
         for (Submission sub : submissions) {
@@ -145,15 +175,15 @@ public class SubmissionService {
             String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
             Boolean isCorrect = null;
             if (correctLabel != null) {
-                isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+                isCorrect = sub.getAnswerLabel().equals(correctLabel);
                 if (isCorrect) correct++; else wrong++;
-                confusionMatrix.get(correctLabel)
-                        .compute(sub.getStudentLabel().name(), (k, v) -> v == null ? 1 : v + 1);
+                if (sub.getStudentLabel() != null) confusionMatrix.get(correctLabel)
+                        .compute(sub.getAnswerLabel(), (k, v) -> v == null ? 1 : v + 1);
             }
             details.add(MyResultsResponse.Detail.builder()
                     .cropId(crop.getId()).cropFilename(crop.getCropFilename())
                     .speciesCode(crop.getSpeciesCode()).speciesName(crop.getSpeciesName())
-                    .studentLabel(sub.getStudentLabel().name())
+                    .studentLabel(sub.getAnswerLabel())
                     .correctLabel(correctLabel).isCorrect(isCorrect).build());
         }
 
@@ -186,8 +216,7 @@ public class SubmissionService {
         int correct = 0;
         int wrong = 0;
         List<MyResultsResponse.Detail> details = new ArrayList<>();
-        List<String> labels = Arrays.stream(CellType.values())
-                .map(Enum::name)
+        List<String> labels = crops.stream().flatMap(c -> c.getClassLabels().keySet().stream()).distinct()
                 .toList();
         Map<String, Map<String, Integer>> confusionMatrix = initConfusionMatrix(labels);
 
@@ -199,12 +228,12 @@ public class SubmissionService {
             String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
             Boolean isCorrect = null;
             if (correctLabel != null) {
-                isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+                isCorrect = sub.getAnswerLabel().equals(correctLabel);
                 if (isCorrect) correct++;
                 else wrong++;
 
-                confusionMatrix.get(correctLabel)
-                        .compute(sub.getStudentLabel().name(), (key, value) -> value == null ? 1 : value + 1);
+                if (sub.getStudentLabel() != null) confusionMatrix.get(correctLabel)
+                        .compute(sub.getAnswerLabel(), (key, value) -> value == null ? 1 : value + 1);
             }
 
             details.add(MyResultsResponse.Detail.builder()
@@ -212,7 +241,7 @@ public class SubmissionService {
                     .cropFilename(crop.getCropFilename())
                     .speciesCode(crop.getSpeciesCode())
                     .speciesName(crop.getSpeciesName())
-                    .studentLabel(sub.getStudentLabel().name())
+                    .studentLabel(sub.getAnswerLabel())
                     .correctLabel(correctLabel)
                     .isCorrect(isCorrect)
                     .build());
@@ -292,7 +321,7 @@ public class SubmissionService {
             String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
             Boolean isCorrect = correctLabel == null
                     ? null
-                    : submission.getStudentLabel().name().equals(correctLabel);
+                    : submission.getAnswerLabel().equals(correctLabel);
             if (isCorrect == null) pending++;
             else if (isCorrect) correct++;
             else wrong++;
@@ -300,7 +329,7 @@ public class SubmissionService {
             cells.add(new StudentReviewResponse.ReviewCell(
                     crop.getTaskId(), crop.getId(), crop.getCropFilename(),
                     crop.getOriginalSmearFilename(), crop.getSpeciesCode(), crop.getSpeciesName(), crop.getBbox(),
-                    submission.getStudentLabel().name(), correctLabel, isCorrect
+                    submission.getAnswerLabel(), correctLabel, isCorrect
             ));
         }
 
@@ -343,7 +372,7 @@ public class SubmissionService {
 
     private ScopeSnapshot createScopeSnapshot(List<Task> tasks, String studentId) {
         if (tasks == null || tasks.isEmpty()) {
-            return new ScopeSnapshot(List.of(), List.of(), List.of(), false);
+            return new ScopeSnapshot(List.of(), List.of(), List.of(), false, false);
         }
         List<Long> taskIds = tasks.stream().map(Task::getId).toList();
         List<Crop> crops = cropRepository.findAllByTaskIdIn(taskIds);
@@ -351,25 +380,22 @@ public class SubmissionService {
         List<Submission> submissions = cropIds.isEmpty()
                 ? List.of()
                 : submissionRepository.findAllByCropIdInAndStudentId(cropIds, studentId);
-        return new ScopeSnapshot(tasks, crops, submissions, isDiagnosticTask(tasks.get(0)));
+        return new ScopeSnapshot(tasks, crops, submissions, isDiagnosticTask(tasks.get(0)),
+                attemptRepository.existsByTaskIdInAndStudentId(taskIds, studentId));
     }
 
     private boolean isReviewAvailable(ScopeSnapshot scope) {
+        if (scope.tasks().isEmpty() || scope.tasks().stream().anyMatch(t -> !t.isPublished())) return false;
+        if (scope.tasks().stream().anyMatch(Task::isResultsAfterDeadline) && !isDeadlinePassed(scope.tasks())) return false;
         if (scope.crops().isEmpty() || scope.submissions().isEmpty()) return false;
-        boolean allAnswered = scope.submissions().size() >= scope.crops().size();
-        if (scope.diagnostic()) return allAnswered;
         if (isDeadlinePassed(scope.tasks())) return true;
+        if (!scope.finalized()) return false;
         boolean allGraded = scope.crops().stream().allMatch(crop -> crop.getFinalLabel() != null);
-        return allAnswered && allGraded;
+        return allGraded;
     }
 
     private boolean isSubmissionLocked(ScopeSnapshot scope) {
-        if (scope.crops().isEmpty()) return false;
-        if (!scope.diagnostic() && isDeadlinePassed(scope.tasks())) return true;
-        boolean allAnswered = scope.submissions().size() >= scope.crops().size();
-        if (scope.diagnostic()) return allAnswered;
-        boolean allGraded = scope.crops().stream().allMatch(crop -> crop.getFinalLabel() != null);
-        return allAnswered && allGraded;
+        return scope.finalized() || isDeadlinePassed(scope.tasks());
     }
 
     private boolean isDeadlinePassed(List<Task> tasks) {
@@ -391,15 +417,15 @@ public class SubmissionService {
     }
 
     private boolean isDiagnosticTask(Task task) {
-        return task.getUploadedFilename() != null
-                && task.getUploadedFilename().startsWith(DIAGNOSTIC_PREFIX);
+        return task.isDiagnostic();
     }
 
     private record ScopeSnapshot(
             List<Task> tasks,
             List<Crop> crops,
             List<Submission> submissions,
-            boolean diagnostic
+            boolean diagnostic,
+            boolean finalized
     ) {
     }
 
@@ -408,8 +434,7 @@ public class SubmissionService {
             return false;
         }
         return taskRepository.findById(taskId)
-                .map(task -> task.getUploadedFilename() != null
-                        && task.getUploadedFilename().startsWith(DIAGNOSTIC_PREFIX))
+                .map(Task::isDiagnostic)
                 .orElse(false);
     }
 
@@ -452,14 +477,16 @@ public class SubmissionService {
 
     @Transactional
     public void backfillConfusionMatrixForCrop(Long cropId, Long taskId, CellType oldFinalLabel, CellType newFinalLabel) {
+        if (java.util.Objects.equals(oldFinalLabel, newFinalLabel)) return;
         List<Submission> submissions = submissionRepository.findAllByCropId(cropId);
         for (Submission sub : submissions) {
+            if (sub.getStudentLabel() == null) continue;
             String studentId = sub.getStudentId();
-            String predicted = sub.getStudentLabel().name();
+            String predicted = sub.getAnswerLabel();
             if (oldFinalLabel != null) {
                 subtractConfusionMatrixEntry(studentId, taskId, oldFinalLabel.name(), predicted);
             }
-            updateConfusionMatrix(studentId, taskId, newFinalLabel.name(), predicted);
+            if (newFinalLabel != null) updateConfusionMatrix(studentId, taskId, newFinalLabel.name(), predicted);
         }
     }
 
@@ -545,7 +572,7 @@ public class SubmissionService {
     public DiagnosticStudentMatrixResponse getCumulativeStudentMatrices() {
         List<User> students = userRepository.findAllByRole(Role.STUDENT);
         List<String> labels = Arrays.stream(CellType.values())
-                .map(Enum::name)
+                .map(CellType::name)
                 .toList();
 
         Map<String, Map<String, Map<String, Integer>>> matrixByStudent = new LinkedHashMap<>();

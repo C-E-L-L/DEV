@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { speciesApi } from '../api';
+import CellClassSettings from './CellClassSettings';
 
 export default function SpeciesDataSettings({ species, onSaved }) {
   const [newName, setNewName] = useState('');
@@ -16,6 +17,13 @@ export default function SpeciesDataSettings({ species, onSaved }) {
   }, [editingId, species]);
 
   const normalize = (value) => value.trim().replace(/\s+/g, ' ');
+
+  const toggleActive = async item => {
+    setSaving(true);setNotice(null);
+    try { await speciesApi.setActive(item.id, item.active === false); await onSaved(); }
+    catch(error) { setNotice({type:'error',text:error.response?.data?.message || '사용 상태를 변경하지 못했습니다.'}); }
+    finally { setSaving(false); }
+  };
 
   const createSpecies = async () => {
     const name = normalize(newName);
@@ -147,7 +155,7 @@ export default function SpeciesDataSettings({ species, onSaved }) {
                           <button type="button" onClick={cancelEditing} disabled={saving} style={smallSecondaryStyle}>취소</button>
                         </div>
                       ) : (
-                        <button type="button" onClick={() => startEditing(item)} disabled={saving} style={smallSecondaryStyle}>이름 수정</button>
+                        <div className="pw-actions"><button type="button" onClick={() => startEditing(item)} disabled={saving} style={smallSecondaryStyle}>이름 수정</button><button type="button" disabled={saving} onClick={() => toggleActive(item)}>{item.active === false ? '다시 사용' : '사용 중지'}</button></div>
                       )}
                     </td>
                   </tr>
@@ -158,12 +166,8 @@ export default function SpeciesDataSettings({ species, onSaved }) {
         </div>
       </section>
 
-      <section style={{ ...sectionStyle, background: '#f8f9fa' }}>
-        <h3 style={sectionTitleStyle}>세포 클래스 관리</h3>
-        <div style={{ color: '#6c757d', fontSize: '13px' }}>
-          종별 세포 클래스 추가·수정과 AI 지원 여부 관리는 추후 업데이트에서 제공할 예정입니다.
-        </div>
-      </section>
+      <CellClassSettings species={species} />
+      <p>동물 종은 삭제 대신 사용 중지합니다. 기존 과제·이미지·학생 기록은 유지됩니다.</p>
     </div>
   );
 }

@@ -25,7 +25,8 @@ public record CropStatsResponse(
         double hardScore,
         List<String> wrongDetails,
         Map<String, Integer> voteDistribution,
-        Map<String, List<VoterDetail>> votersByLabel
+        Map<String, List<VoterDetail>> votersByLabel,
+        Map<String,String> classLabels
 ) {
     public record VoterDetail(
             String studentId,

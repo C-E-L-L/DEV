@@ -24,6 +24,14 @@ public class AnimalSpeciesController {
 
     private final AnimalSpeciesService speciesService;
 
+    public record ActiveRequest(boolean active) {}
+
+    @PutMapping("/{speciesId}/active")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public AnimalSpeciesResponse active(@PathVariable Long speciesId, @RequestBody ActiveRequest request) {
+        return speciesService.setActive(speciesId, request.active());
+    }
+
     @GetMapping
     public ResponseEntity<List<AnimalSpeciesResponse>> getAll() {
         return ResponseEntity.ok(speciesService.getAll());

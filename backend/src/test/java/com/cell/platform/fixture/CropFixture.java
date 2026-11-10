@@ -10,22 +10,22 @@ public class CropFixture {
     public static Crop createDomain() {
         return Crop.builder()
                 .id(1L)
-                .taskId(1L)
+                .taskId(1L).taskPublished(true)
                 .cropFilename("crop_abc.jpg")
                 .bbox("[10, 20, 30, 40]")
-                .aiPrediction(CellType.Lymphocyte)
-                .aiConfidence(0.95)
+                .pseudoLabel(CellType.Lymphocyte)
+                .aiClassificationConfidence(0.95)
                 .build();
     }
 
     public static Crop createDomainWithFinalLabel() {
         return Crop.builder()
                 .id(1L)
-                .taskId(1L)
+                .taskId(1L).taskPublished(true)
                 .cropFilename("crop_abc.jpg")
                 .bbox("[10, 20, 30, 40]")
-                .aiPrediction(CellType.Lymphocyte)
-                .aiConfidence(0.95)
+                .pseudoLabel(CellType.Lymphocyte)
+                .aiClassificationConfidence(0.95)
                 .finalLabel(CellType.Lymphocyte)
                 .build();
     }
@@ -36,8 +36,8 @@ public class CropFixture {
                 .task(task)
                 .cropFilename("crop_abc.jpg")
                 .bbox("[10, 20, 30, 40]")
-                .aiPrediction(CellType.Lymphocyte)
-                .aiConfidence(0.95)
+                .pseudoLabel(CellType.Lymphocyte)
+                .aiClassificationConfidence(0.95)
                 .build();
     }
 }

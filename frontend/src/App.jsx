@@ -5,7 +5,7 @@ import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import StudentPage from './pages/StudentPage';
 import StudentMyPage from './pages/StudentMyPage';
-import ExpertPage from './pages/ExpertPage';
+import ExpertPage from './pages/ProfessorWorkspace';
 import AdminPage from './pages/AdminPage';
 import BombGamePage from './pages/BombGamePage';
 

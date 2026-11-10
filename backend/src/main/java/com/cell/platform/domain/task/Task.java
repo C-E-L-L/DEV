@@ -12,6 +12,13 @@ public class Task {
 
     private Long id;
     private TaskStatus status;
+    private java.util.Map<String,String> classLabels = com.cell.platform.domain.crop.CellType.defaultLabels();
+
+    private TaskKind kind;
+    private boolean requireLabels;
+    private boolean resultsAfterDeadline;
+    private Long revision;
+    private LocalDateTime publishedAt;
     private String originalFilename;
     private String uploadedFilename;
     private Long assignmentId;
@@ -27,9 +34,18 @@ public class Task {
     public Task(Long id, TaskStatus status, String originalFilename,
                 String uploadedFilename, Long assignmentId, String title,
                 Long speciesId, String speciesCode, String speciesName,
-                LocalDateTime createdAt, LocalDateTime deadlineAt, List<Crop> crops) {
+                LocalDateTime createdAt, LocalDateTime deadlineAt, List<Crop> crops,
+                TaskKind kind, boolean requireLabels, boolean resultsAfterDeadline,
+                Long revision, LocalDateTime publishedAt, java.util.Map<String,String> classLabels) {
+        this.classLabels = classLabels == null ? com.cell.platform.domain.crop.CellType.defaultLabels() : new java.util.LinkedHashMap<>(classLabels);
         this.id = id;
         this.status = status;
+        this.kind = kind != null ? kind : uploadedFilename != null && uploadedFilename.startsWith("diagnostic-")
+                ? TaskKind.DIAGNOSTIC : TaskKind.PRACTICE;
+        this.requireLabels = requireLabels;
+        this.resultsAfterDeadline = resultsAfterDeadline;
+        this.revision = revision;
+        this.publishedAt = publishedAt;
         this.originalFilename = originalFilename;
         this.uploadedFilename = uploadedFilename;
         this.assignmentId = assignmentId;
@@ -44,6 +60,21 @@ public class Task {
 
     public static Task create(String originalFilename, String uploadedFilename) {
         return create(originalFilename, uploadedFilename, null);
+    }
+
+    public void setClassLabels(java.util.Map<String,String> labels) { this.classLabels = new java.util.LinkedHashMap<>(labels); }
+
+    public boolean isPublished() {
+        return status == TaskStatus.IN_PROGRESS || status == TaskStatus.COMPLETED;
+    }
+
+    public boolean isDiagnostic() { return kind == TaskKind.DIAGNOSTIC; }
+
+    public void prepareDraft(TaskKind kind, String title) {
+        this.status = TaskStatus.DRAFT;
+        this.kind = kind;
+        this.title = title;
+        this.requireLabels = kind == TaskKind.DIAGNOSTIC;
     }
 
     public static Task create(String originalFilename, String uploadedFilename, LocalDateTime deadlineAt) {

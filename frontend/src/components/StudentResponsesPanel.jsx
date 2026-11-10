@@ -1,3 +1,4 @@
+import { cellChoices, answerLabel } from '../utils/cellClasses';
 import { useMemo, useState } from 'react';
 import { CELL_TYPES, imageUrl } from '../constants';
 import { summarizeStudentResponses } from '../utils/studentResponses';
@@ -71,7 +72,7 @@ export default function StudentResponsesPanel({ crops, selectedCrop, onSelectCro
               </div>
               <h4 style={{ margin: '0 0 12px', color: '#495057' }}>학생 응답 <span style={{ fontSize: '12px', fontWeight: 'normal' }}>(조회 전용)</span></h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {CELL_TYPES.map(({ key, label }) => (
+                {[...cellChoices(selectedCrop), {key:'UNKNOWN',label:answerLabel('UNKNOWN')}].map(({ key, label }) => (
                   <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '11px 12px', borderRadius: '6px', border: `1px solid ${answer === key ? '#339af0' : '#e9ecef'}`, background: answer === key ? '#e7f5ff' : '#f8f9fa', color: answer === key ? '#1864ab' : '#495057', fontWeight: answer === key ? '700' : '400' }}>
                     <span aria-hidden="true">{answer === key ? '☑' : '☐'}</span>
                     <span style={{ flex: 1 }}>{label}</span>

@@ -30,9 +30,12 @@ class CropServiceTest {
     @Mock private CropRepository cropRepository;
     @Mock private CropCoreRepository cropCoreRepository;
 
+    @Mock private com.cell.platform.domain.task.TaskRepository tasks;
+    @Mock private SubmissionService submissions;
+
     @BeforeEach
     void setUp() {
-        cropService = new CropService(cropRepository, cropCoreRepository);
+        cropService = new CropService(cropRepository, cropCoreRepository, tasks, submissions);
     }
 
     @Nested
@@ -85,6 +88,7 @@ class CropServiceTest {
 
         @Test
         void 유효하지_않은_셀타입이면_예외가_발생한다() {
+            given(cropCoreRepository.findEntityById(1L)).willReturn(CropFixture.createEntity(TaskFixture.createEntity()));
             assertThrows(BadRequestException.class,
                     () -> cropService.confirmLabel(1L, "InvalidType"));
         }

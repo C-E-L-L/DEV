@@ -33,11 +33,11 @@ class StudentAnalyticsServiceTest {
     @BeforeEach
     void setup() {
         service = new StudentAnalyticsService(tasks, crops, submissions,
-                new SubmissionService(submissions, crops, users, tasks, dataset, matrices));
+                new SubmissionService(submissions, crops, users, tasks, dataset, matrices, org.mockito.Mockito.mock(com.cell.platform.infra.submission.TaskAttemptJpaRepository.class)));
     }
 
     private Task task(long id, Long assignmentId) {
-        return Task.builder().id(id).assignmentId(assignmentId).title("과제 " + id).uploadedFilename("smear.jpg").build();
+        return Task.builder().id(id).status(TaskStatus.IN_PROGRESS).assignmentId(assignmentId).title("과제 " + id).uploadedFilename("smear.jpg").build();
     }
 
     private Crop crop(long id, long taskId, CellType label) {
@@ -90,7 +90,7 @@ class StudentAnalyticsServiceTest {
 
     @Test
     void diagnosticUsesGtAndManifestButOrdinaryTasksRequireFinalLabels() {
-        Task diagnostic = Task.builder().id(2L).uploadedFilename("diagnostic-test").build();
+        Task diagnostic = Task.builder().id(2L).status(TaskStatus.IN_PROGRESS).uploadedFilename("diagnostic-test").build();
         when(tasks.findAllByOrderByIdDesc()).thenReturn(List.of(diagnostic, task(1, null)));
         when(crops.findAllByTaskIdIn(anyList())).thenReturn(List.of(
                 Crop.builder().id(1L).taskId(1L).gtLabel(CellType.Band).pseudoLabel(CellType.Band).build(),

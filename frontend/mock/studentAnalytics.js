@@ -1,4 +1,5 @@
-const diagnostic = task => task.uploadedFilename?.startsWith('diagnostic-');
+import {isPublished,isDiagnostic} from '../src/utils/coursework.js';
+const diagnostic = isDiagnostic;
 const title = task => diagnostic(task) ? `Diagnostic #${task.id}` : task.title || `Task #${task.id}`;
 
 function summary(cells) {
@@ -12,7 +13,7 @@ function summary(cells) {
 }
 
 export function mockTaskDetail(task, crops, answers, studentId) {
-  const cells = [...crops].sort((a, b) => a.cropId - b.cropId).map(crop => {
+  const cells = crops.filter(c=>!c.excluded).sort((a, b) => a.cropId - b.cropId).map(crop => {
     const studentLabel = answers[crop.cropId] || null;
     const correctLabel = crop.finalLabel || (diagnostic(task) ? crop.gtLabel : null) || null;
     return { cropId: crop.cropId, cropFilename: crop.filename, studentLabel, correctLabel,
@@ -24,7 +25,7 @@ export function mockTaskDetail(task, crops, answers, studentId) {
 
 export function mockLearningHistory(tasks, cropStats, answers, studentId) {
   const groups = new Map();
-  for (const task of [...tasks].sort((a, b) => b.id - a.id)) {
+  for (const task of tasks.filter(isPublished).sort((a, b) => b.id - a.id)) {
     const key = task.assignmentId ? `ASSIGNMENT:${task.assignmentId}` : `TASK:${task.id}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(task);
@@ -53,7 +54,7 @@ export function mockStudentMatrices(students, tasks, cropStats, studentAnswers, 
     for (const task of tasks) {
       const detail = mockTaskDetail(task, cropStats.get(task.id) || [], studentAnswers.get(student.studentId) || {}, student.studentId);
       for (const cell of detail.cells) {
-        if (cell.isCorrect != null) {
+        if (cell.isCorrect != null && labels.includes(cell.studentLabel) && labels.includes(cell.correctLabel)) {
           matrix[cell.correctLabel][cell.studentLabel]++;
           total[cell.correctLabel][cell.studentLabel]++;
         }

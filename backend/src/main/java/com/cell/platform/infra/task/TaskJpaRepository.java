@@ -8,6 +8,9 @@ import java.util.List;
 
 public interface TaskJpaRepository extends JpaRepository<TaskEntity, Long> {
 
+    @Query("select count(t) from TaskEntity t where t.originalFilename = :filename and t.status in :statuses")
+    long countVisibleImage(@Param("filename") String filename, @Param("statuses") List<com.cell.platform.domain.task.TaskStatus> statuses);
+
     List<TaskEntity> findAllByOrderByIdDesc();
 
     @Query("""

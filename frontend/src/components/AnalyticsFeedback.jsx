@@ -1,3 +1,4 @@
+import { cellChoices, answerLabel } from '../utils/cellClasses';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { taskApi, statsApi, cropApi, labelingApi, speciesApi } from '../api';
 import { CELL_KEYS, imageUrl } from '../constants';
@@ -29,7 +30,7 @@ function VoteBar({ voteDistribution, votersByLabel, totalAnswers }) {
 
   return (
     <div style={{ marginTop: '10px' }}>
-      {CELL_KEYS.map(label => {
+      {Object.keys(voteDistribution || {}).map(label => {
         const count = voteDistribution?.[label] || 0;
         const pct = (count / totalAnswers) * 100;
         const isExpanded = expandedLabel === label;
@@ -47,7 +48,7 @@ function VoteBar({ voteDistribution, votersByLabel, totalAnswers }) {
                 cursor: 'pointer', font: 'inherit', textAlign: 'left',
               }}
             >
-              <span style={{ width: '90px', fontSize: '13px', color: '#495057', fontWeight: '500' }}>{label}</span>
+              <span style={{ width: '90px', fontSize: '13px', color: '#495057', fontWeight: '500' }}>{answerLabel(label)}</span>
               <span style={{ flex: 1, height: '20px', background: '#e9ecef', borderRadius: '4px', overflow: 'hidden', marginRight: '10px' }}>
                 <span style={{ display: 'block', width: `${pct}%`, height: '100%', background: pct > 0 ? '#4dabf7' : 'transparent', transition: 'width 0.3s ease' }} />
               </span>
@@ -186,7 +187,7 @@ function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
 }
 
-export default function AnalyticsFeedback() {
+export default function AnalyticsFeedback({ initialTaskId = null, courseworkOnly = false }) {
   const [analyticsSubTab, setAnalyticsSubTab] = useState('tasks');
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -357,6 +358,10 @@ export default function AnalyticsFeedback() {
     }
   }, [tasks]);
 
+  useEffect(() => {
+    if (initialTaskId && tasks.length) fetchTaskStats(initialTaskId);
+  }, [initialTaskId, fetchTaskStats]);
+
   /* ── Canvas 렌더링: 이미지 + 바운딩 박스 ── */
   useEffect(() => {
     if (!canvasRef.current || !originalImage || !imageLoaded) return;
@@ -494,18 +499,22 @@ export default function AnalyticsFeedback() {
   return (
         <div style={boxStyle}>
           {/* 서브탭 */}
-          <div style={subTabBar}>
+          {!courseworkOnly && <div style={subTabBar}>
             <button onClick={() => setAnalyticsSubTab('tasks')} style={analyticsSubTab === 'tasks' ? subTabActive : subTabInactive}>📋 Tasks</button>
             <button onClick={() => setAnalyticsSubTab('cells')} style={analyticsSubTab === 'cells' ? subTabActive : subTabInactive}>🔬 Cells</button>
             <button onClick={() => setAnalyticsSubTab('students')} style={analyticsSubTab === 'students' ? subTabActive : subTabInactive}>🧑‍🎓 Students</button>
             <button onClick={() => setAnalyticsSubTab('reports')} style={analyticsSubTab === 'reports' ? subTabActive : subTabInactive}>Reports</button>
-          </div>
+          </div>}
 
           {/* ───── Tasks 서브탭 ───── */}
           {analyticsSubTab === 'tasks' && (
             <div>
+              {courseworkOnly && <div className="pw-actions" style={{marginBottom:16}}>{tasks.filter(t => {
+                const initial=tasks.find(item=>item.id===initialTaskId);
+                return initial?.assignmentId ? t.assignmentId===initial.assignmentId : t.id===initialTaskId;
+              }).map((t,index)=><button key={t.id} aria-pressed={t.id===selectedTaskId} onClick={()=>fetchTaskStats(t.id)}>{isDiagnosticTask(t)?'진단평가':`도말 ${index+1}`} · {t.title || t.uploadedFilename}</button>)}</div>}
               {/* ── 과제 내부 뷰: 선택된 assignment의 도말 목록 ── */}
-              {selectedAssignmentId ? (() => {
+              {!courseworkOnly && (selectedAssignmentId ? (() => {
                 const group = assignmentGroups.find(g => g.id === selectedAssignmentId);
                 if (!group) return null;
                 return (
@@ -684,7 +693,7 @@ export default function AnalyticsFeedback() {
                     )}
                   </div>
                 </div>
-              )}
+              ))}
 
               {selectedTaskId && stats.length > 0 && selectedAnalyticsTask && !isDiagnosticTask(selectedAnalyticsTask) && (
                 <div style={labelingToolsStyle}>
@@ -909,7 +918,7 @@ export default function AnalyticsFeedback() {
                           ) : (
                             <div style={{ display: 'flex', gap: '10px' }}>
                               <select id={`gt_${selectedCrop.cropId}`} defaultValue={selectedCrop.finalLabel || selectedCrop.gtLabel || CELL_KEYS[0]} style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ced4da' }}>
-                                {CELL_KEYS.map(label => <option key={label} value={label}>{label}</option>)}
+                                {cellChoices(selectedCrop).map(({key,label}) => <option key={key} value={key}>{label}</option>)}
                               </select>
                               <button onClick={() => handleConfirmLabel(selectedCrop.cropId, document.getElementById(`gt_${selectedCrop.cropId}`).value)} style={confirmBtn}>
                                 {selectedCrop.finalLabel ? '저장' : 'Confirm'}

@@ -25,7 +25,7 @@ public class StatsService {
     private final UserRepository userRepository;
 
     private static final List<String> CELL_LABELS = Arrays.stream(CellType.values())
-            .map(Enum::name)
+            .map(CellType::name)
             .toList();
 
     public List<CropStatsResponse> getTaskStats(Long taskId) {
@@ -85,8 +85,8 @@ public class StatsService {
 
         List<String> wrongDetails = scorable
                 ? submissions.stream()
-                .filter(sub -> !sub.getStudentLabel().name().equals(correctLabel))
-                .map(sub -> sub.getStudentLabel().name())
+                .filter(sub -> !sub.getAnswerLabel().equals(correctLabel))
+                .map(sub -> sub.getAnswerLabel())
                 .toList()
                 : List.of();
 
@@ -98,14 +98,16 @@ public class StatsService {
 
         Map<String, Integer> voteDistribution = new LinkedHashMap<>();
         Map<String, List<CropStatsResponse.VoterDetail>> votersByLabel = new LinkedHashMap<>();
-        for (String label : CELL_LABELS) {
+        List<String> choices = new ArrayList<>(crop.getClassLabels().keySet());
+        choices.add("UNKNOWN");
+        for (String label : choices) {
             int count = (int) submissions.stream()
-                    .filter(sub -> sub.getStudentLabel().name().equals(label))
+                    .filter(sub -> sub.getAnswerLabel().equals(label))
                     .count();
             voteDistribution.put(label, count);
             votersByLabel.put(label, studentNamesById != null
                     ? submissions.stream()
-                    .filter(sub -> sub.getStudentLabel().name().equals(label))
+                    .filter(sub -> sub.getAnswerLabel().equals(label))
                     .filter(sub -> sub.getStudentId() != null)
                     .sorted(Comparator.comparing(Submission::getStudentId))
                     .map(sub -> buildVoterDetail(sub.getStudentId(), studentNamesById))
@@ -134,6 +136,7 @@ public class StatsService {
                 .wrongDetails(wrongDetails)
                 .voteDistribution(voteDistribution)
                 .votersByLabel(votersByLabel)
+                .classLabels(crop.getClassLabels())
                 .build();
     }
 

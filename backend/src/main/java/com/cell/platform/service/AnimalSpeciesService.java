@@ -47,6 +47,11 @@ public class AnimalSpeciesService {
     }
 
     @Transactional
+    public AnimalSpeciesResponse setActive(Long id, boolean active) {
+        var species = getRequired(id); species.setActive(active); return AnimalSpeciesResponse.from(species);
+    }
+
+    @Transactional
     public AnimalSpeciesResponse create(String rawName) {
         String name = normalizeName(rawName);
         ensureUniqueName(name, null);
@@ -74,6 +79,7 @@ public class AnimalSpeciesService {
                 .orElseThrow(() -> new NotFoundException(
                         "도말 이미지를 찾을 수 없습니다. taskId=" + taskId, ErrorCode.T000));
         AnimalSpeciesEntity species = getRequired(speciesId);
+        if (task.isPublished()) throw new BadRequestException("게시된 과제의 동물 종은 변경할 수 없습니다. 새 과제로 복사해주세요.", ErrorCode.G000);
         task.updateAnimalSpecies(species);
         return AnimalSpeciesResponse.from(species);
     }

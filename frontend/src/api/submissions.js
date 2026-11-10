@@ -1,6 +1,8 @@
 import api from './client';
 
 export const submissionApi = {
+  finalize: taskId => api.post(`/student/tasks/${taskId}/finalize`),
+  attempt: taskId => api.get(`/student/tasks/${taskId}/attempt`),
   submit: (cropId, studentId, studentLabel) =>
     api.post('/submit', { cropId, studentId, studentLabel }),
 

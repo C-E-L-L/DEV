@@ -6,14 +6,15 @@ public record AnimalSpeciesResponse(
         Long id,
         String code,
         String name,
-        boolean builtIn
+        boolean builtIn,
+        boolean active
 ) {
     public static AnimalSpeciesResponse from(AnimalSpeciesEntity entity) {
         return new AnimalSpeciesResponse(
                 entity.getId(),
                 entity.getCode(),
                 entity.getName(),
-                entity.isBuiltIn()
+                entity.isBuiltIn(), entity.isActive()
         );
     }
 }

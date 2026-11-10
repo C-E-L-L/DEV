@@ -7,6 +7,10 @@ import java.util.List;
 
 public interface CropJpaRepository extends JpaRepository<CropEntity, Long> {
 
+    @Query("select count(c) from CropEntity c where c.cropFilename = :filename and c.excluded = false and c.task.status in :statuses")
+    long countVisibleImage(@org.springframework.data.repository.query.Param("filename") String filename,
+                          @org.springframework.data.repository.query.Param("statuses") List<com.cell.platform.domain.task.TaskStatus> statuses);
+
     List<CropEntity> findAllByTask_Id(Long taskId);
 
     List<CropEntity> findAllByFinalLabelIsNotNull();

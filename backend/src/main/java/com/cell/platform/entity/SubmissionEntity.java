@@ -22,8 +22,8 @@ public class SubmissionEntity {
     @Column(nullable = false)
     private String studentId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Convert(converter = CellTypeConverter.class)
+    @Column
     private CellType studentLabel;
 
     private LocalDateTime submittedAt;

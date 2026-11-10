@@ -20,6 +20,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -37,8 +38,12 @@ public class SecurityConfig {
                 .requestMatchers("/data/**").authenticated()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/coursework/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/professor/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/student/tasks/**").hasRole("STUDENT")
                 .requestMatchers("/api/game/**").hasRole("ADMIN")
                 .requestMatchers("/api/labeling/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/training-data").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers("/api/analytics/students/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/all-stats").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/student/reviews", "/api/student/reviews/**").hasRole("STUDENT")

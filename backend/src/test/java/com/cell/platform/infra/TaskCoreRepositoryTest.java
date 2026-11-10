@@ -44,7 +44,7 @@ class TaskCoreRepositoryTest extends RepositoryContext {
         void 과제와_크롭을_함께_저장한다() {
             // given
             Task task = Task.create("orig.jpg", "blood.jpg");
-            Crop crop = Crop.create("crop_abc.jpg", "[10,20,30,40]", CellType.Lymphocyte, 0.95);
+            Crop crop = Crop.create("crop_abc.jpg", "[10,20,30,40]", null, CellType.Lymphocyte, null, 0.95);
             task.getCrops().add(crop);
 
             // when

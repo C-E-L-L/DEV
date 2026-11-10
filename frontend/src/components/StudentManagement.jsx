@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { diagnosticApi } from '../api';
+import { speciesApi } from '../api';
+import api from '../api/client';
 import { studentAnalyticsApi } from '../api/studentAnalytics';
 import { CELL_KEYS, imageUrl } from '../constants';
 import { learningStatus, LEARNING_STATUS_LABELS, learningScore, summarizeLearningHistory } from '../utils/studentLearning';
 import AuthImage from './AuthImage';
+import StudentRegistration from './StudentRegistration';
 import './StudentManagement.css';
 
 const TYPE_LABELS = { ASSIGNMENT: '과제', TASK: 'Task', DIAGNOSTIC: '진단평가' };
@@ -31,7 +33,13 @@ function LoadState({ request }) {
 }
 
 export default function StudentManagement() {
-  const request = useApiData(diagnosticApi.getStudentMatrices);
+  const [species, setSpecies] = useState([]);
+  const [speciesId, setSpeciesId] = useState('');
+  const [source, setSource] = useState('INITIAL');
+  const [schema,setSchema] = useState('');
+  useEffect(() => { speciesApi.getAll().then(({data}) => { setSpecies(data); setSpeciesId(data.find(s => s.code === 'DOG')?.id || data[0]?.id || ''); }); }, []);
+  const loader = useCallback(() => api.get('/professor/calibration', { params: { speciesId: speciesId || undefined, source, schema: schema || undefined } }), [speciesId, source, schema]);
+  const request = useApiData(loader);
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState('');
   const [section, setSection] = useState('history');
@@ -42,7 +50,14 @@ export default function StudentManagement() {
 
   return (
     <div className="student-management">
-      <div className="sm-heading"><div><h3>Students</h3><p>학생별 학습 이력과 채점 결과를 확인합니다.</p></div><button onClick={request.reload} disabled={request.loading}>새로고침</button></div>
+      <StudentRegistration onChanged={request.reload} />
+      <div className="sm-heading"><div><h3>학생 관리</h3><p>학생별 학습 이력과 채점 결과를 확인합니다.</p></div><button onClick={request.reload} disabled={request.loading}>새로고침</button></div>
+      <div className="sm-filters">
+        <label>동물 종 <select value={speciesId} onChange={e => {setSpeciesId(e.target.value);setSchema('');}}>{species.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+        <label>혼동행렬 범위 <select value={source} onChange={e => setSource(e.target.value)}><option value="INITIAL">초기 진단 · 최초 제출</option><option value="DIAGNOSTIC">진단평가 누적</option><option value="ALL">정답 확인 과제 누적</option></select></label>
+      </div>
+      {request.data?.schemas?.length > 1 && <label>클래스 구성 <select value={schema || request.data.schema} onChange={e=>setSchema(e.target.value)}>{request.data.schemas.map(value=><option key={value} value={value}>{value.split('|').join(', ')}</option>)}</select></label>}
+      <p className="sm-muted">최종 제출한 응답과 교수가 확정한 정답만 사용합니다. 동물 종별로 분리하며, AI 추론값은 정답에 포함하지 않습니다.</p>
       {request.loading || request.error ? <LoadState request={request} /> : (
         <div className="sm-layout">
           <aside className="sm-card sm-students">
@@ -65,9 +80,9 @@ export default function StudentManagement() {
                 <h3>{selected.studentDisplayName || selected.studentId}</h3>
                 <div className="sm-tabs" role="group" aria-label="학생 정보 메뉴">
                   {selectedId !== 'ALL' && <button aria-pressed={section === 'history'} className={section === 'history' ? 'sm-selected' : ''} onClick={() => setSection('history')}>학습 이력</button>}
-                  <button aria-pressed={section === 'matrix'} className={section === 'matrix' ? 'sm-selected' : ''} onClick={() => setSection('matrix')}>누적 혼동행렬</button>
+                  <button aria-pressed={section === 'matrix'} className={section === 'matrix' ? 'sm-selected' : ''} onClick={() => setSection('matrix')}>혼동행렬</button>
                 </div>
-                {section === 'history' && selectedId !== 'ALL' ? <StudentHistory key={selectedId} studentId={selectedId} /> : <StudentMatrix student={selected} />}
+                {section === 'history' && selectedId !== 'ALL' ? <StudentHistory key={selectedId} studentId={selectedId} /> : <StudentMatrix student={selected} labels={request.data?.labels || CELL_KEYS} />}
               </>
             )}
           </section>
@@ -77,14 +92,17 @@ export default function StudentManagement() {
   );
 }
 
-function StudentMatrix({ student }) {
+function StudentMatrix({ student, labels }) {
   return (
     <>
-      <p className="sm-muted">채점된 응답 {student.totalSolved}개 · 정답률 {student.totalSolved > 0 ? `${student.accuracy}%` : '—'}<br />행은 정답, 열은 학생 응답입니다. 미응답과 채점 대기 문항은 제외됩니다.</p>
-      <div className="sm-table-wrap"><table className="sm-matrix"><thead><tr><th>정답 / 응답</th>{CELL_KEYS.map(label => <th key={label}>{label}</th>)}</tr></thead>
-        <tbody>{CELL_KEYS.map(actual => {
-          const total = CELL_KEYS.reduce((sum, label) => sum + (student.confusionMatrix?.[actual]?.[label] || 0), 0);
-          return <tr key={actual}><th>{actual}</th>{CELL_KEYS.map(predicted => {
+      <p className="sm-muted">분류한 응답 {student.totalSolved}개 · 분류 정답률 {student.totalSolved > 0 ? `${student.accuracy}%` : '—'}<br />행은 정답, 열은 학생 응답입니다. 미응답·채점 대기·모르겠어요는 행렬에서 제외됩니다. 모르겠어요 {student.unknownCount || 0}개는 별도 집계합니다.</p>
+      <p className="sm-muted">근거 과제: {student.sourceTaskIds?.length ? student.sourceTaskIds.join(', ') : '최종 제출된 과제 없음'}<br />
+        {student.missingClasses?.length ? `표본이 없는 클래스: ${student.missingClasses.join(', ')}` : '모든 클래스에 응답 표본이 있습니다. 표본 수를 확인한 후 추론에 활용하세요.'}
+      </p>
+      <div className="sm-table-wrap"><table className="sm-matrix"><thead><tr><th>정답 / 응답 (행 표본 수)</th>{labels.map(label => <th key={label}>{label}</th>)}</tr></thead>
+        <tbody>{labels.map(actual => {
+          const total = labels.reduce((sum, label) => sum + (student.confusionMatrix?.[actual]?.[label] || 0), 0);
+          return <tr key={actual}><th>{actual} ({total})</th>{labels.map(predicted => {
             const count = student.confusionMatrix?.[actual]?.[predicted] || 0;
             const correct = actual === predicted;
             const ratio = total ? count / total : 0;

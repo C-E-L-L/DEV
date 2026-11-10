@@ -45,7 +45,7 @@ class AuthServiceTest {
             given(passwordEncoder.encode("pass")).willReturn("$hashed$");
             given(userRepository.save(any(User.class))).willAnswer(i -> i.getArgument(0));
 
-            authService.register(new RegisterRequest("user", "pass", "STUDENT"));
+            authService.register(new RegisterRequest("user", "Student", "pass", "STUDENT"));
 
             verify(userRepository).save(any(User.class));
         }

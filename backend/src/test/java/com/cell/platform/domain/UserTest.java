@@ -43,13 +43,10 @@ class UserTest {
             Role role = Role.STUDENT;
 
             // expect
-            assertThrows(BadRequestException.class, () ->
-                    User.builder()
-                            .username(username)
-                            .password(password)
-                            .role(role)
-                            .build()
-            );
+            try (var factory = jakarta.validation.Validation.buildDefaultValidatorFactory()) {
+                var request = new com.cell.platform.dto.request.RegisterRequest(username, password, "STUDENT");
+                assertThat(factory.getValidator().validate(request)).isNotEmpty();
+            }
         }
 
         private static Stream<Arguments> provideInvalidContent() {

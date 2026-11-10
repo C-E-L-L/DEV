@@ -1,3 +1,4 @@
+import { cellChoices, answerLabel } from '../utils/cellClasses';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -7,9 +8,10 @@ import AuthImage from '../components/AuthImage';
 import StudentReviewPanel from '../components/StudentReviewPanel';
 import ImageDisplayControls, { useImageDisplaySettings } from '../components/ImageDisplayControls';
 import SpeciesBadge from '../components/SpeciesBadge';
+import { isDiagnostic, isPublished } from '../utils/coursework';
 
 function isDiagnosticTask(task) {
-  return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
+  return isDiagnostic(task);
 }
 
 /* ──────────────── Task Card (과제 목록용) ──────────────── */
@@ -18,16 +20,19 @@ function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, d
   const [solved, setSolved] = useState(0);
   const [accuracy, setAccuracy] = useState(null);
   const [reviewAvailable, setReviewAvailable] = useState(false);
+  const [submitted,setSubmitted] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       setReviewAvailable(false);
       try {
+        const {data:state} = await submissionApi.attempt(task.id);
+        setSubmitted(state.submitted);setReviewAvailable(state.reviewAvailable);
         const cropsRes = await cropApi.getByTaskId(task.id);
         setTotal(cropsRes.data.length);
         const solvedRes = await submissionApi.getSolvedCrops(task.id, username);
         setSolved(solvedRes.data.length);
-        if (cropsRes.data.length > 0 && solvedRes.data.length === cropsRes.data.length) {
+        if (state.reviewAvailable && cropsRes.data.length > 0 && solvedRes.data.length === cropsRes.data.length) {
           const statsRes = await submissionApi.getMyResults(task.id, username);
           if (statsRes.data?.accuracy !== undefined) setAccuracy(statsRes.data.accuracy);
           setReviewAvailable(true);
@@ -39,8 +44,8 @@ function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, d
 
   const percent = total === 0 ? 0 : Math.round((solved / total) * 100);
   const isCompleted = total > 0 && solved === total;
-  const isExpired = !diagnostic && Boolean(task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now());
-  const openReview = !diagnostic && (isExpired || reviewAvailable);
+  const isExpired = Boolean(task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now());
+  const openReview = isExpired || reviewAvailable;
 
   return (
     <div style={taskCardStyle} onClick={openReview ? onReview : onClick}>
@@ -54,7 +59,7 @@ function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, d
       <div style={{ padding: '15px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', columnGap: '10px', rowGap: '6px' }}>
           <span style={{ fontWeight: '700', fontSize: '16px', lineHeight: 1.2, color: '#343a40', marginRight: '8px' }}>
-            {diagnostic ? `Diagnostic #${displayNumber || task.id}` : `Task #${task.id}`}
+            {task.title || (diagnostic ? `진단평가 #${displayNumber || task.id}` : `분류 실습 #${task.id}`)}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {diagnostic && (
@@ -64,7 +69,7 @@ function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, d
             )}
             <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact />
             <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isExpired ? '#f8d7da' : isCompleted ? '#d4edda' : '#e9ecef', color: isExpired ? '#842029' : isCompleted ? '#155724' : '#495057' }}>
-              {isExpired ? 'CLOSED' : isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
+              {isExpired ? '마감' : submitted ? '최종 제출 완료' : isCompleted ? '응답 완료 · 제출 필요' : '응답 중'}
             </span>
           </div>
         </div>
@@ -94,11 +99,13 @@ function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, d
 function AssignmentCard({ assignment, username, onClick, onReview }) {
   const [progress, setProgress] = useState({ total: 0, solved: 0 });
   const [reviewAvailable, setReviewAvailable] = useState(false);
+  const [submitted,setSubmitted] = useState(false);
 
   useEffect(() => {
     setReviewAvailable(false);
     const total = assignment.tasks.reduce((sum, t) => sum + (t.cropCount || 0), 0);
     if (total === 0) { setProgress({ total: 0, solved: 0 }); return; }
+    submissionApi.attempt(assignment.tasks[0].id).then(({data})=>{setSubmitted(data.submitted);setReviewAvailable(data.reviewAvailable);}).catch(console.error);
     submissionApi.getSolvedCropsForAssignment(assignment.id, username)
       .then(async ({ data }) => {
         setProgress({ total, solved: data.length });
@@ -130,7 +137,7 @@ function AssignmentCard({ assignment, username, onClick, onReview }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <span style={{ fontWeight: '700', fontSize: '16px', color: '#343a40' }}>{assignment.title}</span>
           <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isExpired ? '#f8d7da' : isCompleted ? '#d4edda' : '#e9ecef', color: isExpired ? '#842029' : isCompleted ? '#155724' : '#495057' }}>
-            {isExpired ? 'CLOSED' : isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
+            {isExpired ? '마감' : submitted ? '최종 제출 완료' : isCompleted ? '응답 완료 · 제출 필요' : '응답 중'}
           </span>
         </div>
         <div style={{ color: '#6c757d', fontSize: '12px', marginBottom: '12px' }}>
@@ -171,9 +178,11 @@ export default function StudentPage() {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
   const [showResult, setShowResult] = useState(false);
   const [resultData, setResultData] = useState(null);
+  const [answerBusy,setAnswerBusy] = useState(false);
+  const [attempt, setAttempt] = useState({ submitted: false, locked: false, reviewAvailable: false });
 
   useEffect(() => {
-    taskApi.getAll().then(({ data }) => setTasks(data)).catch(console.error);
+    taskApi.getAll().then(({ data }) => setTasks(data.filter(isPublished))).catch(console.error);
   }, []);
 
   // 브라우저 뒤로가기 방지
@@ -187,6 +196,7 @@ export default function StudentPage() {
   }, [navigate]);
 
   const handleSelectTask = async (task) => {
+    setAttempt({ submitted: false, locked: false, reviewAvailable: false });
     setShowResult(false);
     setResultData(null);
     setCrops([]);
@@ -197,12 +207,14 @@ export default function StudentPage() {
     setSelectedTask(task);
     setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
     try {
-      const [cropsRes, labelsRes] = await Promise.all([
+      const [cropsRes, labelsRes, attemptRes] = await Promise.all([
         cropApi.getByTaskId(task.id),
         submissionApi.getSolvedCropLabels(task.id, username),
+        submissionApi.attempt(task.id),
       ]);
       const cropsData = cropsRes.data;
       const labels = labelsRes.data;
+      setAttempt(attemptRes.data);
       const solvedSet = new Set(Object.keys(labels).map(Number));
       setCrops(cropsData);
       setSolvedLabels(labels);
@@ -210,7 +222,7 @@ export default function StudentPage() {
       const firstUnsolved = cropsData.findIndex(c => !labels[c.id]);
       setCurrentCropIndex(firstUnsolved !== -1 ? firstUnsolved : Math.max(0, cropsData.length - 1));
       const allSolved = cropsData.length > 0 && cropsData.every(c => labels[c.id]);
-      if (isDiagnosticTask(task) && allSolved) {
+      if (attemptRes.data.reviewAvailable && allSolved) {
         const statsRes = await submissionApi.getMyResults(task.id, username);
         setResultData(statsRes.data);
         setShowResult(true);
@@ -223,6 +235,7 @@ export default function StudentPage() {
   };
 
   const handleSelectAssignment = async (assignment) => {
+    setAttempt({ submitted: false, locked: false, reviewAvailable: false });
     setShowResult(false);
     setResultData(null);
     setCrops([]);
@@ -230,15 +243,17 @@ export default function StudentPage() {
     setSolvedCrops(new Set());
     setCurrentCropIndex(0);
     setSelectedAssignment(assignment);
-    setSelectedTask({ id: null, assignmentId: assignment.id, title: assignment.title });
+    setSelectedTask({ ...assignment.tasks[0], assignmentId: assignment.id, title: assignment.title });
     setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
     try {
-      const [cropsRes, labelsRes] = await Promise.all([
+      const [cropsRes, labelsRes, attemptRes] = await Promise.all([
         cropApi.getByAssignmentId(assignment.id),
         submissionApi.getSolvedCropLabelsForAssignment(assignment.id, username),
+        submissionApi.attempt(assignment.tasks[0].id),
       ]);
       const cropsData = cropsRes.data;
       const labels = labelsRes.data;
+      setAttempt(attemptRes.data);
       setCrops(cropsData);
       setSolvedLabels(labels);
       setSolvedCrops(new Set(Object.keys(labels).map(Number)));
@@ -269,9 +284,11 @@ export default function StudentPage() {
   };
 
   const handleStudentSubmit = async (label) => {
+    if (attempt.locked || answerBusy) return;
     const currentCrop = crops[currentCropIndex];
     if (!currentCrop) return;
     const wasAlreadySolved = solvedCrops.has(currentCrop.id);
+    setAnswerBusy(true);
     try {
       await submissionApi.submit(currentCrop.id, username, label);
       setSolvedCrops(prev => new Set(prev).add(currentCrop.id));
@@ -288,11 +305,20 @@ export default function StudentPage() {
         setSelectedAssignment(null);
         setTaskTab('review');
       }
-    }
+    } finally {setAnswerBusy(false);}
   };
 
   const handleFinalSubmit = async () => {
+    if(answerBusy || attempt.locked) return;
+    setAnswerBusy(true);
     try {
+      const { data: submitted } = await submissionApi.finalize(selectedTask.id);
+      setAttempt({ ...submitted, locked: true });
+      if (!submitted.reviewAvailable) {
+        alert('최종 제출했습니다. 정답 확정 및 결과 공개 시점 이후 학습 결과에서 확인할 수 있습니다.');
+        setSelectedTask(null); setSelectedAssignment(null);
+        return;
+      }
       let data;
       if (selectedAssignment) {
         ({ data } = await submissionApi.getMyResultsForAssignment(selectedAssignment.id, username));
@@ -302,12 +328,8 @@ export default function StudentPage() {
       setResultData(data);
       setShowResult(true);
     } catch (error) {
-      if (!isDiagnosticMode && error?.response?.status === 400) {
-        alert('답안 제출이 완료되었습니다. 교수 채점 완료 또는 마감 후 학습 결과 메뉴에서 확인할 수 있습니다.');
-      } else {
-        alert(error?.response?.data?.message || '결과를 불러오는데 실패했습니다.');
-      }
-    }
+      alert(error?.response?.data?.message || '최종 제출 또는 결과 조회에 실패했습니다. 다시 시도해주세요.');
+    } finally {setAnswerBusy(false);}
   };
 
   const [reportReason, setReportReason] = useState('이미지 잘림');
@@ -399,7 +421,7 @@ export default function StudentPage() {
     return (
       <div style={containerStyle}>
         <div style={{ borderBottom: '2px solid #dee2e6', paddingBottom: '15px', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0 }}>Task Dashboard (Student)</h2>
+          <h2 style={{ margin: 0 }}>내 과제</h2>
           <span style={{ color: '#6c757d' }}>
             {taskTab === 'diagnostic'
               ? '진단평가 과제를 선택해 GT 기반으로 채점받으세요.'
@@ -410,8 +432,7 @@ export default function StudentPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          <button onClick={() => setTaskTab('practice')} style={taskTab === 'practice' ? tabActive : tabInactive}>일반 과제</button>
-          <button onClick={() => setTaskTab('diagnostic')} style={taskTab === 'diagnostic' ? tabActive : tabInactive}>진단평가</button>
+          <button onClick={() => setTaskTab('practice')} style={taskTab === 'practice' ? tabActive : tabInactive}>전체 과제</button>
           <button onClick={() => setTaskTab('review')} style={taskTab === 'review' ? tabActive : tabInactive}>학습 결과</button>
           <button onClick={() => navigate('/student/my-page')} style={tabInactive}>My Page</button>
         </div>
@@ -420,6 +441,14 @@ export default function StudentPage() {
           <StudentReviewPanel />
         ) : taskTab === 'practice' ? (
           <>
+            <section aria-label="진단평가" style={{ marginBottom: '30px' }}>
+              <h3>진단평가</h3><p style={{ color: '#63737b' }}>학생 수준을 확인하는 과제입니다. 먼저 진단평가를 진행해주세요.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                {diagnosticTasksOrdered.map((task, index) => <TaskCardItem key={task.id} task={task} username={username} diagnostic displayNumber={index + 1} onClick={() => handleSelectTask(task)} onReview={() => setTaskTab('review')} />)}
+              </div>
+              {!diagnosticTasksOrdered.length && <p>게시된 진단평가가 없습니다.</p>}
+            </section>
+            <h3>분류 실습</h3>
             {assignments.length === 0 && individualTasks.length === 0 && (
               <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>No practice tasks available.</p>
             )}
@@ -472,7 +501,7 @@ export default function StudentPage() {
       <div style={containerStyle}>
         <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #dee2e6' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
-            📊 {isDiagnosticMode ? '진단평가 채점 결과' : 'AI 채점 결과'}
+            📊 {isDiagnosticMode ? '진단평가 채점 결과' : '분류 실습 채점 결과'}
           </h2>
           <div style={{ display: 'flex', justifyContent: 'space-around', padding: '30px 0', background: '#f8f9fa', borderRadius: '8px', marginBottom: '20px' }}>
             <div style={resultStatStyle}>
@@ -503,7 +532,7 @@ export default function StudentPage() {
                     <AuthImage src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
                     <div style={{ flex: 1, marginLeft: '10px' }}>
                       <SpeciesBadge name={item.speciesName} code={item.speciesCode} compact style={{ marginBottom: '4px' }} />
-                      <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{item.studentLabel}</strong></div>
+                      <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{answerLabel(item.studentLabel)}</strong></div>
                       <div style={{ fontSize: '13px' }}>
                         <span style={{ color: '#6c757d' }}>정답: </span>
                         <strong style={{ color: item.isCorrect === null ? '#6c757d' : item.isCorrect ? '#28a745' : '#dc3545' }}>
@@ -658,10 +687,10 @@ export default function StudentPage() {
                 </div>
                 <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: '600' }}>👆 클래스를 선택하세요</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                  {CELL_TYPES.map((cls) => {
+                  {cellChoices(currentCrop).map((cls) => {
                     const isSelected = solvedLabels[currentCrop.id] === cls.key;
                     return (
-                      <button key={cls.key} onClick={() => handleStudentSubmit(cls.key)} style={{
+                      <button key={cls.key} disabled={attempt.locked || answerBusy} onClick={() => handleStudentSubmit(cls.key)} style={{
                         padding: '12px 8px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
                         background: isSelected ? '#0d6efd' : '#f8f9fa',
                         color: isSelected ? '#fff' : 'inherit',
@@ -673,9 +702,9 @@ export default function StudentPage() {
                   })}
                 </div>
                 <div style={{ marginTop: '12px' }}>
-                  <button onClick={() => setShowReportForm(true)} style={reportBtnStyle}>
-                    잘 모르겠어요
-                  </button>
+                  <button disabled={attempt.locked || answerBusy} aria-pressed={solvedLabels[currentCrop.id] === 'UNKNOWN'} onClick={() => handleStudentSubmit('UNKNOWN')} style={reportBtnStyle}>모르겠어요로 응답</button>
+                  <p style={{ color: '#687881', fontSize: '12px' }}>모르겠어요도 응답 완료로 저장됩니다. 점수에는 오답으로 반영되며 클래스 혼동행렬에서는 제외됩니다.</p>
+                  <button onClick={() => setShowReportForm(true)} style={reportBtnStyle}>질문·이미지 오류 신고</button>
                 </div>
               </div>
             )}
@@ -690,13 +719,14 @@ export default function StudentPage() {
             <span style={{ fontWeight: '600' }}>진행률: </span>
             <span>{solvedCrops.size} / {crops.length} 완료 ({crops.length > 0 ? Math.round((solvedCrops.size / crops.length) * 100) : 0}%)</span>
           </div>
-          <button onClick={handleFinalSubmit} disabled={!allCompleted} style={{
+          <button onClick={handleFinalSubmit} disabled={!allCompleted || attempt.locked || answerBusy} style={{
             padding: '10px 24px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '600',
             opacity: allCompleted ? 1 : 0.5, cursor: allCompleted ? 'pointer' : 'not-allowed',
           }}>
-            {allCompleted ? '🎯 제출하고 채점 받기' : `⏳ ${crops.length - solvedCrops.size}개 남음`}
+            {attempt.submitted ? '최종 제출 완료 · 결과 공개 대기' : attempt.locked ? '마감된 과제' : allCompleted ? '최종 제출' : `⏳ ${crops.length - solvedCrops.size}개 남음`}
           </button>
         </div>
+        <p style={{ fontSize: '12px', color: '#687881' }}>답안은 자동 저장됩니다. 최종 제출 전에는 수정할 수 있으며, 제출 후에는 수정할 수 없습니다.</p>
         <div style={{ background: '#e9ecef', height: '10px', borderRadius: '5px', overflow: 'hidden' }}>
           <div style={{ background: '#28a745', height: '100%', width: `${crops.length > 0 ? (solvedCrops.size / crops.length) * 100 : 0}%`, transition: 'width 0.3s' }} />
         </div>

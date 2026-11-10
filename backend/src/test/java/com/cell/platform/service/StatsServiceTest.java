@@ -36,7 +36,7 @@ class StatsServiceTest {
             Crop crop1 = CropFixture.createDomainWithFinalLabel();
             Crop crop2 = Crop.builder()
                     .id(2L).taskId(1L).cropFilename("crop2.jpg").bbox("[0,0,10,10]")
-                    .aiPrediction(CellType.Band).aiConfidence(0.5).finalLabel(CellType.Band).build();
+                    .pseudoLabel(CellType.Band).aiClassificationConfidence(0.5).finalLabel(CellType.Band).build();
 
             given(cropRepository.findAllByTaskId(1L)).willReturn(List.of(crop1, crop2));
             given(submissionRepository.findAllByCropIdIn(List.of(1L, 2L))).willReturn(List.of());

@@ -35,6 +35,11 @@ public class AnimalSpeciesEntity {
     private boolean builtIn;
 
     @Column(nullable = false)
+    private boolean active = true;
+
+    public void setActive(boolean active) { this.active = active; }
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @Column(nullable = false)

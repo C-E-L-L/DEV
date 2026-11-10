@@ -19,6 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(StudentHistoryController.class)
 @Import(SecurityConfig.class)
 class StudentHistoryControllerTest {
+    @MockBean private com.cell.platform.infra.task.TaskJpaRepository imageTasks;
+    @MockBean private com.cell.platform.infra.crop.CropJpaRepository imageCrops;
+
     @Autowired MockMvc mvc;
     @MockBean StudentAnalyticsService service;
     @MockBean JwtTokenProvider jwtTokenProvider;

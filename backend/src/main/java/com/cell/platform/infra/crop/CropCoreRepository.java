@@ -40,6 +40,7 @@ public class CropCoreRepository implements CropRepository {
     @Override
     public List<Crop> findAllByTaskId(Long taskId) {
         return cropJpaRepository.findAllByTask_Id(taskId).stream()
+                .filter(entity -> !entity.isExcluded())
                 .map(Mapper::convertToCrop)
                 .toList();
     }
@@ -47,6 +48,7 @@ public class CropCoreRepository implements CropRepository {
     @Override
     public List<Crop> findAllByFinalLabelIsNotNull() {
         return cropJpaRepository.findAllByFinalLabelIsNotNull().stream()
+                .filter(entity -> !entity.isExcluded())
                 .map(Mapper::convertToCrop)
                 .toList();
     }
@@ -59,6 +61,7 @@ public class CropCoreRepository implements CropRepository {
     @Override
     public List<Crop> findAll() {
         return cropJpaRepository.findAll().stream()
+                .filter(entity -> !entity.isExcluded())
                 .map(Mapper::convertToCrop)
                 .toList();
     }
@@ -67,6 +70,7 @@ public class CropCoreRepository implements CropRepository {
     public List<Crop> findAllByTaskIdIn(List<Long> taskIds) {
         if (taskIds == null || taskIds.isEmpty()) return List.of();
         return cropJpaRepository.findAllByTask_IdIn(taskIds).stream()
+                .filter(entity -> !entity.isExcluded())
                 .map(Mapper::convertToCrop)
                 .toList();
     }
