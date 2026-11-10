@@ -3,8 +3,6 @@ package com.cell.platform.controller;
 import com.cell.platform.dto.response.AssignmentResponse;
 import com.cell.platform.dto.request.DeadlineUpdateRequest;
 import com.cell.platform.dto.response.TaskResponse;
-import com.cell.platform.domain.task.Task;
-import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +23,6 @@ import java.util.List;
 public class AssignmentController {
 
     private final TaskService taskService;
-    private final TaskRepository taskRepository;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
@@ -43,10 +40,7 @@ public class AssignmentController {
 
     @GetMapping("/{assignmentId}/tasks")
     public ResponseEntity<List<TaskResponse>> getTasksForAssignment(@PathVariable Long assignmentId, Authentication authentication) {
-        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
-        boolean student = authentication != null && authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"));
-        return ResponseEntity.ok(tasks.stream().filter(t -> !student || t.isPublished()).map(TaskResponse::from).toList());
+        return ResponseEntity.ok(taskService.getTasksByAssignmentId(assignmentId, isStudent(authentication)));
     }
 
     @DeleteMapping("/{assignmentId}")
@@ -63,6 +57,11 @@ public class AssignmentController {
             @RequestBody DeadlineUpdateRequest request) {
         taskService.updateAssignmentDeadline(assignmentId, request.deadlineAt());
         return ResponseEntity.ok().build();
+    }
+
+    private boolean isStudent(Authentication authentication) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"));
     }
 
 }
