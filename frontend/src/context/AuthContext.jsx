@@ -9,10 +9,10 @@ export function AuthProvider({ children }) {
   const user = authSession.getSession();
   useEffect(() => watchAuthSession(authSession, window, document), []);
 
-  const login = useCallback(async (username, password) => {
+  const login = useCallback(async (username, password, { remember = false } = {}) => {
     const { data } = await authApi.login(username, password);
     const userData = { username: data.username, name: data.name, role: data.role, token: data.accessToken };
-    authSession.save(userData);
+    authSession.save(userData, { remember });
   }, []);
 
   const logout = useCallback(() => {
