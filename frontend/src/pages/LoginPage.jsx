@@ -1,6 +1,24 @@
 import { useState } from 'react';
+import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../api';
+import LoginHero from '../components/login/LoginHero';
+import LoginField from '../components/login/LoginField';
+import Icon from '../components/login/icons';
+import logoUrl from '../assets/login/cell-logo.svg';
+import './LoginPage.css';
+
+const UNAVAILABLE_TITLE = '아직 제공되지 않는 기능입니다.';
+
+/** Visible placeholder for a feature that is designed but not implemented yet. */
+function Unavailable({ children }) {
+  return (
+    <button type="button" className="login-unavailable" disabled aria-disabled="true" title={UNAVAILABLE_TITLE}>
+      {children}
+      <span className="login-unavailable__badge">준비 중</span>
+    </button>
+  );
+}
 
 export default function LoginPage() {
   const isMockMode = import.meta.env.MODE === 'mock';
@@ -19,18 +37,23 @@ export default function LoginPage() {
   const role = 'student';
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(false);
   const { login } = useAuth();
 
   const isStudentSignup = !isLoginMode;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
     setSuccess('');
+    setSubmitting(true);
 
     try {
       if (isLoginMode) {
-        await login(username, password);
+        await login(username, password, { remember });
       } else {
         const { data } = await authApi.register(username, password, role, isStudentSignup ? name : undefined);
         setSuccess(data?.message || '회원가입이 완료되었습니다. 이제 로그인해 주세요.');
@@ -46,6 +69,8 @@ export default function LoginPage() {
             ? (err.response?.data?.message || '입력 정보를 확인해 주세요. 이미 사용 중인 아이디일 수 있습니다.')
             : '회원가입에 실패했습니다.'
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -56,98 +81,184 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={containerStyle}>
-      <div style={boxStyle}>
-        <h1 style={{ margin: '0 0 10px 0', color: '#343a40' }}>C.E.L.L. Platform</h1>
-        <p style={{ color: '#6c757d', marginBottom: '20px' }}>
-          {isLoginMode ? '계정으로 로그인하세요' : '새 계정을 생성하세요'}
-        </p>
+    <div className="login-page">
+      <LoginHero />
 
-        {isMockMode && (
-          <div style={{ background: '#e7f3ff', border: '1px solid #b6d4fe', borderRadius: '6px', padding: '10px 12px', marginBottom: '15px', fontSize: '13px', color: '#0056b3' }}>
-            로컬 테스트 모드입니다. 역할을 선택하고 로그인하세요.
-          </div>
-        )}
-
-        {error && <div style={errorStyle}>{error}</div>}
-        {success && <div style={successStyle}>{success}</div>}
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          {isMockMode && isLoginMode && (
-            <div>
-              <label style={labelStyle}>테스트할 계정</label>
-              <select
-                value={mockRole}
-                onChange={(e) => {
-                  const nextRole = e.target.value;
-                  setMockRole(nextRole);
-                  setUsername(mockAccounts[nextRole].username);
-                  setPassword('local');
-                }}
-                style={inputStyle}
-              >
-                {Object.entries(mockAccounts).map(([value, account]) => (
-                  <option key={value} value={value}>{account.label} 계정</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {!isLoginMode && (
-            <div style={{ background: '#e7f3ff', border: '1px solid #b6d4fe', borderRadius: '4px', padding: '10px 12px', fontSize: '13px', color: '#0056b3', textAlign: 'left' }}>
-              학생 계정 전용 회원가입입니다.<br />
-              교수/전문가 계정은 <strong>관리자에게 문의</strong>하세요.
-            </div>
-          )}
-
-          {isStudentSignup && (
-            <div>
-              <label style={labelStyle}>이름</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
-            </div>
-          )}
-
-          <div>
-            <label style={labelStyle}>{isStudentSignup ? '학번' : '아이디 (Username)'}</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required style={inputStyle} />
-          </div>
-
-          <div>
-            <label style={labelStyle}>비밀번호 (Password)</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} />
-          </div>
-
-          <button type="submit" style={btnStyle}>
-            {isLoginMode ? '로그인 (Login)' : '회원가입 (Sign Up)'}
-          </button>
-        </form>
-
-        <div style={{ marginTop: '20px', fontSize: '14px', color: '#6c757d' }}>
-          {isLoginMode ? '계정이 없으신가요? ' : '이미 계정이 있으신가요? '}
-          <span onClick={toggleMode} style={toggleStyle}>
-            {isLoginMode ? '회원가입 하기' : '로그인 하기'}
+      <section className="login-panel" aria-label={isLoginMode ? '로그인' : '학생 회원가입'}>
+        <div className="login-panel__topbar">
+          <span className="login-chip">
+            <Icon name="shield" size={11} />
+            통합 계정 로그인
           </span>
+          <a
+            href={colorizerUrl}
+            target="_blank"
+            rel="noreferrer"
+            title="DICOM 컬러화 작업공간 열기 (새 탭)"
+            className="login-panel__toplink"
+          >
+            <Icon name="contrast" size={12} />
+            DICOM Color Lab
+            <Icon name="external" size={11} />
+          </a>
         </div>
 
-        <a
-          href={colorizerUrl}
-          target="_blank"
-          rel="noreferrer"
-          title="DICOM 컬러화 작업공간 열기"
-          style={colorizerLinkStyle}
-        >
-          ◐ DICOM Color Lab
-        </a>
-      </div>
+        <div className="login-panel__body">
+          <div className="login-panel__header">
+            <span className="login-panel__logo-box">
+              <img src={logoUrl} alt="" className="login-panel__logo" />
+            </span>
+            <h2 className="login-panel__title">
+              {isLoginMode ? 'CELL에 오신 것을 환영합니다' : '학생 회원가입'}
+            </h2>
+            <p className="login-panel__desc">
+              {isLoginMode
+                ? '아이디(학번)와 비밀번호를 입력해 주세요.'
+                : '이름, 학번, 비밀번호를 입력해 학생 계정을 만드세요.'}
+            </p>
+          </div>
+
+          {isMockMode && isLoginMode && (
+            <div className="login-alert login-alert--info">
+              로컬 테스트 모드입니다. 역할을 선택하고 로그인하세요.
+            </div>
+          )}
+          {error && <div className="login-alert login-alert--error" role="alert">{error}</div>}
+          {success && <div className="login-alert login-alert--success" role="status">{success}</div>}
+
+          <form onSubmit={handleSubmit} className="login-form">
+            {isMockMode && isLoginMode && (
+              <div className="login-field">
+                <div className="login-field__label-row">
+                  <label htmlFor="login-mock-role">테스트할 계정</label>
+                </div>
+                <select
+                  id="login-mock-role"
+                  className="login-input login-select"
+                  value={mockRole}
+                  onChange={(e) => {
+                    const nextRole = e.target.value;
+                    setMockRole(nextRole);
+                    setUsername(mockAccounts[nextRole].username);
+                    setPassword('local');
+                  }}
+                >
+                  {Object.entries(mockAccounts).map(([value, account]) => (
+                    <option key={value} value={value}>{account.label} 계정</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {isStudentSignup && (
+              <LoginField
+                id="login-name"
+                label="이름"
+                icon="user"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+                placeholder="홍길동"
+                required
+              />
+            )}
+
+            <LoginField
+              id="login-username"
+              label={isStudentSignup ? '학번' : '아이디 / 학번'}
+              icon={isStudentSignup ? 'school' : 'user'}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              placeholder={isStudentSignup ? '학번 입력' : '아이디 또는 학번'}
+              required
+            />
+
+            <LoginField
+              id="login-password"
+              label="비밀번호"
+              icon="lock"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={isLoginMode ? 'current-password' : 'new-password'}
+              placeholder="비밀번호 입력"
+              required
+              labelAside={isLoginMode && <Unavailable>비밀번호 찾기</Unavailable>}
+              trailing={(
+                <button
+                  type="button"
+                  className="login-field__trailing"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'}
+                  aria-pressed={showPassword}
+                >
+                  <Icon name={showPassword ? 'eyeOff' : 'eye'} size={16} />
+                </button>
+              )}
+            />
+
+            {isLoginMode && (
+              <div className="login-remember">
+                <label className="login-remember__label">
+                  <input
+                    type="checkbox"
+                    className="login-remember__box"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    aria-describedby="login-remember-hint"
+                  />
+                  로그인 상태 유지
+                </label>
+                <span id="login-remember-hint" className="login-remember__hint">
+                  {remember ? '새 탭과 다음 접속에도 이 계정으로 로그인' : '이 탭에서만 로그인 · 탭을 닫으면 로그아웃'}
+                </span>
+              </div>
+            )}
+
+            <button type="submit" className="login-submit" disabled={submitting}>
+              <span>
+                {submitting
+                  ? (isLoginMode ? '로그인 중…' : '가입 처리 중…')
+                  : (isLoginMode ? '로그인' : '회원가입')}
+              </span>
+              {!submitting && <Icon name={isLoginMode ? 'arrowRight' : 'userPlus'} size={14} />}
+            </button>
+          </form>
+
+          <p className="login-toggle">
+            {isLoginMode ? '계정이 없으신가요? ' : '이미 계정이 있으신가요? '}
+            <button type="button" onClick={toggleMode} className="login-toggle__btn">
+              {isLoginMode ? '학생 회원가입' : '로그인하기'}
+            </button>
+          </p>
+
+          <div className="login-notice">
+            <Icon name="info" size={16} className="login-notice__icon" />
+            <p>
+              {isLoginMode
+                ? '별도의 역할 선택 없이 로그인하면 계정 권한(교수·학생·관리자)에 맞는 화면으로 자동 이동합니다.'
+                : <>학생 계정 전용 회원가입입니다. 교수·전문가 계정은 <strong>관리자에게 문의</strong>하세요.</>}
+            </p>
+          </div>
+
+          <div className="login-partners">
+            <span className="login-partners__caption">공동 연구 기관</span>
+            <div className="login-partners__list">
+              <span><Icon name="school" size={13} className="login-partners__icon" />경상국립대학교</span>
+              <span className="login-partners__sep" aria-hidden="true">·</span>
+              <span><Icon name="school" size={13} className="login-partners__icon login-partners__icon--violet" />충북대학교</span>
+            </div>
+          </div>
+        </div>
+
+        <footer className="login-panel__footer">
+          <Unavailable>개인정보처리방침</Unavailable>
+          <span>C.E.L.L. Platform</span>
+        </footer>
+      </section>
     </div>
   );
 }
-
-const containerStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f1f3f5' };
-const boxStyle = { background: '#fff', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '400px', textAlign: 'center' };
-const labelStyle = { display: 'block', textAlign: 'left', fontWeight: '600', marginBottom: '5px', fontSize: '14px', color: '#495057' };
-const inputStyle = { width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ced4da', fontSize: '14px', boxSizing: 'border-box' };
-const btnStyle = { width: '100%', padding: '12px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' };
-const errorStyle = { color: '#dc3545', background: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px', fontSize: '14px' };
-const successStyle = { color: '#155724', background: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px', fontSize: '14px', fontWeight: 'bold' };
-const toggleStyle = { color: '#0056b3', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' };
-const colorizerLinkStyle = { display: 'inline-block', marginTop: '22px', padding: '6px 9px', color: '#8a949e', background: '#f8f9fa', border: '1px solid #e5e8eb', borderRadius: '999px', fontSize: '10px', fontWeight: '600', textDecoration: 'none', letterSpacing: '0.02em' };
