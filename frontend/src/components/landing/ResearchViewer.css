@@ -1,0 +1,97 @@
+/* Research document viewer (native <dialog>). Full screen on phones, centered panel on desktop. */
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  width: min(980px, 92vw);
+  height: 90vh;
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--login-text);
+  box-shadow: 0 30px 80px -20px rgba(15, 23, 42, 0.55);
+}
+.viewer:not([open]) { display: none; }
+.viewer::backdrop { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px); }
+
+.viewer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 12px 18px;
+  border-bottom: 1px solid var(--login-line);
+}
+.viewer__heading { min-width: 0; }
+.viewer__kind { font-size: 11px; font-weight: 800; color: var(--login-primary); }
+.viewer__title {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--login-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.viewer__actions { display: flex; flex-shrink: 0; align-items: center; gap: 6px; }
+.viewer__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--login-line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--login-text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.viewer__btn:hover { border-color: var(--login-primary-200); color: var(--login-primary); }
+.viewer__btn:focus-visible { outline: 2px solid var(--login-primary); outline-offset: 2px; }
+.viewer__btn--primary { border-color: var(--login-primary); background: var(--login-primary); color: #fff; }
+.viewer__btn--primary:hover { background: var(--login-primary-hover); color: #fff; }
+.viewer__btn--icon { width: 34px; padding: 0; }
+
+.viewer__body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  background: #e2e8f0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.viewer__page {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  margin: 0 auto 16px;
+  background: #fff;
+  box-shadow: 0 4px 16px -6px rgba(15, 23, 42, 0.35);
+}
+.viewer__page:last-child { margin-bottom: 0; }
+/* "확대": pages at 2.2× the viewport width, scrolled in both directions. */
+.viewer__body.is-zoomed .viewer__page { width: 220%; max-width: none; }
+
+@media (max-width: 640px) {
+  .viewer {
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .viewer__head { padding: 10px 10px 10px 14px; }
+  .viewer__title { font-size: 13px; }
+  .viewer__btn { padding: 0 10px; }
+  .viewer__btn-label { display: none; }
+  .viewer__btn--primary { width: 34px; padding: 0; }
+  .viewer__body { padding: 10px; }
+  .viewer__page { margin-bottom: 10px; }
+}

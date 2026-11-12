@@ -226,6 +226,7 @@ C:\CELL-MigrationBackup\
 | --- | --- |
 | `MYSQL_ROOT_PASSWORD` | MySQL 초기화 및 백엔드 DB 접속 암호 |
 | `JWT_SECRET` | CELL 로그인 토큰 서명키 |
+| `JWT_EXPIRATION_HOURS` | 로그인 토큰 유효 시간(시간 단위). 미설정 시 Compose 기본값 24 |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | 해당 관리자가 없을 때 초기 관리자 생성에 사용하는 설정 |
 | `COLORIZER_SECRET_KEY` | 컬러화 세션 서명키 |
 | `COLORIZER_USER_STORAGE_LIMIT_GB` | 사용자별 저장 용량 제한. Compose 기본값 10 |
@@ -254,7 +255,7 @@ docker compose -p dev config --quiet
 
 ## 5. 새 서버의 이미지 준비 — 두 방법 중 하나
 
-현재 구성은 MySQL 스키마 자동 생성이 아닌 **`SPRING_JPA_HIBERNATE_DDL_AUTO=validate`**입니다. **아직 전체 `up`를 실행하지 마세요. DB 구조·데이터 복원 뒤에 백엔드를 시작해야 합니다.**
+현재 Docker 백엔드는 **`prod` 프로필(`SPRING_PROFILES_ACTIVE=prod`)**로 실행되며, MySQL 스키마 자동 생성이 아닌 **`ddl-auto=validate`**(`application-prod.yml`)입니다. **아직 전체 `up`를 실행하지 마세요. DB 구조·데이터 복원 뒤에 백엔드를 시작해야 합니다.**
 
 먼저 기존 데이터가 없는 새로운 대상 Docker 환경인지 확인하세요. 이미 서비스를 시작해 데이터를 만들었다면 아래 덮어쓰기 복원을 바로 적용하지 마세요.
 

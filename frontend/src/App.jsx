@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { NavBar } from './components/common';
 import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
+import LandingPage from './pages/LandingPage';
 import StudentPage from './pages/StudentPage';
 import StudentMyPage from './pages/StudentMyPage';
 import ExpertPage from './pages/ProfessorWorkspace';
@@ -32,6 +33,8 @@ function MainLayout() {
       <main style={{ flex: 1 }}>
         <Routes>
           <Route path="/" element={<LoginRedirect><LoginPage /></LoginRedirect>} />
+          {/* Landing page draft: compare with the current login screen, then swap it in at "/". */}
+          <Route path="/landing" element={<LoginRedirect><LandingPage /></LoginRedirect>} />
           <Route
             path="/student"
             element={<ProtectedRoute allowedRole="STUDENT"><StudentPage /></ProtectedRoute>}
