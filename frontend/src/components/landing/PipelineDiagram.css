@@ -1,0 +1,221 @@
+/* Data-cycle flow chart (PipelineDiagram). Columns have no gap so % positions hit column centers. */
+
+.flow {
+  --flow-arrow: #94a3b8;
+  --flow-line: #cbd5e1;
+}
+.flow--professor { --actor: #4f46e5; --actor-50: #eef2ff; --actor-200: #c7d2fe; }
+.flow--ai { --actor: #0891b2; --actor-50: #ecfeff; --actor-200: #a5f3fc; }
+.flow--student { --actor: #7c3aed; --actor-50: #f5f3ff; --actor-200: #ddd6fe; }
+.flow--data { --actor: #059669; --actor-50: #ecfdf5; --actor-200: #a7f3d0; }
+
+/* ---------- Legend ---------- */
+
+.flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  margin-bottom: 30px;
+  list-style: none;
+}
+.flow-legend__item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--login-text-2); }
+.flow-legend__item i { width: 10px; height: 10px; border-radius: 3px; background: var(--actor); }
+
+/* ---------- Group brackets ---------- */
+
+.flow-groups {
+  display: grid;
+  grid-template-columns: repeat(var(--flow-cols), minmax(0, 1fr));
+  margin-bottom: 22px;
+}
+.flow-groups__item {
+  position: relative;
+  margin: 0 10px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--login-muted);
+  text-align: center;
+}
+.flow-groups__item::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  height: 8px;
+  border: 1.5px solid var(--flow-line);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+
+/* ---------- Steps ---------- */
+
+.flow-steps {
+  display: grid;
+  grid-template-columns: repeat(var(--flow-cols), minmax(0, 1fr));
+  list-style: none;
+}
+.flow-step { position: relative; display: flex; flex-direction: column; padding: 0 10px; }
+.flow-step__group { display: none; }
+
+/* Arrow into the next step, drawn in the 20px gutter between nodes. */
+.flow-step:not(:last-child)::before,
+.flow-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+}
+.flow-step:not(:last-child)::before { top: calc(50% - 1px); right: -3px; width: 12px; height: 2px; background: var(--flow-arrow); }
+.flow-step:not(:last-child)::after {
+  top: calc(50% - 5px);
+  right: -10px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid var(--flow-arrow);
+}
+
+.flow-node {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 16px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--actor-200);
+  border-top: 3px solid var(--actor);
+  box-shadow: var(--landing-shadow);
+}
+.flow-node__top { display: flex; align-items: center; justify-content: space-between; }
+.flow-node__actor {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--actor-50);
+  color: var(--actor);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.flow-node__num { font-family: var(--landing-mono); font-size: 11px; font-weight: 700; color: var(--login-subtle); }
+.flow-node__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-top: 4px;
+  border-radius: 10px;
+  background: var(--actor-50);
+  color: var(--actor);
+}
+.flow-node__title { font-size: 14px; font-weight: 800; letter-spacing: -0.01em; color: var(--login-ink); }
+.flow-node__desc { flex: 1; font-size: 12px; line-height: 1.6; color: var(--login-muted); }
+.flow-node__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.flow-node__chips span {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--actor-50);
+  color: var(--actor);
+  font-family: var(--landing-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+.flow-node__research {
+  align-self: flex-start;
+  padding: 2px 7px;
+  border: 1px dashed var(--landing-todo-border);
+  border-radius: 5px;
+  background: var(--landing-todo-bg);
+  color: var(--landing-todo-text);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* ---------- Return loop (dataset → AI), dashed = future work ---------- */
+
+.flow-loop { position: relative; height: 62px; }
+.flow-loop__line {
+  position: absolute;
+  top: 0;
+  height: 34px;
+  border: 2px dashed var(--flow-arrow);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+}
+/* Arrowhead pointing up into the AI step. */
+.flow-loop__line::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -7px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 9px solid var(--flow-arrow);
+}
+.flow-loop__label { position: absolute; top: 21px; display: flex; justify-content: center; }
+.flow-loop__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--landing-tint);
+  color: var(--login-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.flow-loop__pill svg { color: var(--flow-arrow); }
+.flow-loop__badge {
+  padding: 1px 7px;
+  border: 1px dashed var(--landing-todo-border);
+  border-radius: 5px;
+  background: var(--landing-todo-bg);
+  color: var(--landing-todo-text);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* ---------- Stacked layout ---------- */
+
+@media (max-width: 1100px) {
+  .flow-groups { display: none; }
+  .flow-steps { grid-template-columns: minmax(0, 1fr); row-gap: 30px; max-width: 520px; margin: 0 auto; }
+  .flow-step { padding: 0; }
+  .flow-step__group {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--login-muted);
+  }
+  .flow-step:not(:last-child)::before { top: auto; right: auto; bottom: -22px; left: calc(50% - 1px); width: 2px; height: 14px; }
+  .flow-step:not(:last-child)::after {
+    top: auto;
+    right: auto;
+    bottom: -28px;
+    left: calc(50% - 5px);
+    border-top: 7px solid var(--flow-arrow);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: none;
+  }
+  /* Shorter cards: icon on the left, text on the right. */
+  .flow-node { display: grid; grid-template-columns: 38px minmax(0, 1fr); column-gap: 12px; row-gap: 5px; align-items: start; }
+  .flow-node__top { grid-column: 1 / -1; margin-bottom: 4px; }
+  .flow-node__icon { grid-column: 1; grid-row: 2 / span 3; margin-top: 0; }
+  .flow-node__title,
+  .flow-node__desc,
+  .flow-node__chips,
+  .flow-node__research { grid-column: 2; }
+  .flow-node__research { justify-self: start; }
+  .flow-loop { display: flex; justify-content: center; height: auto; margin-top: 24px; }
+  .flow-loop__line { display: none; }
+  .flow-loop__label { position: static; }
+  .flow-loop__pill { border: 1.5px dashed var(--flow-arrow); white-space: normal; }
+}
