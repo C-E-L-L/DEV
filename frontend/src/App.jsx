@@ -32,9 +32,8 @@ function MainLayout() {
       <NavBar />
       <main style={{ flex: 1 }}>
         <Routes>
-          <Route path="/" element={<LoginRedirect><LoginPage /></LoginRedirect>} />
-          {/* Landing page draft: compare with the current login screen, then swap it in at "/". */}
-          <Route path="/landing" element={<LoginRedirect><LandingPage /></LoginRedirect>} />
+          <Route path="/" element={<LoginRedirect><LandingPage /></LoginRedirect>} />
+          <Route path="/login" element={<LoginRedirect><LoginPage /></LoginRedirect>} />
           <Route
             path="/student"
             element={<ProtectedRoute allowedRole="STUDENT"><StudentPage /></ProtectedRoute>}
@@ -62,7 +61,7 @@ function ProtectedRoute({ allowedRole, children }) {
   const { user, isLoggedIn } = useAuth();
 
   if (!isLoggedIn) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   const role = normalizeRole(user?.role);
