@@ -1,7 +1,7 @@
 // Landing page copy. Text edits only need to touch this file.
 
-/** Where the header / CTA login buttons go. Change to '/login' once the landing replaces '/'. */
-export const LOGIN_PATH = '/';
+/** Where the header / CTA login buttons go (the landing page itself is served at '/'). */
+export const LOGIN_PATH = '/login';
 
 export const NAV_LINKS = [
   { id: 'about', label: '서비스 소개' },

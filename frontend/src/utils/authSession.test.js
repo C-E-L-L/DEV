@@ -52,7 +52,7 @@ test('logging out one tab leaves other tabs signed in', () => {
   const first = loggedInTab(b, professor);
   const second = loggedInTab(b, student);
   second.session.clear();
-  assert.deepEqual(b.redirects, ['/']);
+  assert.deepEqual(b.redirects, ['/login']);
   assert.equal(first.session.sync(), false);
   assert.equal(first.session.getRequestSession().username, 'professor');
 });
@@ -196,5 +196,5 @@ test('current-session 401 logs out (and forgets it if remembered), but a failed 
   await assert.rejects(api.get('/tasks'), { message: 'Unauthorized' });
   assert.equal(tab.storage.getItem(AUTH_SESSION_KEY), null);
   assert.equal(b.persistent.getItem(AUTH_SESSION_KEY), null);
-  assert.deepEqual(b.redirects, ['/']);
+  assert.deepEqual(b.redirects, ['/login']);
 });

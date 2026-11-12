@@ -4,7 +4,8 @@ export const SKIP_REMEMBERED_KEY = 'cell-auth-skip-remembered-v1';
 const LEGACY_KEYS = ['token', 'username', 'name', 'role'];
 
 export function getSessionHomePath(session) {
-  if (!session) return '/';
+  // Logged out (logout, expired session, another tab logging out): back to the login screen.
+  if (!session) return '/login';
   const role = String(session.role).toUpperCase();
   return role === 'ADMIN' ? '/admin' : role === 'EXPERT' ? '/expert' : '/student';
 }
