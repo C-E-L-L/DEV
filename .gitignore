@@ -39,11 +39,7 @@ data/originals/
 data/crops/
 
 # --- AI Server (FastAPI / Python) ---
-ai-server/venv/
-ai-server/.venv/
-ai-server/__pycache__/
 ai-server/data/
-ai-server/*.pyc
 ai-server/*.log
 
 # --- Frontend (React / Vite) ---
@@ -52,6 +48,17 @@ frontend/dist/
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
+
+# --- Common build / dependency / cache outputs (all subfolders) ---
+node_modules/
+dist/
+build/
+target/
+.gradle/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 
 # --- IDE & Tools ---
 .idea/
