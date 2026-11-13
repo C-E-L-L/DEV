@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from '../login/icons';
+import { closeDialogAnimated } from './motion';
 import './ResearchViewer.css';
 
 /**
@@ -10,6 +11,8 @@ import './ResearchViewer.css';
 export default function ResearchViewer({ doc, title, onClose }) {
   const dialogRef = useRef(null);
   const [zoomed, setZoomed] = useState(false);
+  // Animate out first; the dialog's `close` event then calls onClose.
+  const close = () => closeDialogAnimated(dialogRef.current);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -34,8 +37,9 @@ export default function ResearchViewer({ doc, title, onClose }) {
       className="viewer"
       aria-labelledby="viewer-title"
       onClose={onClose}
+      onCancel={(e) => { e.preventDefault(); close(); }}
       // A click that lands on the dialog element itself is a click on the backdrop.
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) close(); }}
     >
       <header className="viewer__head">
         <div className="viewer__heading">
@@ -55,7 +59,7 @@ export default function ResearchViewer({ doc, title, onClose }) {
             <Icon name="download" size={14} />
             <span className="viewer__btn-label">다운로드</span>
           </a>
-          <button type="button" className="viewer__btn viewer__btn--icon" onClick={onClose} aria-label="닫기">
+          <button type="button" className="viewer__btn viewer__btn--icon" onClick={close} aria-label="닫기">
             <Icon name="close" size={16} />
           </button>
         </div>

@@ -128,13 +128,24 @@
 
 /* ---------- Header ---------- */
 
+/* Fixed, not sticky: global.css sets overflow-x: hidden on html/body/#root, which disables sticky. */
+.landing { padding-top: 64px; }
+.landing section[id] { scroll-margin-top: 64px; }
 .landing-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  right: 0;
+  left: 0;
   z-index: 20;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--login-line);
+  transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.landing-header.is-scrolled {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom-color: transparent;
+  box-shadow: 0 6px 20px -12px rgba(15, 23, 42, 0.25);
 }
 .landing-header__inner {
   display: flex;
@@ -156,9 +167,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.landing-nav { display: flex; gap: 28px; }
-.landing-nav a { font-size: 13px; font-weight: 600; color: var(--login-text-2); }
-.landing-nav a:hover { color: var(--login-primary); }
+.landing-header__start { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .landing-header__actions { display: flex; align-items: center; gap: 14px; }
 
 /* ---------- Hero ---------- */
@@ -218,7 +227,8 @@
 .landing-section { padding: 88px 0; }
 
 /* DS–MAP demo under the pipeline diagram (a closer look at step 05). */
-.landing-map { width: 100%; margin-top: 64px; }
+.landing-pipeline__intro { scroll-margin-top: 88px; }
+.landing-map { width: 100%; margin-top: 64px; scroll-margin-top: 88px; }
 .landing-map__head { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 18px; text-align: center; }
 .landing-map__tag {
   padding: 3px 9px;
@@ -342,10 +352,6 @@
 .landing-footer__links { display: flex; gap: 10px; flex-shrink: 0; }
 
 /* ---------- Responsive ---------- */
-
-@media (max-width: 1080px) {
-  .landing-nav { display: none; }
-}
 
 @media (max-width: 960px) {
   .landing-demos { grid-template-columns: minmax(0, 1fr); max-width: 640px; margin: 0 auto; }

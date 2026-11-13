@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import Icon from '../components/login/icons';
@@ -8,14 +8,12 @@ import StudentDemo from '../components/landing/demo/StudentDemo';
 import MapDemo from '../components/landing/demo/MapDemo';
 import PipelineDiagram from '../components/landing/PipelineDiagram';
 import ResearchViewer from '../components/landing/ResearchViewer';
+import { SectionDrawer, SectionRail, scrollToSection, useActiveSection } from '../components/landing/SectionNav';
+import useSectionSnap from '../components/landing/useSectionSnap';
 import {
-  LOGIN_PATH, NAV_LINKS, HERO, FEATURES, PIPELINE, RESEARCH, CTA, FOOTER,
+  LOGIN_PATH, HERO, FEATURES, PIPELINE, RESEARCH, CTA, FOOTER,
 } from '../components/landing/landingContent';
 import './LandingPage.css';
-
-function scrollToSection(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
 
 function SectionHeading({ eyebrow, icon, title, desc, align = 'center' }) {
   return (
@@ -30,22 +28,20 @@ function SectionHeading({ eyebrow, icon, title, desc, align = 'center' }) {
   );
 }
 
-function Header() {
+function Header({ onOpenMenu, scrolled }) {
   return (
-    <header className="landing-header">
+    <header className={`landing-header${scrolled ? ' is-scrolled' : ''}`}>
       <div className="landing-container landing-header__inner">
-        <a href="#about" className="landing-brand" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-          <img src={logoUrl} alt="" className="landing-brand__logo" />
-          <span className="landing-brand__name">CELL</span>
-          <span className="landing-brand__pill">Hematology AI Hub</span>
-        </a>
-        <nav className="landing-nav" aria-label="섹션 이동">
-          {NAV_LINKS.map((link) => (
-            <a key={link.id} href={`#${link.id}`} onClick={(e) => { e.preventDefault(); scrollToSection(link.id); }}>
-              {link.label}
-            </a>
-          ))}
-        </nav>
+        <div className="landing-header__start">
+          <button type="button" className="landing-menu-btn" onClick={onOpenMenu} aria-label="섹션 메뉴 열기" aria-haspopup="dialog">
+            <Icon name="menu" size={20} />
+          </button>
+          <a href="#about" className="landing-brand" onClick={(e) => { e.preventDefault(); scrollToSection('about'); }}>
+            <img src={logoUrl} alt="" className="landing-brand__logo" />
+            <span className="landing-brand__name">CELL</span>
+            <span className="landing-brand__pill">Hematology AI Hub</span>
+          </a>
+        </div>
         <div className="landing-header__actions">
           <Link to={LOGIN_PATH} className="landing-link-btn">로그인</Link>
           <Link to={LOGIN_PATH} className="landing-btn landing-btn--primary landing-btn--sm">
@@ -59,7 +55,7 @@ function Header() {
 
 function Hero() {
   return (
-    <section id="about" className="landing-hero">
+    <section id="about" className="landing-hero" data-snap>
       <div className="landing-hero__bg" aria-hidden="true" />
       <div className="landing-container landing-hero__inner">
         <p className="landing-hero__badges">
@@ -85,7 +81,7 @@ function Hero() {
 
 function Features() {
   return (
-    <section id="features" className="landing-section">
+    <section id="features" className="landing-section" data-snap>
       <div className="landing-container">
         <SectionHeading eyebrow={FEATURES.eyebrow} title={FEATURES.title} desc={FEATURES.desc} />
         <ul className="landing-cards landing-cards--3">
@@ -107,14 +103,17 @@ function Pipeline() {
   return (
     <section id="pipeline" className="landing-section landing-section--tinted">
       <div className="landing-container">
-        <SectionHeading
-          eyebrow={PIPELINE.eyebrow}
-          icon="refresh"
-          title={<>{PIPELINE.titleLead}<span className="landing-gradient-text">{PIPELINE.titleAccent}</span>{PIPELINE.titleTail}</>}
-          desc={PIPELINE.desc}
-        />
-        <PipelineDiagram />
-        <div className="landing-map">
+        {/* Two snap parts: the flow chart, then the DS–MAP demo (together they are too tall to centre). */}
+        <div className="landing-pipeline__intro" data-snap>
+          <SectionHeading
+            eyebrow={PIPELINE.eyebrow}
+            icon="refresh"
+            title={<>{PIPELINE.titleLead}<span className="landing-gradient-text">{PIPELINE.titleAccent}</span>{PIPELINE.titleTail}</>}
+            desc={PIPELINE.desc}
+          />
+          <PipelineDiagram />
+        </div>
+        <div className="landing-map" data-snap>
           <header className="landing-map__head">
             <span className="landing-map__tag">{PIPELINE.map.tag}</span>
             <h3 className="landing-map__title">{PIPELINE.map.title}</h3>
@@ -131,7 +130,7 @@ function Research() {
   const [viewing, setViewing] = useState(null); // { doc, title }
 
   return (
-    <section id="research" className="landing-section landing-section--tinted">
+    <section id="research" className="landing-section landing-section--tinted" data-snap>
       <div className="landing-container">
         <div className="landing-research__head">
           <SectionHeading eyebrow={RESEARCH.eyebrow} title={RESEARCH.title} align="left" />
@@ -224,9 +223,24 @@ function Footer() {
 }
 
 export default function LandingPage() {
+  const activeSection = useActiveSection();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useSectionSnap();
+
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 8);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, []);
+
   return (
     <div className="landing">
-      <Header />
+      <Header onOpenMenu={() => setMenuOpen(true)} scrolled={scrolled} />
+      <SectionRail active={activeSection} />
+      <SectionDrawer open={menuOpen} active={activeSection} onClose={() => setMenuOpen(false)} />
       <main>
         <Hero />
         <Pipeline />

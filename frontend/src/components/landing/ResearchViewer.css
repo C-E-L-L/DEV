@@ -18,6 +18,31 @@
 }
 .viewer:not([open]) { display: none; }
 .viewer::backdrop { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px); }
+.viewer[open] { animation: viewer-in 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+.viewer[open]::backdrop { animation: viewer-fade-in 0.3s ease; }
+.viewer.is-closing { animation: viewer-out 0.2s ease-in forwards; }
+.viewer.is-closing::backdrop { animation: viewer-fade-out 0.2s ease-in forwards; }
+
+@keyframes viewer-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes viewer-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+@keyframes viewer-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes viewer-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .viewer[open],
+  .viewer[open]::backdrop { animation: none; }
+}
 
 .viewer__head {
   display: flex;

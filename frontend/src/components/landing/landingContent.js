@@ -3,11 +3,12 @@
 /** Where the header / CTA login buttons go (the landing page itself is served at '/'). */
 export const LOGIN_PATH = '/login';
 
+/** Section toolbar (left rail on wide screens, drawer from the header menu button otherwise). */
 export const NAV_LINKS = [
-  { id: 'about', label: '서비스 소개' },
-  { id: 'pipeline', label: '데이터 순환 구조' },
-  { id: 'features', label: '주요 기능' },
-  { id: 'research', label: '학술 연구 성과' },
+  { id: 'about', label: '서비스 소개', icon: 'microscope' },
+  { id: 'pipeline', label: '데이터 순환 구조', icon: 'refresh' },
+  { id: 'features', label: '주요 기능', icon: 'layers' },
+  { id: 'research', label: '학술 연구 성과', icon: 'book' },
 ];
 
 export const HERO = {
@@ -74,8 +75,8 @@ export const PIPELINE = {
     { actor: 'professor', icon: 'layers', title: '응답 집계 · 라벨 확정', desc: '세포별 학생 응답 분포와 오류 양상을 검토해 기준 라벨을 확정합니다.', research: 'DS–MAP 실증 연구 진행 중' },
     { actor: 'data', icon: 'database', title: '라벨 데이터셋 축적', desc: '확정된 라벨이 동물 종 정보, 원본 영상 좌표와 함께 쌓입니다.' },
   ],
-  // Dashed return arrow (last step → AI step). Retraining is not implemented yet, so it is marked as future work.
-  loop: { badge: '향후 연구', text: '검수된 라벨 데이터로 AI 모델 개선' },
+  // Dashed return arrow (last step → AI step): the confirmed labels retrain the model.
+  loop: { text: '모델 재학습' },
   // DS–MAP demo shown under the diagram: a closer look at step 05.
   map: {
     tag: 'STEP 05 자세히 보기',
