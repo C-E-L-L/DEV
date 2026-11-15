@@ -9,7 +9,7 @@ import AuthImage from '../../components/AuthImage';
 import ReportsPanel from '../../components/ReportsPanel';
 import StudentReviewPanel from '../../components/StudentReviewPanel';
 
-const SCOPE_LABEL = { ASSIGNMENT: '과제', TASK: '개별 과제', DIAGNOSTIC: '진단평가' };
+const SCOPE_LABEL = { ASSIGNMENT: '과제', TASK: '과제', DIAGNOSTIC: '진단평가' };
 
 function useLoad(load, dependency) {
   const [state, setState] = useState({ loading: true, data: null, error: '' });
@@ -75,7 +75,8 @@ export function HistoryPage() {
   const state = useLoad(studentHistoryApi.getHistory, 'history');
   const [filter, setFilter] = useState('all');
   const activities = state.data?.activities || [];
-  const filtered = activities.filter(item => filter === 'all' || item.scopeType === filter);
+  const filtered = activities.filter(item => filter === 'all' || item.scopeType === filter
+    || (filter === 'ASSIGNMENT' && item.scopeType === 'TASK'));
 
   return (
     <>
@@ -91,7 +92,7 @@ export function HistoryPage() {
       <section className="prof-card" aria-label="수행한 과제">
         <header className="prof-card__head">
           <div className="prof-tabs" role="group" aria-label="유형 필터">
-            {[['all', '전체'], ['ASSIGNMENT', '과제'], ['TASK', '개별 과제'], ['DIAGNOSTIC', '진단평가']].map(([key, label]) => (
+            {[['all', '전체'], ['ASSIGNMENT', '과제'], ['DIAGNOSTIC', '진단평가']].map(([key, label]) => (
               <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>
             ))}
           </div>

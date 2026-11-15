@@ -83,7 +83,7 @@ function CourseworkRow({ item, featured = false }) {
           <span className={`prof-badge prof-mono stu-due-badge is-${due.tone}`} title={due.dateText ? `마감 ${due.dateText}` : undefined}>
             {due.tone === 'none' ? '마감 없음' : due.label}
           </span>
-          <span className="prof-badge">{item.diagnostic ? '진단평가' : '분류 실습'}</span>
+          <span className="prof-badge">{item.diagnostic ? '진단평가' : '과제'}</span>
           {loaded && status && <span className={`prof-badge${statusTone}`}>{status}</span>}
         </div>
         <h3 className="stu-row__title"><Link to={step.to}>{item.title}</Link></h3>
@@ -144,10 +144,10 @@ export function AssignmentsPage() {
 
           <section className="prof-card" aria-labelledby="stu-practice">
             <header className="prof-card__head">
-              <h2 id="stu-practice"><Icon name="clipboard" size={17} />분류 실습</h2>
+              <h2 id="stu-practice"><Icon name="clipboard" size={17} />과제</h2>
               <span className="prof-muted">마감되거나 결과가 공개된 과제는 결과 화면으로 이동합니다.</span>
             </header>
-            <RowList items={practice} empty="게시된 분류 실습이 없습니다." />
+            <RowList items={practice} empty="게시된 과제가 없습니다." />
           </section>
         </>
       )}

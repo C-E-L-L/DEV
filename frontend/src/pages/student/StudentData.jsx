@@ -23,7 +23,7 @@ export function buildCoursework(tasks) {
   for (const task of tasks) {
     if (isDiagnostic(task)) continue;
     if (!task.assignmentId) {
-      singles.push({ key: `task-${task.id}`, kind: 'task', id: task.id, diagnostic: false, tasks: [task], title: task.title || `분류 실습 #${task.id}` });
+      singles.push({ key: `task-${task.id}`, kind: 'task', id: task.id, diagnostic: false, tasks: [task], title: task.title || `과제 #${task.id}` });
       continue;
     }
     if (!assignments.has(task.assignmentId)) {

@@ -33,7 +33,7 @@ function ResultView({ item, result }) {
       <main className="prof-content stu-result">
         <div className="prof-page-head">
           <div>
-            <span className="prof-eyebrow prof-mono">{item.diagnostic ? '진단평가' : '분류 실습'}</span>
+            <span className="prof-eyebrow prof-mono">{item.diagnostic ? '진단평가' : '과제'}</span>
             <h1>{item.title}</h1>
             <p>최종 제출한 답안의 채점 결과입니다. 제출한 답안은 수정할 수 없습니다.</p>
           </div>
