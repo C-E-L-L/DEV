@@ -723,10 +723,10 @@ export default function AnalyticsFeedback({ initialTaskId = null, courseworkOnly
 
               {/* ── 이미지/셀목록 + 셀 패널 ── */}
               {selectedTaskId && stats.length > 0 && selectedAnalyticsTask && (
-                <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '25px', marginTop: '20px' }}>
                   {isDiagnosticTask(selectedAnalyticsTask) ? (
                     /* 진단평가: 셀 목록 */
-                    <div style={{ flex: '0 0 400px' }}>
+                    <div style={{ flex: '1 1 320px', maxWidth: '400px', minWidth: 0 }}>
                       <h3 style={sectionHeader}>Cell List ({stats.length}개)</h3>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
                         {stats.map((crop, idx) => {
@@ -757,7 +757,7 @@ export default function AnalyticsFeedback({ initialTaskId = null, courseworkOnly
                     </div>
                   ) : (
                     /* 일반 과제: 혈액도말 이미지 + 바운딩 박스 */
-                    <div style={{ flex: '0 0 720px' }}>
+                    <div style={{ flex: '1 1 480px', maxWidth: '720px', minWidth: 0 }}>
                     <div style={{ ...sectionHeader, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                       <span>Blood Smear Image</span>
                       <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />
@@ -832,7 +832,7 @@ export default function AnalyticsFeedback({ initialTaskId = null, courseworkOnly
                   )}
 
                   {/* 오른쪽: Cell Classification Panel */}
-                  <div style={{ flex: 1, minWidth: '350px' }}>
+                  <div style={{ flex: '1 1 350px', minWidth: 'min(350px, 100%)' }}>
                     <div style={{ ...sectionHeader, display: 'flex', gap: '8px' }} role="group" aria-label="도말 분석 메뉴">
                       {[['cells', '세포 분석'], ['students', '학생별 응답']].map(([view, label]) => (
                         <button key={view} type="button" aria-pressed={taskPanelView === view} onClick={() => setTaskPanelView(view)} style={{

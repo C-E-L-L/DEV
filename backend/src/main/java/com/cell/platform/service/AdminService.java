@@ -6,6 +6,7 @@ import com.cell.platform.domain.user.UserRepository;
 import com.cell.platform.domain.user.UserStatus;
 import com.cell.platform.dto.request.AdminStatusRequest;
 import com.cell.platform.dto.request.RegisterRequest;
+import com.cell.platform.dto.request.StudentRosterImportRequest;
 import com.cell.platform.dto.request.StudentRosterRequest;
 import com.cell.platform.dto.response.AdminCropResponse;
 import com.cell.platform.dto.response.AdminSmearResponse;
@@ -28,13 +29,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AdminService {
+
+    private static final int MAX_ROSTER_IMPORT_ROWS = 2000;
 
     private final TaskJpaRepository taskJpaRepository;
     private final CropJpaRepository cropJpaRepository;
@@ -123,6 +128,44 @@ public class AdminService {
             added++;
         }
         return new RosterImportResponse(added, skipped);
+    }
+
+    /** Adds class-list rows; a student ID already on the roster only gets its name/section filled in. */
+    @Transactional
+    public RosterImportResponse importStudentRoster(StudentRosterImportRequest request, String registeredBy) {
+        List<StudentRosterImportRequest.Row> rows = request == null || request.rows() == null ? List.of() : request.rows();
+        if (rows.size() > MAX_ROSTER_IMPORT_ROWS) {
+            throw new BadRequestException("한 번에 " + MAX_ROSTER_IMPORT_ROWS + "명까지 등록할 수 있습니다.", ErrorCode.U003);
+        }
+        int added = 0;
+        int updated = 0;
+        int skipped = 0;
+        Set<String> seen = new HashSet<>();
+        for (StudentRosterImportRequest.Row row : rows) {
+            String studentId = row == null || row.studentId() == null ? "" : row.studentId().trim();
+            if (studentId.isEmpty() || studentId.length() > 100 || !seen.add(studentId)) {
+                skipped++;
+                continue;
+            }
+            String name = cleanRosterText(row.name(), 100);
+            String section = cleanRosterText(row.section(), 50);
+            StudentRosterEntity existing = studentRosterJpaRepository.findByStudentId(studentId).orElse(null);
+            if (existing == null) {
+                studentRosterJpaRepository.save(new StudentRosterEntity(studentId, registeredBy, name, section));
+                added++;
+            } else if (existing.updateProfile(name, section)) {
+                updated++;
+            } else {
+                skipped++;
+            }
+        }
+        return new RosterImportResponse(added, skipped, updated);
+    }
+
+    private String cleanRosterText(String value, int maxLength) {
+        if (value == null || value.isBlank()) return null;
+        String text = value.trim();
+        return text.length() <= maxLength ? text : text.substring(0, maxLength);
     }
 
     @Transactional

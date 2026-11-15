@@ -1,81 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { taskApi, speciesApi, diagnosticApi, labelingApi } from '../api';
-import { courseworkApi } from '../api/coursework';
-import { distributeQuestions, groupCoursework, isDiagnostic } from '../utils/coursework';
-import CourseworkEditor from '../components/CourseworkEditor';
-import AnalyticsFeedback from '../components/AnalyticsFeedback';
-import StudentManagement from '../components/StudentManagement';
-import ReportsPanel from '../components/ReportsPanel';
-import SpeciesDataSettings from '../components/SpeciesDataSettings';
-import AuthImage from '../components/AuthImage';
-import { imageUrl } from '../constants';
-import './ProfessorWorkspace.css';
+import { useEffect, useState } from 'react';
+import { taskApi, diagnosticApi, labelingApi } from '../api';
+import { distributeQuestions } from '../utils/coursework';
 
 const errorMessage = error => error?.response?.data?.message || error.message || '요청을 처리하지 못했습니다. 다시 시도해주세요.';
 
-export default function ProfessorWorkspace() {
-  const [tab, setTab] = useState('coursework');
-  const [species, setSpecies] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [data, setData] = useState([]);
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [dirty, setDirty] = useState(false);
-  const [analysisId, setAnalysisId] = useState(null);
-  const [filter, setFilter] = useState('ALL');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const reload = useCallback(async () => {
-    setLoading(true); setError('');
-    try {
-      const [s, t, d] = await Promise.all([speciesApi.getAll(), taskApi.getAll(), courseworkApi.data()]);
-      setSpecies(s.data); setTasks(t.data); setData(d.data);
-    } catch (e) { setError(errorMessage(e)); }
-    finally { setLoading(false); }
-  }, []);
-  useEffect(() => { reload(); }, [reload]);
-
-  const leave = () => !dirty || window.confirm('저장하지 않은 변경 사항이 있습니다. 저장하지 않고 이동할까요?');
-  const navigate = next => { if (!leave()) return; setDirty(false); setTab(next); setEditing(null); setCreating(false); setAnalysisId(null); setFilter('ALL'); };
-  const edit = id => { setCreating(false); setEditing(id); setAnalysisId(null); setDirty(false); };
-  const copy = async id => { try { const { data } = await courseworkApi.copy(id); edit(data.id); setTab('coursework'); await reload(); } catch (e) { setError(errorMessage(e)); } };
-  const groups = groupCoursework(tasks).filter(group => filter === 'ALL' || (filter === 'DRAFT' ? group.status === 'DRAFT' : group.status !== 'DRAFT'));
-  const smears = data.filter(task => filter !== 'LABELED' || (task.cropCount > 0 && task.labeledCount === task.cropCount));
-
-  return <main className="professor-workspace">
-    <header className="pw-header"><div><p className="pw-eyebrow">C.E.L.L. · 교수</p><h1>수업과 데이터 관리</h1><p>자료 준비부터 학생 피드백까지 한곳에서 진행하세요.</p></div></header>
-    <nav className="pw-nav" aria-label="교수 메뉴">{[['coursework', '과제'], ['students', '학생'], ['reports', '질문·신고'], ['data', '데이터'], ['settings', '설정']].map(([key, label]) =>
-      <button key={key} aria-current={tab === key ? 'page' : undefined} onClick={() => navigate(key)}>{label}</button>)}</nav>
-    {error && <div role="alert" className="pw-error">{error} <button onClick={reload}>다시 불러오기</button></div>}
-    {editing ? <CourseworkEditor key={editing} id={editing} onDirty={setDirty} onBack={() => { if (leave()) { setEditing(null); setDirty(false); reload(); } }} onPublished={() => { setEditing(null); setDirty(false); setTab('coursework'); reload(); }} /> :
-      tab === 'coursework' ? <>
-        {analysisId ? <><button onClick={() => setAnalysisId(null)}>← 과제 목록</button><AnalyticsFeedback initialTaskId={analysisId} courseworkOnly /></> :
-        creating ? <CourseworkCreator species={species.filter(s => s.active !== false)} onCancel={() => setCreating(false)} onCreated={id => { edit(id); reload(); }} /> : <>
-          <div className="pw-section-heading"><div><h2>과제</h2><p>작성 중인 과제는 학생에게 보이지 않습니다. 게시할 때 공개됩니다.</p></div><button className="pw-primary" onClick={() => setCreating(true)}>+ 과제 만들기</button></div>
-          <div className="pw-filters">{[['ALL', '전체'], ['DRAFT', '작성 중'], ['PUBLISHED', '게시됨']].map(([key, text]) => <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{text}</button>)}</div>
-          {loading ? <p role="status">과제를 불러오는 중…</p> : !groups.length ? <div className="pw-empty">표시할 과제가 없습니다. 과제를 만들어보세요.</div> : <div className="pw-cards">{groups.map(group => <article className="pw-card" key={group.id}>
-            <div className="pw-card-top"><span className={`pw-badge ${isDiagnostic(group) ? 'diagnostic' : ''}`}>{isDiagnostic(group) ? '진단평가' : '분류 실습'}</span><span className="pw-badge">{group.status === 'DRAFT' ? '작성 중 · 비공개' : '게시됨'}</span></div>
-            <h3>{group.title || (isDiagnostic(group) ? '진단평가' : '분류 실습')}</h3>
-            <p>{[...new Set(group.tasks.map(t => t.speciesName))].join(', ')} · {isDiagnostic(group) ? '' : `도말 ${group.tasks.length}장 · `}{group.cropCount}문항</p>
-            <p>정답 확정 {group.labeledCount}/{group.cropCount} · 출제 제외 {group.excludedCount}</p>
-            <p>{group.deadlineAt ? `마감 ${new Date(group.deadlineAt).toLocaleString('ko-KR')}` : '마감일 없음'}</p>
-            <div className="pw-actions">{group.status === 'DRAFT' ? <button className="pw-primary" onClick={() => edit(group.id)}>이어서 준비하기</button> : <button onClick={() => setAnalysisId(group.id)}>응답·채점 결과</button>}</div>
-          </article>)}</div>}
-        </>}
-      </> : tab === 'data' ? <>
-        <div className="pw-section-heading"><div><h2>도말 데이터</h2><p>라벨링한 자료를 확인하고 새 과제로 복사할 수 있습니다. 기존 학생 기록은 유지됩니다.</p></div><button onClick={reload}>새로고침</button></div>
-        <div className="pw-filters">{[['ALL', '전체 자료'], ['LABELED', '라벨링 완료']].map(([key, text]) => <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{text}</button>)}</div>
-        <div className="pw-cards">{smears.map(task => <article className="pw-card" key={task.id}>
-          <AuthImage className="pw-data-image" src={imageUrl.original(task.originalFilename)} alt={task.uploadedFilename || '도말 이미지'} />
-          <h3>{task.uploadedFilename}</h3><p>{task.speciesName} · 정답 확정 {task.labeledCount}/{task.cropCount} · 제외 {task.excludedCount}</p>
-          <span className="pw-badge">{task.cropCount > 0 && task.labeledCount === task.cropCount ? '라벨링 완료' : '라벨링 진행 중'}</span>
-          <div className="pw-actions">{task.status === 'DRAFT' && <button onClick={() => edit(task.id)}>라벨링 이어하기</button>}<button onClick={() => copy(task.id)}>새 과제로 사용</button></div>
-        </article>)}</div>{!loading && !smears.length && <div className="pw-empty">해당하는 도말 자료가 없습니다.</div>}
-      </> : tab === 'students' ? <StudentManagement /> : tab === 'reports' ? <ReportsPanel /> : <section className="pw-card"><h2>데이터 설정</h2><SpeciesDataSettings species={species} onSaved={reload} /></section>}
-  </main>;
-}
-
-function CourseworkCreator({ species, onCancel, onCreated }) {
+/** New coursework form: a diagnostic from the answer pool, or a practice from uploaded smears. Creates a draft. */
+export default function CourseworkCreator({ species, onCancel, onCreated }) {
   const [kind, setKind] = useState('DIAGNOSTIC');
   const [title, setTitle] = useState('');
   const [speciesId, setSpeciesId] = useState(species.find(s => s.code === 'DOG')?.id || species[0]?.id || '');

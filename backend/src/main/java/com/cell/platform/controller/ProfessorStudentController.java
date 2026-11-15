@@ -1,6 +1,7 @@
 package com.cell.platform.controller;
 
 import com.cell.platform.dto.request.RegisterRequest;
+import com.cell.platform.dto.request.StudentRosterImportRequest;
 import com.cell.platform.dto.request.StudentRosterRequest;
 import com.cell.platform.dto.response.RosterImportResponse;
 import com.cell.platform.dto.response.StudentRosterResponse;
@@ -41,5 +42,11 @@ public class ProfessorStudentController {
     @PostMapping("/roster")
     public RosterImportResponse register(@RequestBody StudentRosterRequest request, Authentication auth) {
         return adminService.addStudentRoster(request, auth.getName());
+    }
+
+    /** Class list import (학번·성명·분반). Existing entries get their name/section filled in. */
+    @PostMapping("/roster/import")
+    public RosterImportResponse importRoster(@RequestBody StudentRosterImportRequest request, Authentication auth) {
+        return adminService.importStudentRoster(request, auth.getName());
     }
 }

@@ -1,0 +1,21 @@
+# Optional MySQL for production-engine parity. Independent of production Compose.
+name: cell-local
+services:
+  mysql:
+    image: mysql:8.0
+    ports:
+      - "127.0.0.1:13306:3306"
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: cell_local
+      MYSQL_USER: cell_local
+      MYSQL_PASSWORD: ${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD from .local/settings.json}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql --user=$$MYSQL_USER --execute='SELECT 1' $$MYSQL_DATABASE"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+volumes:
+  mysql-data:

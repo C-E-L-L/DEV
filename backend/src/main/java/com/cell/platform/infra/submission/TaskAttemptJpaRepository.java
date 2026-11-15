@@ -6,5 +6,6 @@ import java.util.List;
 
 public interface TaskAttemptJpaRepository extends JpaRepository<TaskAttemptEntity, Long> {
     boolean existsByTaskIdInAndStudentId(List<Long> taskIds, String studentId);
+    List<TaskAttemptEntity> findAllByTaskIdIn(List<Long> taskIds);
     void deleteAllByTaskId(Long taskId);
 }
