@@ -1,0 +1,30 @@
+flowchart TB
+  Browser["사용자 브라우저<br/>STUDENT / EXPERT / ADMIN"]
+  subgraph Server["Docker compose 배포 설정 / 현재 5개 서비스 실행 관측<br/>정식 물리 HW·망 구성은 Q-08 확인"]
+    N["frontend: Nginx + React 정적 파일<br/>외부 80→301→443 TLS1.2/1.3"]
+    B["backend: Spring Boot :8080<br/>JWT · 업무 · JPA · 파일 리소스"]
+    A["ai-server: FastAPI :8001<br/>YOLO → JPG crop → DenseNet201(6종)"]
+    M[("mysql:8.0 :3306<br/>celldb 10테이블")]
+    D[("공유 ./data bind<br/>originals / crops / thumbnails / diagnostic_gt")]
+    C["colorizer: Flask/Gunicorn :8501<br/>독립 계정·DICOM·ROI"]
+    S[("colorizer-data volume<br/>SQLite 7테이블 + uploads/export")]
+    V[("mysql-data volume")]
+    W["./ai-server/weights bind<br/>YOLO .pt + DenseNet .pth"]
+    Cert["./ssl → Nginx 읽기전용<br/>cert.pem/key.pem (비밀 미포함)"]
+  end
+  Browser -->|"HTTPS cell.cbnu.ac.kr (설정 도메인)"| N
+  N -->|"React SPA /"| Browser
+  N -->|"/api/** · /data/** HTTP 내부"| B
+  B -->|"JDBC 메타데이터"| M
+  M --- V
+  B -->|"multipart POST /api/analyze"| A
+  A --- W
+  A -->|"AI 원본/crop 파일"| D
+  B <-->|"파일·진단 manifest"| D
+  N -->|"/colorizer/** 경로 재작성"| C
+  C --- S
+  Cert --- N
+  B -.->|"AI 결과를 메타데이터로 저장"| M
+  Note["주의: Flask는 Spring/MySQL/CELL JWT와 직접 연결되지 않음.<br/>자동 재학습→모델 교체 경로도 없음. 기본 compose network만 사용."]
+  C --- Note
+

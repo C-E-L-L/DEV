@@ -1,0 +1,26 @@
+sequenceDiagram
+  actor E as 교수(EXPERT)
+  participant UI as ExpertPage
+  participant B as AssignmentController/TaskService
+  participant FS as 공유파일
+  participant AI as FastAPI/PipelineService
+  participant M as MySQL
+  E->>UI: title + files[] + speciesIds[] + deadlineAt?
+  UI->>B: POST /api/assignments (JWT multipart)
+  B->>B: 미래마감/최소파일/종개수 검사
+  B->>M: Assignment 저장(트랜잭션)
+  loop 각 파일 순차 처리
+    B->>FS: UUID 원본 + 썸네일 저장
+    B->>AI: POST /api/analyze multipart file
+    AI->>FS: AI 원본 별도 이름 저장
+    AI->>AI: YOLO box xyxy → crop JPG
+    AI->>FS: crop 저장
+    AI->>AI: RGB256/정규화 → DenseNet201 softmax
+    AI-->>B: crop_filename/bbox/prediction/confidence
+    B->>M: Task/Crop 저장 (pseudoLabel·분류confidence)
+  end
+  B-->>UI: AssignmentResponse(tasks,totalCrops)
+  UI-->>E: 과제/도말/crop 결과
+  Note over B,FS: 중간 실패 시 DB rollback과 FS 보상삭제는 별개. 파일 자동복구 근거 없음.
+  Note over UI,AI: UI 업로드 단계 안내는 timer이며 AI실제 진행률 스트림 아님.
+

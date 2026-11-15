@@ -1,0 +1,94 @@
+erDiagram
+  animal_species {
+    bigint id PK "bigint; NULL=NO"
+    varchar code UK "varchar(40); NULL=NO"
+    varchar name UK "varchar(60); NULL=NO"
+    bit built_in "bit(1); NULL=NO"
+    datetime created_at "datetime(6); NULL=NO"
+    datetime updated_at "datetime(6); NULL=NO"
+  }
+  assignments {
+    bigint id PK "bigint; NULL=NO"
+    datetime created_at "datetime(6); NULL=YES"
+    varchar expert_username "varchar(255); NULL=NO"
+    varchar title "varchar(255); NULL=NO"
+  }
+  crop_issue_reports {
+    bigint id PK "bigint; NULL=NO"
+    datetime created_at "datetime(6); NULL=NO"
+    bigint crop_id "bigint; NULL=NO"
+    varchar reason "varchar(255); NULL=NO"
+    varchar student_id "varchar(255); NULL=NO"
+    bigint task_id "bigint; NULL=NO"
+  }
+  crops {
+    bigint id PK "bigint; NULL=NO"
+    double ai_bbox_confidence "double; NULL=YES"
+    double ai_classification_confidence "double; NULL=YES"
+    varchar bbox "varchar(255); NULL=YES"
+    varchar crop_filename "varchar(255); NULL=NO"
+    enum final_label "enum('Band','Eosinophil','Lymphocyte','Monocyte','NucleatedRBC','Segment'); NULL=YES"
+    enum gt_label "enum('Band','Eosinophil','Lymphocyte','Monocyte','NucleatedRBC','Segment'); NULL=YES"
+    enum pseudo_label "enum('Band','Eosinophil','Lymphocyte','Monocyte','NucleatedRBC','Segment'); NULL=YES"
+    bigint task_id FK "bigint; NULL=NO"
+  }
+  game_records {
+    bigint id PK "bigint; NULL=NO"
+    varchar player_name "varchar(50); NULL=NO"
+    int score "int; NULL=NO"
+    varchar mode "varchar(10); NULL=NO"
+    datetime played_at "datetime(6); NULL=NO"
+  }
+  student_confusion_matrix {
+    bigint id PK "bigint; NULL=NO"
+    json matrix_data "json; NULL=YES"
+    varchar student_id "varchar(255); NULL=NO"
+    bigint task_id "bigint; NULL=NO"
+    datetime updated_at "datetime(6); NULL=YES"
+  }
+  student_roster {
+    bigint id PK "bigint; NULL=NO"
+    bigint claimed_user_id "bigint; NULL=YES"
+    datetime created_at "datetime(6); NULL=YES"
+    varchar registered_by "varchar(255); NULL=YES"
+    varchar student_id UK "varchar(255); NULL=NO"
+  }
+  submissions {
+    bigint id PK "bigint; NULL=NO"
+    varchar student_id "varchar(255); NULL=NO"
+    enum student_label "enum('Band','Eosinophil','Lymphocyte','Monocyte','NucleatedRBC','Segment'); NULL=NO"
+    datetime submitted_at "datetime(6); NULL=YES"
+    bigint crop_id FK "bigint; NULL=NO"
+  }
+  tasks {
+    bigint id PK "bigint; NULL=NO"
+    datetime created_at "datetime(6); NULL=YES"
+    varchar original_filename "varchar(255); NULL=NO"
+    enum status "enum('COMPLETED','IN_PROGRESS'); NULL=NO"
+    varchar uploaded_filename "varchar(255); NULL=YES"
+    bigint assignment_id "bigint; NULL=YES"
+    varchar title "varchar(255); NULL=YES"
+    datetime deadline_at "datetime(6); NULL=YES"
+    bigint animal_species_id FK "bigint; NULL=NO"
+  }
+  users {
+    bigint id PK "bigint; NULL=NO"
+    datetime created_at "datetime(6); NULL=YES"
+    varchar name "varchar(255); NULL=YES"
+    varchar password "varchar(255); NULL=NO"
+    enum role "enum('ADMIN','EXPERT','STUDENT'); NULL=NO"
+    varchar username UK "varchar(255); NULL=NO"
+    enum status "enum('ACTIVE','INACTIVE','PENDING','REJECTED'); NULL=YES"
+  }
+  animal_species ||--o{ tasks : "animal_species_id FK"
+  tasks ||--o{ crops : "task_id FK"
+  crops ||--o{ submissions : "crop_id FK"
+  assignments |o..o{ tasks : "assignment_id logical only"
+  users |o..o{ submissions : "student_id to username logical only"
+  users |o..o{ student_confusion_matrix : "student_id logical only"
+  users |o..o{ crop_issue_reports : "student_id logical only"
+  users |o..o{ student_roster : "claimed_user_id logical only"
+  tasks |o..o{ student_confusion_matrix : "task_id logical only"
+  tasks |o..o{ crop_issue_reports : "task_id logical only"
+  crops |o..o{ crop_issue_reports : "crop_id logical only"
+

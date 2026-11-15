@@ -1,0 +1,123 @@
+@startuml
+hide empty members
+skinparam packageStyle rectangle
+skinparam linetype ortho
+title 업무 클래스·인터페이스 (Controller/Service/domain)\n기준 juhun@94aeb1a / 정적 선언·의존
+package "com.cell.platform.controller" {
+class "AdminController\nC-008" as C_008
+class "AnimalSpeciesController\nC-009" as C_009
+class "AssignmentController\nC-010" as C_010
+class "AuthController\nC-011" as C_011
+class "CropController\nC-012" as C_012
+class "CropIssueReportController\nC-013" as C_013
+class "GameRecordController\nC-014" as C_014
+class "LabelingController\nC-015" as C_015
+class "StatsController\nC-016" as C_016
+class "StudentAnalyticsController\nC-017" as C_017
+class "StudentReviewController\nC-018" as C_018
+class "SubmissionController\nC-019" as C_019
+class "TaskController\nC-020" as C_020
+}
+package "com.cell.platform.domain.crop" {
+enum "CellType\nC-021" as C_021
+class "Crop\nC-022" as C_022
+interface "CropRepository\nC-023" as C_023
+}
+package "com.cell.platform.domain.matrix" {
+interface "ConfusionMatrixRepository\nC-024" as C_024
+}
+package "com.cell.platform.domain.submission" {
+class "Submission\nC-025" as C_025
+interface "SubmissionRepository\nC-026" as C_026
+}
+package "com.cell.platform.domain.task" {
+class "Task\nC-027" as C_027
+interface "TaskRepository\nC-028" as C_028
+enum "TaskStatus\nC-029" as C_029
+}
+package "com.cell.platform.domain.user" {
+enum "Role\nC-030" as C_030
+class "User\nC-031" as C_031
+interface "UserRepository\nC-032" as C_032
+enum "UserStatus\nC-033" as C_033
+}
+package "com.cell.platform.service" {
+class "AdminService\nC-121" as C_121
+class "AiClientService\nC-122" as C_122
+class "AnimalSpeciesService\nC-123" as C_123
+class "AuthService\nC-124" as C_124
+class "CropIssueReportService\nC-125" as C_125
+class "CropService\nC-126" as C_126
+class "DiagnosticDatasetService\nC-127" as C_127
+class "DiagnosticCell\nC-128" as C_128 <<record>>
+class "DiagnosticTaskService\nC-129" as C_129
+class "FileStorageService\nC-130" as C_130
+class "GameRecordService\nC-131" as C_131
+class "LabelingService\nC-132" as C_132
+class "PseudoLabelService\nC-133" as C_133
+class "StatsService\nC-134" as C_134
+class "StudentAnalyticsService\nC-135" as C_135
+class "SubmissionService\nC-136" as C_136
+class "ScopeSnapshot\nC-137" as C_137 <<record>>
+class "TaskService\nC-138" as C_138
+}
+C_008 --> C_121 : adminService
+C_009 --> C_123 : speciesService
+C_010 --> C_138 : taskService
+C_010 --> C_028 : taskRepository
+C_011 --> C_124 : authService
+C_012 --> C_126 : cropService
+C_013 --> C_125 : reportService
+C_014 --> C_131 : gameRecordService
+C_015 --> C_132 : labelingService
+C_016 --> C_134 : statsService
+C_017 --> C_135 : studentAnalyticsService
+C_018 --> C_136 : submissionService
+C_019 --> C_136 : submissionService
+C_020 --> C_138 : taskService
+C_020 --> C_129 : diagnosticTaskService
+C_020 --> C_136 : submissionService
+C_020 --> C_123 : animalSpeciesService
+C_022 --> C_021 : gtLabel
+C_022 --> C_021 : pseudoLabel
+C_022 --> C_021 : finalLabel
+C_025 --> C_021 : studentLabel
+C_027 --> C_029 : status
+C_027 --> C_022 : crops
+C_031 --> C_030 : role
+C_031 --> C_033 : status
+C_121 --> C_032 : userRepository
+C_124 --> C_032 : userRepository
+C_125 --> C_023 : cropRepository
+C_126 --> C_023 : cropRepository
+C_126 --> C_028 : taskRepository
+C_126 --> C_136 : submissionService
+C_128 --> C_021 : label
+C_129 --> C_127 : diagnosticDatasetService
+C_129 --> C_028 : taskRepository
+C_129 --> C_123 : animalSpeciesService
+C_132 --> C_130 : fileStorageService
+C_134 --> C_023 : cropRepository
+C_134 --> C_026 : submissionRepository
+C_134 --> C_032 : userRepository
+C_135 --> C_028 : taskRepository
+C_135 --> C_023 : cropRepository
+C_135 --> C_026 : submissionRepository
+C_135 --> C_136 : submissionService
+C_136 --> C_026 : submissionRepository
+C_136 --> C_023 : cropRepository
+C_136 --> C_032 : userRepository
+C_136 --> C_028 : taskRepository
+C_136 --> C_127 : diagnosticDatasetService
+C_136 --> C_024 : confusionMatrixRepository
+C_137 --> C_027 : tasks
+C_137 --> C_022 : crops
+C_137 --> C_025 : submissions
+C_138 --> C_028 : taskRepository
+C_138 --> C_130 : fileStorageService
+C_138 --> C_122 : aiClientService
+C_138 --> C_023 : cropRepository
+C_138 --> C_123 : animalSpeciesService
+note "실선 참조는 명시 필드 타입, 상속/구현은 header 기준.\nLombok·프레임워크 생성 타입은 제외.\n멤버/콜백·전체 method 호출은 상세목록 참조.\n비정적 실행순서나 DB FK를 이 그림에서 추정하지 않는다." as N
+@enduml
+

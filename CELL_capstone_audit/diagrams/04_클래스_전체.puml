@@ -1,0 +1,478 @@
+@startuml
+hide empty members
+skinparam packageStyle rectangle
+skinparam linetype ortho
+title 자체 Java 타입 전체 (운영139+시험81)\n기준 juhun@94aeb1a / 정적 선언·의존
+package "com.cell.platform" {
+class "CellApplication\nC-001" as C_001
+}
+package "com.cell.platform.config" {
+class "AdminSeedRunner\nC-002" as C_002
+class "JwtAuthFilter\nC-003" as C_003
+class "JwtTokenProvider\nC-004" as C_004
+class "SecurityConfig\nC-005" as C_005
+class "ThumbnailBackfillRunner\nC-006" as C_006
+class "WebConfig\nC-007" as C_007
+}
+package "com.cell.platform.controller" {
+class "AdminController\nC-008" as C_008
+class "AnimalSpeciesController\nC-009" as C_009
+class "AssignmentController\nC-010" as C_010
+class "AuthController\nC-011" as C_011
+class "CropController\nC-012" as C_012
+class "CropIssueReportController\nC-013" as C_013
+class "GameRecordController\nC-014" as C_014
+class "LabelingController\nC-015" as C_015
+class "StatsController\nC-016" as C_016
+class "StudentAnalyticsController\nC-017" as C_017
+class "StudentReviewController\nC-018" as C_018
+class "SubmissionController\nC-019" as C_019
+class "TaskController\nC-020" as C_020
+}
+package "com.cell.platform.domain.crop" {
+enum "CellType\nC-021" as C_021
+class "Crop\nC-022" as C_022
+interface "CropRepository\nC-023" as C_023
+}
+package "com.cell.platform.domain.matrix" {
+interface "ConfusionMatrixRepository\nC-024" as C_024
+}
+package "com.cell.platform.domain.submission" {
+class "Submission\nC-025" as C_025
+interface "SubmissionRepository\nC-026" as C_026
+}
+package "com.cell.platform.domain.task" {
+class "Task\nC-027" as C_027
+interface "TaskRepository\nC-028" as C_028
+enum "TaskStatus\nC-029" as C_029
+}
+package "com.cell.platform.domain.user" {
+enum "Role\nC-030" as C_030
+class "User\nC-031" as C_031
+interface "UserRepository\nC-032" as C_032
+enum "UserStatus\nC-033" as C_033
+}
+package "com.cell.platform.dto.request" {
+class "AdminStatusRequest\nC-034" as C_034 <<record>>
+class "AnimalSpeciesNameRequest\nC-035" as C_035 <<record>>
+class "ConfirmRequest\nC-036" as C_036 <<record>>
+class "CropIssueReportRequest\nC-037" as C_037 <<record>>
+class "DeadlineUpdateRequest\nC-038" as C_038 <<record>>
+class "DiagnosticTaskCreateRequest\nC-039" as C_039 <<record>>
+class "GameRecordRequest\nC-040" as C_040 <<record>>
+class "Entry\nC-041" as C_041 <<record>>
+class "LabelingImportRequest\nC-042" as C_042 <<record>>
+class "CellLabel\nC-043" as C_043 <<record>>
+class "LoginRequest\nC-044" as C_044 <<record>>
+class "RegisterRequest\nC-045" as C_045 <<record>>
+class "SpeciesUpdateRequest\nC-046" as C_046 <<record>>
+class "StudentRosterRequest\nC-047" as C_047 <<record>>
+class "SubmissionRequest\nC-048" as C_048 <<record>>
+}
+package "com.cell.platform.dto.response" {
+class "AdminCropResponse\nC-049" as C_049 <<record>>
+class "AdminSmearResponse\nC-050" as C_050 <<record>>
+class "AiAnalysisResponse\nC-051" as C_051
+class "DetectedCell\nC-052" as C_052
+class "AnimalSpeciesResponse\nC-053" as C_053 <<record>>
+class "AssignmentResponse\nC-054" as C_054 <<record>>
+class "CropIssueReportResponse\nC-055" as C_055 <<record>>
+class "CropResponse\nC-056" as C_056 <<record>>
+class "CropStatsResponse\nC-057" as C_057 <<record>>
+class "VoterDetail\nC-058" as C_058 <<record>>
+class "DiagnosticPoolStatsResponse\nC-059" as C_059 <<record>>
+class "DiagnosticStudentMatrixResponse\nC-060" as C_060
+class "StudentMatrixDetail\nC-061" as C_061
+class "GameRecordResponse\nC-062" as C_062 <<record>>
+class "LabelingManifestResponse\nC-063" as C_063 <<record>>
+class "CellAnnotation\nC-064" as C_064 <<record>>
+class "LoginResponse\nC-065" as C_065 <<record>>
+class "MyResultsResponse\nC-066" as C_066 <<record>>
+class "Detail\nC-067" as C_067 <<record>>
+class "RegisterResponse\nC-068" as C_068 <<record>>
+class "RosterImportResponse\nC-069" as C_069 <<record>>
+class "StudentLearningResponse\nC-070" as C_070 <<record>>
+class "Summary\nC-071" as C_071 <<record>>
+class "Activity\nC-072" as C_072 <<record>>
+class "TaskResult\nC-073" as C_073 <<record>>
+class "TaskDetail\nC-074" as C_074 <<record>>
+class "CellResult\nC-075" as C_075 <<record>>
+class "StudentReviewResponse\nC-076" as C_076 <<record>>
+class "ReviewGroup\nC-077" as C_077 <<record>>
+class "ReviewCell\nC-078" as C_078 <<record>>
+class "StudentRosterResponse\nC-079" as C_079 <<record>>
+class "TaskResponse\nC-080" as C_080 <<record>>
+class "TaskUploadResponse\nC-081" as C_081 <<record>>
+class "TrainingDataResponse\nC-082" as C_082 <<record>>
+class "UserResponse\nC-083" as C_083 <<record>>
+}
+package "com.cell.platform.entity" {
+class "AnimalSpeciesEntity\nC-084" as C_084
+class "AssignmentEntity\nC-085" as C_085
+class "CropEntity\nC-086" as C_086
+class "CropIssueReportEntity\nC-087" as C_087
+class "GameRecordEntity\nC-088" as C_088
+class "StudentConfusionMatrixEntity\nC-089" as C_089
+class "StudentRosterEntity\nC-090" as C_090
+class "SubmissionEntity\nC-091" as C_091
+class "TaskEntity\nC-092" as C_092
+class "UserEntity\nC-093" as C_093
+}
+package "com.cell.platform.exception" {
+class "AuthenticationException\nC-094" as C_094
+class "AuthorizationException\nC-095" as C_095
+class "BadRequestException\nC-096" as C_096
+class "BusinessException\nC-097" as C_097
+class "CustomException\nC-098" as C_098
+class "DuplicateUsernameException\nC-099" as C_099
+class "EntityNotFoundException\nC-100" as C_100
+enum "ErrorCode\nC-101" as C_101
+class "ErrorResponse\nC-102" as C_102 <<record>>
+class "GlobalExceptionHandler\nC-103" as C_103
+class "InfraStructureException\nC-104" as C_104
+class "NotFoundException\nC-105" as C_105
+}
+package "com.cell.platform.infra.assignment" {
+interface "AssignmentJpaRepository\nC-106" as C_106
+}
+package "com.cell.platform.infra.crop" {
+class "CropCoreRepository\nC-107" as C_107
+interface "CropJpaRepository\nC-108" as C_108
+}
+package "com.cell.platform.infra.game" {
+interface "GameRecordJpaRepository\nC-109" as C_109
+}
+package "com.cell.platform.infra.matrix" {
+class "ConfusionMatrixCoreRepository\nC-110" as C_110
+interface "ConfusionMatrixJpaRepository\nC-111" as C_111
+}
+package "com.cell.platform.infra.report" {
+interface "CropIssueReportJpaRepository\nC-112" as C_112
+}
+package "com.cell.platform.infra.species" {
+interface "AnimalSpeciesJpaRepository\nC-113" as C_113
+}
+package "com.cell.platform.infra.submission" {
+class "SubmissionCoreRepository\nC-114" as C_114
+interface "SubmissionJpaRepository\nC-115" as C_115
+}
+package "com.cell.platform.infra.task" {
+class "TaskCoreRepository\nC-116" as C_116
+interface "TaskJpaRepository\nC-117" as C_117
+}
+package "com.cell.platform.infra.user" {
+interface "StudentRosterJpaRepository\nC-118" as C_118
+class "UserCoreRepository\nC-119" as C_119
+interface "UserJpaRepository\nC-120" as C_120
+}
+package "com.cell.platform.service" {
+class "AdminService\nC-121" as C_121
+class "AiClientService\nC-122" as C_122
+class "AnimalSpeciesService\nC-123" as C_123
+class "AuthService\nC-124" as C_124
+class "CropIssueReportService\nC-125" as C_125
+class "CropService\nC-126" as C_126
+class "DiagnosticDatasetService\nC-127" as C_127
+class "DiagnosticCell\nC-128" as C_128 <<record>>
+class "DiagnosticTaskService\nC-129" as C_129
+class "FileStorageService\nC-130" as C_130
+class "GameRecordService\nC-131" as C_131
+class "LabelingService\nC-132" as C_132
+class "PseudoLabelService\nC-133" as C_133
+class "StatsService\nC-134" as C_134
+class "StudentAnalyticsService\nC-135" as C_135
+class "SubmissionService\nC-136" as C_136
+class "ScopeSnapshot\nC-137" as C_137 <<record>>
+class "TaskService\nC-138" as C_138
+}
+package "com.cell.platform.util" {
+class "Mapper\nC-139" as C_139
+}
+package "test (운영 제외)" {
+class "ApplicationTests\nC-140" as C_140 #EEEEEE
+class "JwtTokenProviderTest\nC-141" as C_141 #EEEEEE
+class "generateToken_메서드는\nC-142" as C_142 #EEEEEE
+class "getUsername_메서드는\nC-143" as C_143 #EEEEEE
+class "getRole_메서드는\nC-144" as C_144 #EEEEEE
+class "isValid_메서드는\nC-145" as C_145 #EEEEEE
+class "RepositoryContext\nC-146" as C_146 #EEEEEE
+class "AuthControllerTest\nC-147" as C_147 #EEEEEE
+class "회원가입_API는\nC-148" as C_148 #EEEEEE
+class "로그인_API는\nC-149" as C_149 #EEEEEE
+class "CropControllerTest\nC-150" as C_150 #EEEEEE
+class "크롭_목록_조회_API는\nC-151" as C_151 #EEEEEE
+class "정답_확정_API는\nC-152" as C_152 #EEEEEE
+class "학습_데이터_조회_API는\nC-153" as C_153 #EEEEEE
+class "StatsControllerTest\nC-154" as C_154 #EEEEEE
+class "과제별_통계_API는\nC-155" as C_155 #EEEEEE
+class "전체_통계_API는\nC-156" as C_156 #EEEEEE
+class "StudentAnalyticsControllerTest\nC-157" as C_157 #EEEEEE
+class "SubmissionControllerTest\nC-158" as C_158 #EEEEEE
+class "답안_제출_API는\nC-159" as C_159 #EEEEEE
+class "풀이_이력_조회_API는\nC-160" as C_160 #EEEEEE
+class "내_결과_조회_API는\nC-161" as C_161 #EEEEEE
+class "TaskControllerTest\nC-162" as C_162 #EEEEEE
+class "과제_목록_조회_API는\nC-163" as C_163 #EEEEEE
+class "이미지_업로드_API는\nC-164" as C_164 #EEEEEE
+class "CropTest\nC-165" as C_165 #EEEEEE
+class "Crop은\nC-166" as C_166 #EEEEEE
+class "SubmissionTest\nC-167" as C_167 #EEEEEE
+class "Submission은\nC-168" as C_168 #EEEEEE
+class "TaskTest\nC-169" as C_169 #EEEEEE
+class "Task는\nC-170" as C_170 #EEEEEE
+class "UserTest\nC-171" as C_171 #EEEEEE
+class "User는\nC-172" as C_172 #EEEEEE
+class "CropEntityTest\nC-173" as C_173 #EEEEEE
+class "CropEntity는\nC-174" as C_174 #EEEEEE
+class "updateFinalLabel_메서드는\nC-175" as C_175 #EEEEEE
+class "getTaskId_메서드는\nC-176" as C_176 #EEEEEE
+class "SubmissionEntityTest\nC-177" as C_177 #EEEEEE
+class "SubmissionEntity는\nC-178" as C_178 #EEEEEE
+class "TaskEntityTest\nC-179" as C_179 #EEEEEE
+class "TaskEntity는\nC-180" as C_180 #EEEEEE
+class "addCrop_메서드는\nC-181" as C_181 #EEEEEE
+class "UserEntityTest\nC-182" as C_182 #EEEEEE
+class "UserEntity는\nC-183" as C_183 #EEEEEE
+class "CropFixture\nC-184" as C_184 #EEEEEE
+class "SubmissionFixture\nC-185" as C_185 #EEEEEE
+class "TaskFixture\nC-186" as C_186 #EEEEEE
+class "UserFixture\nC-187" as C_187 #EEEEEE
+class "CropCoreRepositoryTest\nC-188" as C_188 #EEEEEE
+class "save_메서드는\nC-189" as C_189 #EEEEEE
+class "findById_메서드는\nC-190" as C_190 #EEEEEE
+class "findAllByTaskId_메서드는\nC-191" as C_191 #EEEEEE
+class "findAllByFinalLabelIsNotNull_메서드는\nC-192" as C_192 #EEEEEE
+class "findAll_메서드는\nC-193" as C_193 #EEEEEE
+class "findEntityById_메서드는\nC-194" as C_194 #EEEEEE
+class "SubmissionCoreRepositoryTest\nC-195" as C_195 #EEEEEE
+class "save_메서드는\nC-196" as C_196 #EEEEEE
+class "findAllByCropIdIn_메서드는\nC-197" as C_197 #EEEEEE
+class "findAllByCropIdInAndStudentId_메서드는\nC-198" as C_198 #EEEEEE
+class "TaskCoreRepositoryTest\nC-199" as C_199 #EEEEEE
+class "save_메서드는\nC-200" as C_200 #EEEEEE
+class "findById_메서드는\nC-201" as C_201 #EEEEEE
+class "findAllByOrderByIdDesc_메서드는\nC-202" as C_202 #EEEEEE
+class "UserCoreRepositoryTest\nC-203" as C_203 #EEEEEE
+class "save_메서드는\nC-204" as C_204 #EEEEEE
+class "findByUsername_메서드는\nC-205" as C_205 #EEEEEE
+class "existsByUsername_메서드는\nC-206" as C_206 #EEEEEE
+class "AuthServiceTest\nC-207" as C_207 #EEEEEE
+class "register_메서드는\nC-208" as C_208 #EEEEEE
+class "login_메서드는\nC-209" as C_209 #EEEEEE
+class "CropServiceTest\nC-210" as C_210 #EEEEEE
+class "getCropsByTaskId_메서드는\nC-211" as C_211 #EEEEEE
+class "getConfirmedTrainingData_메서드는\nC-212" as C_212 #EEEEEE
+class "confirmLabel_메서드는\nC-213" as C_213 #EEEEEE
+class "StatsServiceTest\nC-214" as C_214 #EEEEEE
+class "getTaskStats_메서드는\nC-215" as C_215 #EEEEEE
+class "getAllStats_메서드는\nC-216" as C_216 #EEEEEE
+class "StudentAnalyticsServiceTest\nC-217" as C_217 #EEEEEE
+class "TaskServiceTest\nC-218" as C_218 #EEEEEE
+class "getAllTasks_메서드는\nC-219" as C_219 #EEEEEE
+class "createTask_메서드는\nC-220" as C_220 #EEEEEE
+}
+class "CommandLineRunner" as EXT_CommandLineRunner <<외부 또는 별도 명세>>
+class "OncePerRequestFilter" as EXT_OncePerRequestFilter <<외부 또는 별도 명세>>
+class "WebMvcConfigurer" as EXT_WebMvcConfigurer <<외부 또는 별도 명세>>
+class "RuntimeException" as EXT_RuntimeException <<외부 또는 별도 명세>>
+class "JpaRepository" as EXT_JpaRepository <<외부 또는 별도 명세>>
+C_002 --> C_032 : userRepository
+C_002 ..|> EXT_CommandLineRunner
+C_003 --> C_004 : jwtTokenProvider
+C_003 --|> EXT_OncePerRequestFilter
+C_005 --> C_004 : jwtTokenProvider
+C_006 --> C_130 : fileStorageService
+C_006 ..|> EXT_CommandLineRunner
+C_007 ..|> EXT_WebMvcConfigurer
+C_008 --> C_121 : adminService
+C_009 --> C_123 : speciesService
+C_010 --> C_138 : taskService
+C_010 --> C_028 : taskRepository
+C_011 --> C_124 : authService
+C_012 --> C_126 : cropService
+C_013 --> C_125 : reportService
+C_014 --> C_131 : gameRecordService
+C_015 --> C_132 : labelingService
+C_016 --> C_134 : statsService
+C_017 --> C_135 : studentAnalyticsService
+C_018 --> C_136 : submissionService
+C_019 --> C_136 : submissionService
+C_020 --> C_138 : taskService
+C_020 --> C_129 : diagnosticTaskService
+C_020 --> C_136 : submissionService
+C_020 --> C_123 : animalSpeciesService
+C_022 --> C_021 : gtLabel
+C_022 --> C_021 : pseudoLabel
+C_022 --> C_021 : finalLabel
+C_025 --> C_021 : studentLabel
+C_027 --> C_029 : status
+C_027 --> C_022 : crops
+C_031 --> C_030 : role
+C_031 --> C_033 : status
+C_040 --> C_041 : players
+C_042 --> C_043 : cells
+C_051 --> C_052 : cells
+C_054 --> C_081 : tasks
+C_057 --> C_058 : votersByLabel
+C_060 --> C_061 : studentMatrices
+C_063 --> C_064 : cells
+C_066 --> C_067 : details
+C_070 --> C_072 : activities
+C_072 --> C_071 : summary
+C_072 --> C_073 : tasks
+C_073 --> C_071 : summary
+C_074 --> C_073 : task
+C_074 --> C_075 : cells
+C_076 --> C_077 : reviews
+C_077 --> C_078 : cells
+C_081 --> C_056 : crops
+C_086 --> C_092 : task
+C_086 --> C_021 : gtLabel
+C_086 --> C_021 : pseudoLabel
+C_086 --> C_021 : finalLabel
+C_091 --> C_086 : crop
+C_091 --> C_021 : studentLabel
+C_092 --> C_029 : status
+C_092 --> C_084 : animalSpecies
+C_092 --> C_086 : crops
+C_093 --> C_030 : role
+C_093 --> C_033 : status
+C_094 --|> C_098
+C_095 --|> C_098
+C_096 --|> C_097
+C_097 --> C_101 : errorCode
+C_097 --|> EXT_RuntimeException
+C_098 --> C_101 : errorCode
+C_098 --|> EXT_RuntimeException
+C_099 --|> EXT_RuntimeException
+C_100 --|> EXT_RuntimeException
+C_104 --|> C_098
+C_105 --|> C_097
+C_106 --|> EXT_JpaRepository
+C_107 --> C_108 : cropJpaRepository
+C_107 --> C_117 : taskJpaRepository
+C_107 ..|> C_023
+C_108 --|> EXT_JpaRepository
+C_109 --|> EXT_JpaRepository
+C_110 --> C_111 : jpaRepository
+C_110 ..|> C_024
+C_111 --|> EXT_JpaRepository
+C_112 --|> EXT_JpaRepository
+C_113 --|> EXT_JpaRepository
+C_114 --> C_115 : submissionJpaRepository
+C_114 --> C_108 : cropJpaRepository
+C_114 ..|> C_026
+C_115 --|> EXT_JpaRepository
+C_116 --> C_117 : taskJpaRepository
+C_116 --> C_113 : animalSpeciesJpaRepository
+C_116 ..|> C_028
+C_117 --|> EXT_JpaRepository
+C_118 --|> EXT_JpaRepository
+C_119 --> C_120 : userJpaRepository
+C_119 ..|> C_032
+C_120 --|> EXT_JpaRepository
+C_121 --> C_117 : taskJpaRepository
+C_121 --> C_108 : cropJpaRepository
+C_121 --> C_032 : userRepository
+C_121 --> C_120 : userJpaRepository
+C_121 --> C_118 : studentRosterJpaRepository
+C_123 --> C_113 : speciesRepository
+C_123 --> C_117 : taskRepository
+C_124 --> C_032 : userRepository
+C_124 --> C_118 : studentRosterJpaRepository
+C_124 --> C_004 : jwtTokenProvider
+C_125 --> C_112 : reportRepository
+C_125 --> C_023 : cropRepository
+C_126 --> C_023 : cropRepository
+C_126 --> C_107 : cropCoreRepository
+C_126 --> C_028 : taskRepository
+C_126 --> C_136 : submissionService
+C_128 --> C_021 : label
+C_129 --> C_127 : diagnosticDatasetService
+C_129 --> C_028 : taskRepository
+C_129 --> C_123 : animalSpeciesService
+C_131 --> C_109 : repo
+C_132 --> C_117 : taskJpaRepository
+C_132 --> C_108 : cropJpaRepository
+C_132 --> C_130 : fileStorageService
+C_134 --> C_023 : cropRepository
+C_134 --> C_026 : submissionRepository
+C_134 --> C_032 : userRepository
+C_135 --> C_028 : taskRepository
+C_135 --> C_023 : cropRepository
+C_135 --> C_026 : submissionRepository
+C_135 --> C_136 : submissionService
+C_136 --> C_026 : submissionRepository
+C_136 --> C_023 : cropRepository
+C_136 --> C_032 : userRepository
+C_136 --> C_028 : taskRepository
+C_136 --> C_127 : diagnosticDatasetService
+C_136 --> C_024 : confusionMatrixRepository
+C_137 --> C_027 : tasks
+C_137 --> C_022 : crops
+C_137 --> C_025 : submissions
+C_138 --> C_028 : taskRepository
+C_138 --> C_130 : fileStorageService
+C_138 --> C_122 : aiClientService
+C_138 --> C_115 : submissionJpaRepository
+C_138 --> C_111 : confusionMatrixJpaRepository
+C_138 --> C_112 : cropIssueReportJpaRepository
+C_138 --> C_106 : assignmentJpaRepository
+C_138 --> C_023 : cropRepository
+C_138 --> C_123 : animalSpeciesService
+C_141 --> C_004 : jwtTokenProvider
+C_146 --> C_120 : userJpaRepository
+C_146 --> C_117 : taskJpaRepository
+C_146 --> C_108 : cropJpaRepository
+C_146 --> C_115 : submissionJpaRepository
+C_147 --> C_124 : authService
+C_147 --> C_004 : jwtTokenProvider
+C_150 --> C_126 : cropService
+C_150 --> C_004 : jwtTokenProvider
+C_154 --> C_134 : statsService
+C_154 --> C_004 : jwtTokenProvider
+C_157 --> C_135 : service
+C_157 --> C_004 : jwtTokenProvider
+C_158 --> C_136 : submissionService
+C_158 --> C_004 : jwtTokenProvider
+C_162 --> C_138 : taskService
+C_162 --> C_129 : diagnosticTaskService
+C_162 --> C_004 : jwtTokenProvider
+C_188 --> C_023 : cropRepository
+C_188 --> C_107 : cropCoreRepository
+C_188 --> C_028 : taskRepository
+C_188 --> C_027 : savedTask
+C_188 --|> C_146
+C_195 --> C_026 : submissionRepository
+C_195 --> C_028 : taskRepository
+C_195 --> C_027 : savedTask
+C_195 --|> C_146
+C_199 --> C_028 : taskRepository
+C_199 --|> C_146
+C_203 --> C_032 : userRepository
+C_203 --|> C_146
+C_207 --> C_124 : authService
+C_207 --> C_032 : userRepository
+C_207 --> C_118 : studentRosterJpaRepository
+C_207 --> C_004 : jwtTokenProvider
+C_210 --> C_126 : cropService
+C_210 --> C_023 : cropRepository
+C_210 --> C_107 : cropCoreRepository
+C_214 --> C_134 : statsService
+C_214 --> C_023 : cropRepository
+C_214 --> C_026 : submissionRepository
+C_214 --> C_032 : userRepository
+C_217 --> C_028 : tasks
+C_217 --> C_023 : crops
+C_217 --> C_026 : submissions
+C_217 --> C_032 : users
+C_217 --> C_127 : dataset
+C_217 --> C_024 : matrices
+C_217 --> C_135 : service
+C_218 --> C_138 : taskService
+C_218 --> C_028 : taskRepository
+C_218 --> C_130 : fileStorageService
+C_218 --> C_122 : aiClientService
+note "실선 참조는 명시 필드 타입, 상속/구현은 header 기준.\nLombok·프레임워크 생성 타입은 제외.\n멤버/콜백·전체 method 호출은 상세목록 참조.\n비정적 실행순서나 DB FK를 이 그림에서 추정하지 않는다." as N
+@enduml
+

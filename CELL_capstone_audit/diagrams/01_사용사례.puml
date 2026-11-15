@@ -1,0 +1,78 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+title CELL 사용사례 — 현 구현 기반 초안 (juhun@94aeb1a)
+actor "방문자/학생" as Student
+actor "교수·전문가\nEXPERT" as Expert
+actor "관리자\nADMIN" as Admin
+actor "FastAPI AI 서버\n시스템 액터" as AI
+actor "독립 컬러화 사용자\nCELL 계정과 별도" as DUser
+rectangle "CELL 웹 업무(React + Spring)" {
+usecase "UC-01\n인증·브라우저 세션" as UC1
+usecase "UC-02\n접근 권한" as UC2
+usecase "UC-03\n계정·학생 명단" as UC3
+usecase "UC-04\n동물 종 메타데이터" as UC4
+usecase "UC-05\n도말 업로드·과제 생성" as UC5
+usecase "UC-06\n과제 조회·마감·삭제" as UC6
+usecase "UC-07\n학생 학습·복습" as UC7
+usecase "UC-08\n전문가 GT 검토" as UC8
+usecase "UC-09\n통계·학생별 분석" as UC9
+usecase "UC-10\n진단평가" as UC10
+usecase "UC-11\n문제 세포 신고" as UC11
+usecase "UC-12\n라벨 파일 입출력" as UC12
+usecase "UC-13\n영상 관리·표시" as UC13
+usecase "UC-14\nAI 추론" as UC14
+usecase "UC-15\n학습 데이터·재학습 경계\n(학습 실행은 부분/미구현)" as UC15 #LightGray
+usecase "UC-16\n관리자 부가 게임" as UC16
+}
+rectangle "연계 독립 Flask 컬러화(Q-03 범위 확정 필요)" {
+usecase "UC-17\n별도 인증·영구 DICOM 작업" as UC17
+usecase "UC-18\n정규화·ROI·내보내기" as UC18
+}
+Student --> UC1
+Student --> UC2
+Student --> UC6
+Student --> UC7
+Student --> UC11
+Student --> UC13
+Expert --> UC1
+Expert --> UC2
+Expert --> UC4
+Expert --> UC5
+Expert --> UC6
+Expert --> UC8
+Expert --> UC9
+Expert --> UC10
+Expert --> UC11
+Expert --> UC12
+Expert --> UC13
+Admin --> UC1
+Admin --> UC2
+Admin --> UC3
+Admin --> UC4
+Admin --> UC6
+Admin --> UC8
+Admin --> UC9
+Admin --> UC11
+Admin --> UC12
+Admin --> UC13
+Admin --> UC16
+UC5 ..> UC14 : <<include>>\n업로드 시 실제 분석 호출
+UC14 --> AI : multipart 분석
+DUser --> UC17
+DUser --> UC18
+note bottom of UC15
+US-033 확정 라벨 추출 API는 있음.
+US-034 trainer/평가/모델승격/서빙갱신은 없음.
+현재 사용자가 실행하는 완성 재학습 사례 아님.
+end note
+note bottom of UC13
+표시는 로그인 사용자, 전체 관리목록은 ADMIN.
+화면과 API의 허용 role은 세부 US/권한표 참조.
+end note
+note bottom of UC5
+ADMIN은 생성 API 허용이나 /expert 화면 진입은 아님.
+도표의 actor 연결은 세부 US 범위를 함께 읽는다.
+end note
+@enduml
+

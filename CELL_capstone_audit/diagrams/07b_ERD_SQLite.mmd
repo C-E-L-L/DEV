@@ -1,0 +1,57 @@
+erDiagram
+  users { 
+    TEXT id PK
+    TEXT username UK
+    TEXT password_hash
+    TEXT created_at
+  }
+  batches {
+    TEXT id PK
+    TEXT user_id FK
+    TEXT label
+    TEXT source_type
+    REAL created_at
+  }
+  items {
+    TEXT id PK
+    TEXT batch_id FK
+    TEXT user_id FK
+    TEXT relative_path
+    TEXT original_relative_path
+    TEXT storage_path
+    TEXT content_hash
+    TEXT image_hash
+    TEXT error
+    TEXT acquisition_json
+    REAL created_at
+  }
+  color_settings {
+    TEXT user_id PK,FK
+    TEXT content_hash PK
+    TEXT payload_json
+    TEXT updated_at
+  }
+  roi_annotations {
+    TEXT user_id PK,FK
+    TEXT content_hash PK
+    INTEGER rows
+    INTEGER columns
+    TEXT payload_json
+    TEXT updated_at
+  }
+  roi_labels {
+    TEXT user_id PK,FK
+    TEXT name PK
+    INTEGER position
+  }
+  service_metadata {
+    TEXT key PK
+    TEXT value
+  }
+  users ||--o{ batches : "ON DELETE CASCADE"
+  users ||--o{ items : "ON DELETE CASCADE"
+  batches ||--o{ items : "ON DELETE CASCADE"
+  users ||--o{ color_settings : "ON DELETE CASCADE"
+  users ||--o{ roi_annotations : "ON DELETE CASCADE"
+  users ||--o{ roi_labels : "ON DELETE CASCADE"
+

@@ -1,0 +1,9 @@
+flowchart LR
+  U["별도 컬러화 로그인"] --> Batch["작업 생성/열기"] --> Upload["파일·폴더 업로드<br/>소유권·512MiB·quota 검사"]
+  Upload --> Hash["파일/영상hash·촬영조건(time60/count200000/other)"] --> SQL[("SQLite items/batches + uploads")]
+  SQL --> Pixel["pydicom pixel_array·LUT/휘도<br/>현재 렌더 frames0"] --> Norm["5 정규화 + 13컬러맵 + gamma/threshold"]
+  Norm --> Screen["흑백/컬러·설정저장"] --> ROI["polygon/ellipse ROI·라벨"]
+  ROI --> State[("user+contenthash 설정/ROI")]
+  State --> Export["단일PNG/JPG/VIA 또는 background ZIP"] --> Job["진행률·취소·TTL1h"]
+  Note["Spring/CELL JWT/MySQL/AI 학습과 별도"] --- U
+
