@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../../components/login/icons';
 import AuthImage from '../../components/AuthImage';
-import SpeciesBadge from '../../components/SpeciesBadge';
 import { DEFAULT_IMAGE_DISPLAY_SETTINGS, useImageDisplaySettings } from '../../components/ImageDisplayControls';
 import { cropApi, reportApi, submissionApi } from '../../api';
 import { REPORT_REASONS, imageUrl } from '../../constants';
@@ -159,6 +158,7 @@ export default function WorkspacePage() {
   const [result, setResult] = useState(null);
   const [reporting, setReporting] = useState(false);
   const cellList = useRef(null);
+  const [adjustOpen, setAdjustOpen] = useState(false);
 
   const itemKey = item?.key;
   useEffect(() => {
@@ -308,7 +308,8 @@ export default function WorkspacePage() {
   }
   if (result) return <ResultView item={item} result={result} />;
 
-  const submitLabel = attempt.submitted ? '최종 제출 완료 · 결과 공개 대기' : attempt.locked ? '마감된 과제' : '과제 최종 제출';
+  const left = total - solvedCount;
+  const submitLabel = attempt.submitted ? '제출 완료 · 결과 공개 대기' : attempt.locked ? '마감된 과제' : allDone ? '과제 최종 제출' : `최종 제출 · ${left}개 남음`;
   const submitHint = attempt.locked ? '제출이 잠긴 과제입니다. 답안을 수정할 수 없습니다.'
     : allDone ? '제출 후에는 답안을 수정할 수 없습니다.' : `모든 세포에 응답하면 제출할 수 있습니다 (현재 ${solvedCount}/${total})`;
   const viewerCells = (smear?.indices || []).map(cropIndex => {
@@ -319,6 +320,9 @@ export default function WorkspacePage() {
       label: labelText(crop, labels[crop.id]),
     };
   });
+  const manySmears = !diagnostic && smears.length > 1;
+  const listed = diagnostic ? crops.map((_, cropIndex) => cropIndex) : smear?.indices || [];
+  const leftHere = listed.filter(cropIndex => !labels[crops[cropIndex].id]).length;
 
   return (
     <div className={`stu-work${diagnostic ? ' is-diagnostic' : ''}`}>
@@ -327,21 +331,16 @@ export default function WorkspacePage() {
           <SidebarToggle />
           <Link to={LIST_PATH} className="prof-icon-btn" title="과제 목록으로" aria-label="과제 목록으로"><Icon name="arrowLeft" size={18} /></Link>
           <span className="stu-work__divider" aria-hidden="true" />
-          <span className="prof-eyebrow prof-mono">{diagnostic ? '진단평가' : '분류 실습'}</span>
           <h1 title={item.title}>{item.title}</h1>
           {item.deadlineAt && (
             <span className={`prof-badge stu-due is-${due.tone}`} title={`마감 ${new Date(item.deadlineAt).toLocaleString('ko-KR')}`}>
-              {due.tone !== 'closed' && <span className="stu-due__dot" aria-hidden="true" />}{due.label}{due.tone !== 'closed' && ' 마감'}
+              {due.label}{due.tone !== 'closed' && ' 마감'}
             </span>
           )}
         </div>
-        <div className="stu-work__head-side prof-mono">
-          <span className="stu-work__head-progress"><span>진행률</span><strong>{solvedCount} / {total} ({percent}%)</strong></span>
-          <span className="stu-work__divider" aria-hidden="true" />
-          <span className="stu-work__saved" role="status">
-            {attempt.locked ? '제출 잠김' : busy ? '저장 중…' : savedAt ? `자동 저장됨 ${savedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : '자동 저장'}
-          </span>
-        </div>
+        <span className="stu-work__saved prof-mono" role="status">
+          {attempt.locked ? '제출 잠김' : busy ? '저장 중…' : savedAt ? `자동 저장됨 ${savedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : '자동 저장'}
+        </span>
       </header>
 
       {status === 'loading' && <p role="status" className="prof-empty stu-work__state">과제를 불러오는 중…</p>}
@@ -358,15 +357,14 @@ export default function WorkspacePage() {
       {status === 'ready' && current && (
         <>
           <div className="stu-work__body">
-            {/* Column 1: smears and the cells of the current smear */}
+            {/* Column 1: smears (only when there are several) and the cells of the current smear */}
             <section className="stu-pane stu-pane--left" aria-label="도말과 세포 목록">
-              {!diagnostic && (
+              {manySmears && (
                 <>
                   <header className="stu-pane__head"><h2>도말 리스트</h2><span className="prof-mono">{smears.length}개</span></header>
                   <ul className="stu-smears">
                     {smears.map((group, groupIndex) => {
-                      const done = solvedIn(group);
-                      const groupPercent = Math.round((done / group.indices.length) * 100);
+                      const groupPercent = Math.round((solvedIn(group) / group.indices.length) * 100);
                       const active = groupIndex === smearIndex;
                       return (
                         <li key={group.filename || groupIndex}>
@@ -385,10 +383,10 @@ export default function WorkspacePage() {
               )}
               <header className="stu-pane__head">
                 <h2>세포 목록</h2>
-                <span className="prof-mono stu-pane__count">{diagnostic ? total - solvedCount : smear.indices.length - solvedIn(smear)}개 남음</span>
+                <span className="prof-mono stu-pane__count">{leftHere ? `${leftHere}개 남음` : '모두 분류'}</span>
               </header>
               <ul className="stu-cells" ref={cellList}>
-                {(diagnostic ? crops.map((_, cropIndex) => cropIndex) : smear.indices).map(cropIndex => {
+                {listed.map(cropIndex => {
                   const crop = crops[cropIndex];
                   const done = Boolean(labels[crop.id]);
                   const selected = cropIndex === index;
@@ -409,56 +407,25 @@ export default function WorkspacePage() {
 
             {/* Column 2: the smear viewer (a diagnostic has no smear, only the cell image) */}
             <section className="stu-pane stu-pane--center" aria-label={diagnostic ? '세포 이미지' : '혈액 도말 이미지'}>
-              <div className="stu-viewbar">
-                <span className="stu-viewbar__title">
-                  <Icon name="microscope" size={16} />
-                  {diagnostic ? '세포 이미지' : <>도말 <span className="prof-mono">{smearIndex + 1} / {smears.length}</span></>}
-                  <SpeciesBadge name={current.speciesName || first.speciesName} code={current.speciesCode || first.speciesCode} compact />
-                </span>
-                {!diagnostic && smears.length > 1 && (
-                  <span className="stu-viewbar__nav">
-                    <button type="button" className="prof-btn stu-btn-sm" onClick={() => goToSmear(smearIndex - 1)} disabled={smearIndex <= 0}><Icon name="arrowLeft" size={14} />이전 도말</button>
-                    <button type="button" className="prof-btn stu-btn-sm" onClick={() => goToSmear(smearIndex + 1)} disabled={smearIndex >= smears.length - 1}>다음 도말<Icon name="arrowRight" size={14} /></button>
-                  </span>
-                )}
-              </div>
-
               {diagnostic ? (
                 <div className="stu-cropstage">
                   <AuthImage key={current.id} src={imageUrl.crop(current.cropFilename)} alt={`세포 ${index + 1}`} className="stu-cropstage__image" style={{ filter: display.filter }}
                     loadingText="세포 이미지를 불러오는 중…" errorText="세포 이미지를 불러오지 못했습니다." />
                 </div>
               ) : activeSmear ? (
-                <SmearViewer filename={activeSmear} filter={display.filter} cells={viewerCells} onSelect={setIndex} hint={`세포 #${index + 1} 선택됨`} />
+                <SmearViewer filename={activeSmear} filter={display.filter} cells={viewerCells} onSelect={setIndex} />
               ) : <p className="prof-empty">도말 이미지가 없습니다.</p>}
-
-              <div className="stu-statusbar prof-mono">
-                <span className="stu-statusbar__legend">
-                  <span><i className="is-done" />완료 {solvedCount}</span>
-                  <span><i className="is-current" />현재 #{index + 1}</span>
-                  <span><i />미분류 {total - solvedCount}</span>
-                </span>
-                <span className="stu-statusbar__hint">숫자키: 분류 · ←/→: 세포 이동{!diagnostic && ' · 확대 후 드래그: 이동'}</span>
-              </div>
+              {manySmears && (
+                <div className="stu-smearnav prof-mono" role="group" aria-label="도말 이동">
+                  <button type="button" onClick={() => goToSmear(smearIndex - 1)} disabled={smearIndex <= 0} title="이전 도말" aria-label="이전 도말"><Icon name="arrowLeft" size={14} /></button>
+                  <span>도말 {smearIndex + 1} / {smears.length}</span>
+                  <button type="button" onClick={() => goToSmear(smearIndex + 1)} disabled={smearIndex >= smears.length - 1} title="다음 도말" aria-label="다음 도말"><Icon name="arrowRight" size={14} /></button>
+                </div>
+              )}
             </section>
 
-            {/* Column 3: display adjustment and classification */}
+            {/* Column 3: classification */}
             <section className="stu-pane stu-pane--right" aria-label="세포 분류">
-              <div className="stu-adjust">
-                <header className="stu-pane__title">
-                  <h2>화질 조정</h2>
-                  <button type="button" className="stu-textbtn prof-mono" onClick={display.resetSettings} disabled={!adjusted}>초기화</button>
-                </header>
-                {DISPLAY_CONTROLS.map(control => (
-                  <label key={control.key} className="stu-slider">
-                    <span>{control.label}</span>
-                    <input type="range" min={control.min} max={control.max} value={display.settings[control.key]}
-                      onChange={event => display.updateSetting(control.key, event.target.value)} />
-                    <span className="prof-mono">{display.settings[control.key]}%</span>
-                  </label>
-                ))}
-              </div>
-
               <div className="stu-classify">
                 <div className="stu-target">
                   <AuthImage key={current.id} src={imageUrl.crop(current.cropFilename)} alt={`세포 ${index + 1}`} className="stu-target__image" style={{ filter: display.filter }} />
@@ -467,14 +434,11 @@ export default function WorkspacePage() {
                       <strong className="prof-mono">Cell #{index + 1}</strong>
                       <span className={`prof-badge${labels[current.id] ? ' is-emerald' : ' is-amber'}`}>{labels[current.id] ? '분류 완료' : '대기'}</span>
                     </span>
-                    <small>{labels[current.id] ? `내 답: ${labelText(current, labels[current.id])}` : '아래에서 클래스를 선택하세요'}</small>
+                    <small>{labels[current.id] ? `내 답: ${labelText(current, labels[current.id])}` : current.speciesName || first.speciesName || '클래스를 선택하세요'}</small>
                   </div>
                 </div>
 
-                <header className="stu-pane__title">
-                  <h2>세포 감별 분류</h2>
-                  <span className="prof-mono stu-pane__hint">단축키 1~{Math.min(9, choices.length)}</span>
-                </header>
+                <header className="stu-pane__title"><h2>세포 감별 분류</h2></header>
                 <div className="stu-choices">
                   {choices.map((choice, choiceIndex) => {
                     const selected = labels[current.id] === choice.key;
@@ -486,40 +450,51 @@ export default function WorkspacePage() {
                       </button>
                     );
                   })}
+                  <button type="button" className={`stu-choice stu-choice--unknown${labels[current.id] === 'UNKNOWN' ? ' is-selected' : ''}`}
+                    aria-pressed={labels[current.id] === 'UNKNOWN'} disabled={locked} onClick={() => answer('UNKNOWN')}
+                    title="모르겠어요도 응답 완료로 저장됩니다. 점수에는 오답으로 반영되며 클래스 혼동행렬에서는 제외됩니다.">
+                    <span>모르겠어요 <small>오답 처리</small></span><kbd className="prof-mono">0</kbd>
+                  </button>
                 </div>
 
-                <div className="stu-extra">
-                  <button type="button" className={`stu-choice stu-choice--unknown${labels[current.id] === 'UNKNOWN' ? ' is-selected' : ''}`}
-                    aria-pressed={labels[current.id] === 'UNKNOWN'} disabled={locked} onClick={() => answer('UNKNOWN')}>
-                    <span>모르겠어요로 응답</span><kbd className="prof-mono">0</kbd>
+                <div className="stu-tools">
+                  <button type="button" className={`stu-tool${adjusted ? ' is-on' : ''}`} aria-expanded={adjustOpen} onClick={() => setAdjustOpen(value => !value)}>
+                    <Icon name="contrast" size={14} />화질 조정{adjusted && <span className="stu-tool__dot" aria-label="조정됨" />}
                   </button>
-                  <p className="prof-muted">모르겠어요도 응답 완료로 저장됩니다. 점수에는 오답으로 반영되며 클래스 혼동행렬에서는 제외됩니다.</p>
-                  <button type="button" className="prof-btn stu-report-btn" onClick={() => setReporting(true)}><Icon name="help" size={15} />질문·이미지 오류 신고</button>
+                  <button type="button" className="stu-tool" onClick={() => setReporting(true)}><Icon name="help" size={14} />질문·오류 신고</button>
                 </div>
+                {adjustOpen && (
+                  <div className="stu-adjust">
+                    {DISPLAY_CONTROLS.map(control => (
+                      <label key={control.key} className="stu-slider">
+                        <span>{control.label}</span>
+                        <input type="range" min={control.min} max={control.max} value={display.settings[control.key]}
+                          onChange={event => display.updateSetting(control.key, event.target.value)} />
+                        <span className="prof-mono">{display.settings[control.key]}%</span>
+                      </label>
+                    ))}
+                    <button type="button" className="stu-textbtn" onClick={display.resetSettings} disabled={!adjusted}>초기화</button>
+                  </div>
+                )}
               </div>
             </section>
           </div>
 
           <footer className="stu-work__foot">
             <div className="stu-foot__progress">
-              <div>
-                <strong>{diagnostic ? '진단평가' : <>현재 도말 <span className="prof-mono">{smearIndex + 1}</span></>}</strong>
-                <small><span className="prof-mono">{solvedCount} / {total}</span> 세포 분류 완료</small>
-              </div>
+              <span className="prof-mono"><strong>{solvedCount}</strong> / {total}</span>
               <span className="prof-bar" role="progressbar" aria-label="전체 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
                 <span className={allDone ? 'is-done' : ''} style={{ width: `${percent}%` }} />
               </span>
-              <span className="prof-mono stu-foot__percent">{percent}%</span>
             </div>
 
             <div className="stu-foot__stepper">
-              <button type="button" className="prof-btn" onClick={() => step(-1)} disabled={index === 0}><Icon name="arrowLeft" size={15} /><span>이전 세포</span></button>
-              <span className="stu-foot__position prof-mono"><strong>Cell {index + 1}</strong> / {total}</span>
-              <button type="button" className="prof-btn" onClick={() => step(1)} disabled={index >= total - 1}><span>다음 세포</span><kbd className="prof-mono">Space</kbd><Icon name="arrowRight" size={15} /></button>
+              <button type="button" className="prof-btn" onClick={() => step(-1)} disabled={index === 0} title="이전 세포 (←)"><Icon name="arrowLeft" size={15} /><span>이전</span></button>
+              <span className="stu-foot__position prof-mono"><strong>{index + 1}</strong> / {total}</span>
+              <button type="button" className="prof-btn" onClick={() => step(1)} disabled={index >= total - 1} title="다음 세포 (→ 또는 Space)"><span>다음</span><Icon name="arrowRight" size={15} /></button>
             </div>
 
             <div className="stu-foot__submit">
-              <span className="prof-muted">{submitHint}</span>
               <button type="button" className="prof-btn prof-btn--primary" onClick={finalize} disabled={!allDone || attempt.locked || busy} title={submitHint}>
                 <Icon name="send" size={15} />{submitLabel}
               </button>
