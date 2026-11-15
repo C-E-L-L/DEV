@@ -59,6 +59,10 @@ const PATHS = {
   trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />,
   copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
   chevronLeft: <path d="M15 6l-6 6 6 6" />,
+  // Student console
+  arrowLeft: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
 };
 
 export default function Icon({ name, size = 16, className }) {
