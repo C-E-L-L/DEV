@@ -1,7 +1,8 @@
 [CmdletBinding()]
-param([string]$DeployHome = $PSScriptRoot, [switch]$CheckOnly, [switch]$RetryFailed)
+param([string]$DeployHome = '', [switch]$CheckOnly, [switch]$RetryFailed)
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($DeployHome)) { $DeployHome = $PSScriptRoot }
 $script:DeployHome = [IO.Path]::GetFullPath($DeployHome)
 . (Join-Path $PSScriptRoot 'Deployment.Common.ps1')
 $lock = $null

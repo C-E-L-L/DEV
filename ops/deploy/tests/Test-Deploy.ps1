@@ -80,5 +80,15 @@ $script:FailSmoke = $false
 Apply-Candidate $manifest 'candidate.json' $state | Out-Null
 Assert ((Read-JsonFile (Join-Path $script:DeployHome 'state.json')).sha -eq $manifest.sha) 'Only a healthy deployment advances state'
 Assert (@($script:Commands | Where-Object { $_ -match ' down|prune|mysql.* up|volume rm' }).Count -eq 0) 'Deployment must never remove persistent data'
+# Exercise the actual scheduled-task entrypoint in a child shell, without arguments.
+# PowerShell 5 does not reliably initialize PSScriptRoot in parameter default values.
+foreach ($file in @('Deployment.Common.ps1','Poll-Production.ps1')) {
+    Copy-Item -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) $file) -Destination (Join-Path $script:DeployHome $file)
+}
+Write-JsonFile @{server_root=$script:DeployHome;docker_exe='docker';repository='C-E-L-L/DEV'} (Join-Path $script:DeployHome 'config.json')
+New-Item -ItemType File -Path (Join-Path $script:DeployHome 'paused') | Out-Null
+$shell = (Get-Process -Id $PID).Path
+& $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $script:DeployHome 'Poll-Production.ps1')
+Assert ($LASTEXITCODE -eq 0) 'Scheduled-task entrypoint must resolve its installation directory without arguments'
 Write-Output 'Deployment tests passed: release trust, SQL gate, version ordering, pull failure, startup rollback, proxy rollback, successful state commit.'
 # Preserve the tiny fixture directory for inspection; it contains no secrets.
