@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { cropApi, submissionApi, taskApi } from '../../api';
+import { reportApi } from '../../api/reports';
 import { isDiagnostic, isPublished } from '../../utils/coursework';
 
 const StudentDataContext = createContext(null);
@@ -37,6 +38,7 @@ export function buildCoursework(tasks) {
   return [...diagnostics, ...assignments.values(), ...singles].map(item => ({
     ...item,
     deadlineAt: item.tasks[0]?.deadlineAt || null,
+    publishedAt: item.tasks[0]?.publishedAt || null,
     thumbnail: item.tasks[0]?.originalFilename || null,
     path: `/student/work/${item.kind}/${item.id}`,
   }));
@@ -96,6 +98,8 @@ export function StudentDataProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState({});
+  // The student's questions: the dashboard feed and the sidebar badge both use them.
+  const [reports, setReports] = useState([]);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -106,6 +110,11 @@ export function StudentDataProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
   useEffect(() => { reload(); }, [reload]);
+
+  const reloadReports = useCallback(() => reportApi.getMine()
+    .then(({ data }) => setReports(data || []))
+    .catch(() => setReports([])), []);
+  useEffect(() => { if (username) reloadReports(); }, [username, reloadReports]);
 
   const items = useMemo(() => buildCoursework(tasks), [tasks]);
 
@@ -120,8 +129,8 @@ export function StudentDataProvider({ children }) {
     if (username) items.forEach(item => { refresh(item); });
   }, [items, username, refresh]);
 
-  const value = useMemo(() => ({ username, items, progress, loading, error, reload, refresh }),
-    [username, items, progress, loading, error, reload, refresh]);
+  const value = useMemo(() => ({ username, items, progress, loading, error, reload, refresh, reports, reloadReports }),
+    [username, items, progress, loading, error, reload, refresh, reports, reloadReports]);
   return <StudentDataContext.Provider value={value}>{children}</StudentDataContext.Provider>;
 }
 

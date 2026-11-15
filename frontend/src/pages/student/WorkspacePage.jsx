@@ -88,7 +88,7 @@ function ResultView({ item, result }) {
   );
 }
 
-function ReportDialog({ crop, username, onClose }) {
+function ReportDialog({ crop, username, onClose, onSent }) {
   const [reason, setReason] = useState(REPORT_REASONS[0]);
   const [detail, setDetail] = useState('');
   const [sending, setSending] = useState(false);
@@ -108,7 +108,7 @@ function ReportDialog({ crop, username, onClose }) {
     setSending(true);
     setError('');
     reportApi.create({ taskId: crop.taskId, cropId: crop.id, studentId: username, reason: text ? `${reason}: ${text}` : reason })
-      .then(() => { alert('신고·질문이 접수되었습니다. 답변은 마이페이지 → 내 질문 관리에서 확인할 수 있습니다.'); onClose(); })
+      .then(() => { onSent?.(); alert('신고·질문이 접수되었습니다. 답변은 마이페이지 → 내 질문 관리에서 확인할 수 있습니다.'); onClose(); })
       .catch(() => { setError('신고·질문 접수에 실패했습니다.'); setSending(false); });
   };
 
@@ -146,7 +146,7 @@ function ReportDialog({ crop, username, onClose }) {
 export default function WorkspacePage() {
   const { kind, id } = useParams();
   const navigate = useNavigate();
-  const { username, items, loading: listLoading, refresh } = useStudentData();
+  const { username, items, loading: listLoading, refresh, reloadReports } = useStudentData();
   const item = items.find(entry => entry.kind === kind && String(entry.id) === id);
 
   const [crops, setCrops] = useState([]);
@@ -528,7 +528,7 @@ export default function WorkspacePage() {
         </>
       )}
 
-      {reporting && current && <ReportDialog crop={current} username={username} onClose={() => setReporting(false)} />}
+      {reporting && current && <ReportDialog crop={current} username={username} onClose={() => setReporting(false)} onSent={reloadReports} />}
     </div>
   );
 }
