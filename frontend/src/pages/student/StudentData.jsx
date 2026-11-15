@@ -4,6 +4,7 @@ import { cropApi, submissionApi, taskApi } from '../../api';
 import { announcementApi } from '../../api/announcements';
 import { reportApi } from '../../api/reports';
 import { isDiagnostic, isPublished } from '../../utils/coursework';
+import { courseworkCounts } from '../../utils/studentDashboard';
 
 const POLL_MS = 60000;
 
@@ -144,6 +145,9 @@ export function StudentDataProvider({ children }) {
   }, [username, reloadReports, reloadAnnouncements]);
 
   const items = useMemo(() => buildCoursework(tasks), [tasks]);
+  const rows = useMemo(() => items.map(item => ({ item, state: courseworkState(item, progress[item.key]) })), [items, progress]);
+  const ready = !loading && items.every(item => progress[item.key]);
+  const counts = useMemo(() => courseworkCounts(rows), [rows]);
 
   const refresh = useCallback(item => loadProgress(item, username)
     .then(value => setProgress(current => ({ ...current, [item.key]: value })))
@@ -156,8 +160,8 @@ export function StudentDataProvider({ children }) {
     if (username) items.forEach(item => { refresh(item); });
   }, [items, username, refresh]);
 
-  const value = useMemo(() => ({ username, items, progress, loading, error, reload, refresh, reports, reloadReports, announcements }),
-    [username, items, progress, loading, error, reload, refresh, reports, reloadReports, announcements]);
+  const value = useMemo(() => ({ username, items, rows, counts, ready, progress, loading, error, reload, refresh, reports, reloadReports, announcements }),
+    [username, items, rows, counts, ready, progress, loading, error, reload, refresh, reports, reloadReports, announcements]);
   return <StudentDataContext.Provider value={value}>{children}</StudentDataContext.Provider>;
 }
 

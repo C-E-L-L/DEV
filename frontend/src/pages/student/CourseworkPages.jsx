@@ -1,21 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Icon from '../../components/login/icons';
 import AuthImage from '../../components/AuthImage';
 import Announcements from '../../components/Announcements';
-import { useAuth } from '../../context/AuthContext';
 import { submissionApi } from '../../api';
 import { imageUrl } from '../../constants';
 import { deadlineInfo } from '../../utils/professorDashboard';
 import {
-  accuracyTrend, activityFeed, confusionPairs, displayLabel, matchesPair, todoSummary, wrongCells,
+  accuracyTrend, activityFeed, confusionPairs, displayLabel, matchesCourseworkStatus, matchesPair, wrongCells,
 } from '../../utils/studentDashboard';
 import StudentActivityList from './StudentActivity';
 import { courseworkState, useStudentData } from './StudentData';
 
 /* ---------- Shared pieces ---------- */
 
-const STATUS_BADGE = { indigo: ' is-indigo', amber: ' is-amber', emerald: ' is-emerald', closed: '' };
 const shortSpecies = name => (name || '').replace(/\s*\(.*\)\s*$/, '');
 
 function metaOf(item, state) {
@@ -120,38 +118,45 @@ const byDeadline = (a, b) => (a.deadlineAt || '9999').localeCompare(b.deadlineAt
 /* ---------- Coursework list ---------- */
 
 export function AssignmentsPage() {
-  const { items, loading } = useStudentData();
+  const { rows, loading, ready } = useStudentData();
+  const [params] = useSearchParams();
+  const status = ['ongoing', 'completed'].includes(params.get('status')) ? params.get('status') : 'all';
+  const items = rows.filter(row => matchesCourseworkStatus(row.state, status)).map(row => row.item);
   const diagnostics = items.filter(item => item.diagnostic);
   const practice = items.filter(item => !item.diagnostic).sort(byDeadline);
+  const title = { all: '전체 과제', ongoing: '진행 중 과제', completed: '완료된 과제' }[status];
+  const emptyPrefix = { all: '게시된', ongoing: '진행 중인', completed: '완료된' }[status];
+  const description = status === 'completed' ? '최종 제출한 과제입니다. 결과가 공개되면 채점 결과를 확인할 수 있습니다.'
+    : '과제를 선택해 세포 분류를 진행하세요. 답안은 자동 저장되어 언제든 이어서 할 수 있습니다.';
 
   return (
     <>
       <div className="prof-page-head">
         <div>
           <span className="prof-eyebrow prof-mono">과제</span>
-          <h1>전체 과제 관리</h1>
-          <p>과제를 선택해 세포 분류를 진행하세요. 답안은 자동 저장되어 언제든 이어서 할 수 있습니다.</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
         </div>
       </div>
 
       <Announcements />
 
-      {loading ? <p role="status" className="prof-empty">과제를 불러오는 중…</p> : (
+      {loading || (status !== 'all' && !ready) ? <p role="status" className="prof-empty">과제를 불러오는 중…</p> : (
         <>
           <section className="prof-card" aria-labelledby="stu-diagnostics">
             <header className="prof-card__head">
               <h2 id="stu-diagnostics"><Icon name="crosshair" size={17} />진단평가</h2>
-              <span className="prof-muted">학생 수준을 확인하는 과제입니다. 먼저 진행해주세요.</span>
+              <span className="prof-muted">{status === 'completed' ? '제출한 진단평가의 답안과 공개된 결과를 확인하세요.' : '학생 수준을 확인하는 과제입니다. 먼저 진행해주세요.'}</span>
             </header>
-            <RowList items={diagnostics} empty="게시된 진단평가가 없습니다." />
+            <RowList items={diagnostics} empty={`${emptyPrefix} 진단평가가 없습니다.`} />
           </section>
 
           <section className="prof-card" aria-labelledby="stu-practice">
             <header className="prof-card__head">
               <h2 id="stu-practice"><Icon name="clipboard" size={17} />과제</h2>
-              <span className="prof-muted">마감되거나 결과가 공개된 과제는 결과 화면으로 이동합니다.</span>
+              <span className="prof-muted">{status === 'completed' ? '결과 공개 전에는 제출한 답안을 확인할 수 있습니다.' : '마감되거나 결과가 공개된 과제는 결과 화면으로 이동합니다.'}</span>
             </header>
-            <RowList items={practice} empty="게시된 과제가 없습니다." />
+            <RowList items={practice} empty={`${emptyPrefix} 과제가 없습니다.`} />
           </section>
         </>
       )}
@@ -160,40 +165,6 @@ export function AssignmentsPage() {
 }
 
 /* ---------- Dashboard ---------- */
-
-function Summary({ summary, rows }) {
-  const firstToSubmit = rows.find(row => row.state.todo && row.state.completed && !row.state.submitted);
-  const parts = [
-    { key: 'active', label: '진행 중', count: summary.active, to: '/student/assignments' },
-    { key: 'dueSoon', label: '마감 임박', count: summary.dueSoon, to: '/student/assignments', tone: 'is-urgent' },
-    { key: 'toSubmit', label: '제출 필요', count: summary.toSubmit, to: firstToSubmit?.item.path || '/student/assignments', tone: 'is-warn' },
-    { key: 'newReplies', label: '새 답변', count: summary.newReplies, to: '/student/questions' },
-  ].filter(part => part.count > 0);
-  if (!parts.length) return <p className="stu-summary">오늘 할 일을 모두 마쳤어요.</p>;
-  return (
-    <p className="stu-summary">
-      {parts.map(part => (
-        <Link key={part.key} to={part.to} className="stu-summary__item">
-          {part.label} <strong className={`prof-mono ${part.tone || ''}`}>{part.count}</strong>건
-        </Link>
-      ))}
-    </p>
-  );
-}
-
-function ContinueButton({ rows }) {
-  const next = rows.filter(row => row.state.todo).sort((a, b) => byDeadline(a.item, b.item))[0];
-  if (!next) return <Link to="/student/assignments" className="prof-btn stu-head__cta"><Icon name="clipboard" size={15} />전체 과제 보기</Link>;
-  const { item, state } = next;
-  const step = nextStep(item, state);
-  const left = state.total - state.solved;
-  const text = state.completed ? `최종 제출하기 · ${item.title}` : `${step.label} · ${item.title}${left > 0 ? ` · 남은 세포 ${left}개` : ''}`;
-  return (
-    <Link to={item.path} className="prof-btn prof-btn--primary stu-head__cta" title={text}>
-      <Icon name="play" size={15} /><span>{text}</span>
-    </Link>
-  );
-}
 
 function Sparkline({ points, titleOf }) {
   if (points.length < 2) return null;
@@ -348,13 +319,11 @@ function ActivityCard({ rows }) {
 }
 
 export function DashboardPage() {
-  const { user } = useAuth();
-  const { items, progress, loading, reports } = useStudentData();
+  const { items, rows, ready } = useStudentData();
   const reviews = useLoad(() => submissionApi.getMyReviews());
-  // Wait for every coursework before choosing what to show, so the list and the button do not jump.
-  const ready = !loading && items.every(item => progress[item.key]);
-  const rows = ready ? items.map(item => ({ item, state: courseworkState(item, progress[item.key]) })) : [];
-  const todo = rows.filter(row => row.state.todo).map(row => row.item).sort(byDeadline);
+  const todo = rows.filter(row => matchesCourseworkStatus(row.state, 'ongoing')).map(row => row.item).sort(byDeadline);
+  const completed = rows.filter(row => matchesCourseworkStatus(row.state, 'completed')).map(row => row.item)
+    .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || '') || b.id - a.id);
   const titleOf = review => {
     const match = items.find(item => scopeOf(item) === reviewKey(review));
     return match?.title || review.title;
@@ -362,16 +331,7 @@ export function DashboardPage() {
 
   return (
     <>
-      <section className="prof-card stu-head">
-        <div className="stu-head__text">
-          <span className="prof-eyebrow prof-mono">학생</span>
-          <h1>대시보드</h1>
-          <p className="prof-muted">안녕하세요, {user?.name || user?.username}님. 오늘 할 일을 확인하세요.</p>
-          {ready && <Summary summary={todoSummary(rows, reports)} rows={rows} />}
-        </div>
-        {ready && <ContinueButton rows={rows} />}
-      </section>
-
+      <h1 className="prof-sr">학생 대시보드</h1>
       <Announcements />
 
       <div className="prof-dash stu-dash">
@@ -379,22 +339,34 @@ export function DashboardPage() {
           <section className="prof-card stu-card--todo" aria-labelledby="stu-todo">
             <header className="prof-card__head">
               <h2 id="stu-todo"><Icon name="clock" size={17} />진행 중 과제 {ready && <span className="prof-nav__badge prof-mono is-strong">{todo.length}</span>}</h2>
-              <Link to="/student/assignments" className="prof-link">전체 과제 관리 <Icon name="arrowRight" size={14} /></Link>
+              <Link to="/student/assignments?status=ongoing" className="prof-link">전체 보기 <Icon name="arrowRight" size={14} /></Link>
             </header>
             {!ready ? <p role="status" className="prof-empty">과제를 불러오는 중…</p>
               : <RowList items={todo.slice(0, 3)} featureFirst empty={items.length ? '진행할 과제를 모두 제출했어요.' : '게시된 과제가 없습니다.'} />}
             {ready && todo.length > 3 && (
               <footer className="prof-card__foot">
                 <span className="prof-muted">마감이 가까운 순으로 3개만 보여줍니다.</span>
-                <Link to="/student/assignments" className="prof-link">나머지 {todo.length - 3}개 보기 <Icon name="arrowRight" size={14} /></Link>
+                <Link to="/student/assignments?status=ongoing" className="prof-link">나머지 {todo.length - 3}개 보기 <Icon name="arrowRight" size={14} /></Link>
               </footer>
             )}
+          </section>
+          <section className="prof-card stu-card--completed" aria-labelledby="stu-completed">
+            <header className="prof-card__head">
+              <h2 id="stu-completed"><Icon name="checkCircle" size={17} />완료된 과제 {ready && <span className="prof-nav__badge prof-mono is-strong">{completed.length}</span>}</h2>
+              <Link to="/student/assignments?status=completed" className="prof-link">전체 보기 <Icon name="arrowRight" size={14} /></Link>
+            </header>
+            {!ready ? <p role="status" className="prof-empty">과제를 불러오는 중…</p>
+              : <RowList items={completed.slice(0, 3)} empty="아직 최종 제출한 과제가 없습니다." />}
+            <footer className="prof-card__foot">
+              <span className="prof-muted">최종 제출한 과제입니다. 공개된 결과 또는 제출한 답안을 확인하세요.</span>
+              {ready && completed.length > 3 && <Link to="/student/assignments?status=completed" className="prof-link">나머지 {completed.length - 3}개 보기 <Icon name="arrowRight" size={14} /></Link>}
+            </footer>
           </section>
           <ResultsCard reviews={reviews} titleOf={titleOf} />
         </div>
         <div className="prof-dash__side">
           <WrongNotes reviews={reviews} titleOf={titleOf} />
-          <ActivityCard rows={rows} />
+          <ActivityCard rows={ready ? rows : []} />
         </div>
       </div>
     </>

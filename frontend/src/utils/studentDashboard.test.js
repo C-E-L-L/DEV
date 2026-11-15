@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  accuracyTrend, activityFeed, confusionPairs, daysUntil, isDueSoon, matchesPair, newReplyCount, notificationFeed, todoSummary, unreadCount, wrongCells,
+  accuracyTrend, activityFeed, confusionPairs, courseworkCounts, daysUntil, isDueSoon, matchesCourseworkStatus, matchesPair, newReplyCount, notificationFeed, todoSummary, unreadCount, wrongCells,
 } from './studentDashboard.js';
 
 const NOW = new Date('2026-11-16T12:00:00').getTime();
@@ -55,6 +55,22 @@ const reports = [
 test('summary counts open coursework, close deadlines, coursework waiting for submission and recent replies', () => {
   assert.deepEqual(todoSummary(rows, reports, NOW), { active: 2, dueSoon: 1, toSubmit: 1, newReplies: 1 });
   assert.equal(newReplyCount(null, NOW), 0);
+});
+
+test('coursework counts and filters distinguish saved answers, final submission, grading and an expired unsubmitted task', () => {
+  const cases = [
+    { id: 'not-started', state: state() },
+    { id: 'ready-to-submit', state: state({ completed: true }) },
+    { id: 'waiting-for-results', state: state({ todo: false, completed: true, submitted: true, openReview: false }) },
+    { id: 'graded', state: state({ todo: false, completed: true, submitted: true, openReview: true }) },
+    { id: 'missed-deadline', state: state({ todo: false, expired: true }) },
+  ];
+  assert.deepEqual(courseworkCounts(cases), { all: 5, ongoing: 2, completed: 2 });
+  const selected = status => cases.filter(row => matchesCourseworkStatus(row.state, status)).map(row => row.id);
+  assert.deepEqual(selected('ongoing'), ['not-started', 'ready-to-submit']);
+  assert.deepEqual(selected('completed'), ['waiting-for-results', 'graded']);
+  assert.equal(selected('all').length, 5);
+  assert.deepEqual(courseworkCounts([]), { all: 0, ongoing: 0, completed: 0 });
 });
 
 test('activity feed mixes replies, questions, new coursework and close deadlines, newest first', () => {

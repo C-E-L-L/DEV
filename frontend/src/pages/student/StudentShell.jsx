@@ -5,7 +5,7 @@ import StudentNotificationBell from './StudentNotificationBell';
 import Icon from '../../components/login/icons';
 import logoUrl from '../../assets/login/cell-logo.svg';
 import { newReplyCount } from '../../utils/studentDashboard';
-import { courseworkState, useStudentData } from './StudentData';
+import { useStudentData } from './StudentData';
 
 const COLLAPSED_KEY = 'cell-student-sidebar-collapsed';
 const GROUPS_KEY = 'cell-student-sidebar-groups';
@@ -16,8 +16,9 @@ const NAV = [
   {
     key: 'assignments', label: '과제', icon: 'clipboard', base: ['/student/assignments', '/student/work'], to: '/student/assignments',
     children: [
-      { label: '전체 과제 관리', icon: 'clock', to: '/student/assignments', end: true, count: 'todo', also: '/student/work' },
-      { label: '수행한 과제 목록', icon: 'history', to: '/student/assignments/history' },
+      { label: '전체 과제', icon: 'clipboard', to: '/student/assignments', status: 'all' },
+      { label: '진행 중 과제', icon: 'clock', to: '/student/assignments?status=ongoing', status: 'ongoing' },
+      { label: '완료된 과제', icon: 'checkCircle', to: '/student/assignments?status=completed', status: 'completed' },
     ],
   },
   {
@@ -60,13 +61,13 @@ function readStored(key, fallback) {
 const inside = (item, pathname) => item.base?.some(base => pathname.startsWith(base));
 
 function StudentSidebar({ rail, id }) {
-  const { pathname } = useLocation();
-  const { items, progress, reports } = useStudentData();
-  const badges = {
-    todo: items.filter(item => progress[item.key] && courseworkState(item, progress[item.key]).todo).length,
-    replies: newReplyCount(reports),
-  };
-  const badgeTitle = { todo: '아직 제출하지 않은 과제', replies: '최근 7일 동안 받은 교수 답변' };
+  const { pathname, search } = useLocation();
+  const { counts, ready, reports } = useStudentData();
+  const badges = { replies: newReplyCount(reports) };
+  const badgeTitle = { replies: '최근 7일 동안 받은 교수 답변' };
+  const requestedStatus = new URLSearchParams(search).get('status');
+  const activeStatus = ['ongoing', 'completed'].includes(requestedStatus) ? requestedStatus : 'all';
+  const statusTitle = { all: '게시된 전체 과제·진단평가', ongoing: '마감 전이며 아직 최종 제출하지 않은 과제', completed: '최종 제출을 완료한 과제' };
   const [open, setOpen] = useState(() => ({ assignments: true, mypage: true, ...readStored(GROUPS_KEY, {}) }));
 
   useEffect(() => {
@@ -116,9 +117,16 @@ function StudentSidebar({ rail, id }) {
                   {item.children.map(child => (
                     <li key={child.to}>
                       <NavLink to={child.to} end={child.end}
-                        className={({ isActive }) => `prof-nav__link prof-nav__link--sub${isActive || (child.also && pathname.startsWith(child.also)) ? ' is-active' : ''}`}>
+                        className={({ isActive }) => {
+                          const selected = child.status
+                            ? (pathname === '/student/assignments' && activeStatus === child.status)
+                              || (child.status === 'all' && pathname.startsWith('/student/work'))
+                            : isActive;
+                          return `prof-nav__link prof-nav__link--sub${selected ? ' is-active' : ''}`;
+                        }}>
                         <Icon name={child.icon} size={15} />
                         <span className="prof-nav__label">{child.label}</span>
+                        {child.status && <span className="prof-nav__badge prof-mono is-strong" title={statusTitle[child.status]}>{ready ? counts[child.status] : '–'}</span>}
                         {badges[child.count] > 0 && <span className="prof-nav__badge prof-mono is-strong" title={badgeTitle[child.count]}>{badges[child.count]}</span>}
                       </NavLink>
                     </li>
@@ -157,7 +165,7 @@ export function SidebarToggle() {
  * The classification workspace is full height and brings its own header, so it is rendered bare.
  */
 export default function StudentShell({ children }) {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const { error, reload } = useStudentData();
   const mobile = useMediaQuery(MOBILE_QUERY);
   const [collapsed, setCollapsed] = useState(() => readStored(COLLAPSED_KEY, 0) === 1);
@@ -168,7 +176,7 @@ export default function StudentShell({ children }) {
   useEffect(() => {
     setDrawerOpen(false);
     main.current?.scrollTo(0, 0);
-  }, [pathname]);
+  }, [pathname, search]);
 
   useEffect(() => {
     if (!drawerOpen) return undefined;
@@ -187,7 +195,9 @@ export default function StudentShell({ children }) {
 
   const rail = collapsed && !mobile;
   const sidebarShown = mobile ? drawerOpen : !collapsed;
-  const title = TITLES.find(([path]) => pathname.startsWith(path))?.[1] || '';
+  const requestedStatus = new URLSearchParams(search).get('status');
+  const assignmentTitle = { ongoing: '진행 중 과제', completed: '완료된 과제' }[requestedStatus] || '전체 과제';
+  const title = pathname === '/student/assignments' ? assignmentTitle : TITLES.find(([path]) => pathname.startsWith(path))?.[1] || '';
 
   return (
     <ShellContext.Provider value={{ toggleSidebar, sidebarShown, mobile }}>

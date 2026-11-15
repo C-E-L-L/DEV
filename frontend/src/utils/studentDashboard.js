@@ -11,6 +11,21 @@ export const displayLabel = label => (label === UNKNOWN ? '모르겠어요' : la
 const time = value => (value ? new Date(value).getTime() : NaN);
 const startOfDay = ms => { const date = new Date(ms); return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(); };
 
+/** Completion means final submission, independently of grading or how many answers are saved. */
+export function matchesCourseworkStatus(state, status) {
+  if (status === 'ongoing') return state.todo;
+  if (status === 'completed') return state.submitted;
+  return true;
+}
+
+export function courseworkCounts(rows) {
+  return {
+    all: rows.length,
+    ongoing: rows.filter(({ state }) => matchesCourseworkStatus(state, 'ongoing')).length,
+    completed: rows.filter(({ state }) => matchesCourseworkStatus(state, 'completed')).length,
+  };
+}
+
 /** Calendar days until a deadline: 0 on the day itself. */
 export function daysUntil(deadlineAt, now = Date.now()) {
   return Math.round((startOfDay(time(deadlineAt)) - startOfDay(now)) / DAY_MS);

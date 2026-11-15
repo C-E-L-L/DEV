@@ -160,7 +160,7 @@ export default function WorkspacePage() {
   const [result, setResult] = useState(null);
   const [reporting, setReporting] = useState(false);
   const cellList = useRef(null);
-  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(true);
 
   const itemKey = item?.key;
   useEffect(() => {
@@ -168,6 +168,7 @@ export default function WorkspacePage() {
     let cancelled = false;
     const first = item.tasks[0];
     setStatus('loading'); setCrops([]); setLabels({}); setIndex(0); setResult(null); setSavedAt(null);
+    setAdjustOpen(true);
     setAttempt({ submitted: false, locked: false, reviewAvailable: false });
     Promise.all([
       item.kind === 'assignment' ? cropApi.getByAssignmentId(item.id) : cropApi.getByTaskId(item.id),
@@ -363,9 +364,9 @@ export default function WorkspacePage() {
       {status === 'ready' && current && (
         <>
           <div className="stu-work__body">
-            {/* Column 1: smears (only when there are several) and the cells of the current smear */}
+            {/* Column 1: all smears, including a single smear, and its cells. */}
             <section className="stu-pane stu-pane--left" aria-label="도말과 세포 목록">
-              {manySmears && (
+              {!diagnostic && (
                 <>
                   <header className="stu-pane__head"><h2>도말 리스트</h2><span className="prof-mono">{smears.length}개</span></header>
                   <ul className="stu-smears">
@@ -433,16 +434,16 @@ export default function WorkspacePage() {
             {/* Column 3: classification */}
             <section className="stu-pane stu-pane--right" aria-label="세포 분류">
               <div className="stu-classify">
-                <div className="stu-target">
+                <figure className="stu-target">
                   <AuthImage key={current.id} src={imageUrl.crop(current.cropFilename)} alt={`세포 ${index + 1}`} className="stu-target__image" style={{ filter: display.filter }} />
-                  <div className="stu-target__text">
+                  <figcaption className="stu-target__text">
                     <span className="stu-target__top">
                       <strong className="prof-mono">Cell #{index + 1}</strong>
                       <span className={`prof-badge${labels[current.id] ? ' is-emerald' : ' is-amber'}`}>{labels[current.id] ? '분류 완료' : '대기'}</span>
                     </span>
                     <small>{labels[current.id] ? `내 답: ${labelText(current, labels[current.id])}` : current.speciesName || first.speciesName || '클래스를 선택하세요'}</small>
-                  </div>
-                </div>
+                  </figcaption>
+                </figure>
 
                 <header className="stu-pane__title"><h2>세포 감별 분류</h2></header>
                 <div className="stu-choices">
@@ -464,7 +465,7 @@ export default function WorkspacePage() {
                 </div>
 
                 <div className="stu-tools">
-                  <button type="button" className={`stu-tool${adjusted ? ' is-on' : ''}`} aria-expanded={adjustOpen} onClick={() => setAdjustOpen(value => !value)}>
+                  <button type="button" className={`stu-tool${adjustOpen || adjusted ? ' is-on' : ''}`} aria-expanded={adjustOpen} onClick={() => setAdjustOpen(value => !value)}>
                     <Icon name="contrast" size={14} />화질 조정{adjusted && <span className="stu-tool__dot" aria-label="조정됨" />}
                   </button>
                   <button type="button" className="stu-tool" onClick={() => setReporting(true)}><Icon name="help" size={14} />질문·오류 신고</button>
