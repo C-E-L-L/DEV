@@ -2,7 +2,9 @@ import Announcements from '../../components/Announcements';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import AuthImage from '../../components/AuthImage';
 import Icon from '../../components/login/icons';
+import { imageUrl } from '../../constants';
 import { professorApi } from '../../api/professor';
 import { isDiagnostic } from '../../utils/coursework';
 import { pageNumbers, paginate } from '../../utils/smearData';
@@ -16,6 +18,21 @@ import { useProfessorData } from './ProfessorData';
 const FILTERS = [['ALL', '전체'], ['ACTIVE', '진행중'], ['GRADING', '채점 대기']];
 // Keeps the card short; the rest is reached with the page buttons under the table.
 const PAGE_SIZE = 6;
+
+/** First smear of the coursework (+n when it has more); a diagnostic has no smear, so it gets an icon tile. */
+function CourseworkThumb({ group }) {
+  const smears = group.tasks.filter(task => task.originalFilename);
+  if (isDiagnostic(group) || !smears.length) {
+    return <span className="prof-thumb is-icon" aria-hidden="true"><Icon name={isDiagnostic(group) ? 'layers' : 'droplet'} size={18} /></span>;
+  }
+  const file = smears[0].originalFilename;
+  return (
+    <span className="prof-thumb">
+      <AuthImage src={imageUrl.thumbnail(file)} fallbackSrc={imageUrl.original(file)} alt="" />
+      {smears.length > 1 && <span className="prof-thumb__more prof-mono" title={`도말 ${smears.length}장`}>+{smears.length - 1}</span>}
+    </span>
+  );
+}
 
 function SubmissionCell({ group }) {
   const { progress, progressByTask } = useProfessorData();
@@ -81,10 +98,15 @@ function CourseworkTable() {
                 return (
                   <tr key={group.id}>
                     <td className="prof-table__title">
-                      <Link to={`/expert/assignments/${group.id}/results`}>{courseworkTitle(group)}</Link>
-                      <span className="prof-table__meta">
-                        {isDiagnostic(group) ? '진단평가' : `분류 실습 · 도말 ${group.tasks.length}장`}{species && ` · ${species}`} · {group.cropCount}문항
-                      </span>
+                      <div className="prof-table__course">
+                        <CourseworkThumb group={group} />
+                        <div>
+                          <Link to={`/expert/assignments/${group.id}/results`}>{courseworkTitle(group)}</Link>
+                          <span className="prof-table__meta">
+                            {isDiagnostic(group) ? '진단평가' : `분류 실습 · 도말 ${group.tasks.length}장`}{species && ` · ${species}`} · {group.cropCount}문항
+                          </span>
+                        </div>
+                      </div>
                     </td>
                     <td><SubmissionCell group={group} /></td>
                     <td className="prof-table__due">
