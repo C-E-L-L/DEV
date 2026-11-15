@@ -55,6 +55,10 @@ const PATHS = {
   alarm: <><circle cx="12" cy="13" r="7" /><path d="M12 9.5V13l2.5 1.5M5 4L2.5 6.5M19 4l2.5 2.5" /></>,
   bot: <><rect x="5" y="8" width="14" height="11" rx="3" /><path d="M12 8V4.5M9.5 13v1.5M14.5 13v1.5" /><circle cx="12" cy="3.5" r="1" /></>,
   edit: <><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" /><path d="M14 8l3 3" /></>,
+  // Student console
+  arrowLeft: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
 };
 
 export default function Icon({ name, size = 16, className }) {
