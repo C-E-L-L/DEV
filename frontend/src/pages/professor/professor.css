@@ -425,6 +425,7 @@
 
 .prof-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; }
 .prof-pager strong { color: var(--p-ink); }
+.prof-pager--inline { padding: 10px 20px; border-top: 1px solid var(--p-line-soft); }
 .prof-pager__pages { display: flex; align-items: center; gap: 4px; }
 .prof-pager__pages button { display: grid; place-items: center; min-width: 32px; height: 32px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--p-text-2); font-size: 12px; font-weight: 500; }
 .prof-pager__pages button:hover:not(:disabled) { background: var(--p-line-soft); }
