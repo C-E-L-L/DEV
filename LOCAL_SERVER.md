@@ -88,6 +88,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local.ps1 Start -Wit
 
 1. 이 폴더에서 프론트/기능을 수정하고 로컬 서버에서 확인합니다.
 2. 변경 파일을 검토하고 `local-server`에 커밋합니다.
-3. 배포할 기능 변경을 `juhun`에 반영하고 기존 배포 절차를 진행합니다.
+3. 배포할 변경을 `main`에 병합합니다. 운영 서버는 `main`을 받아 배포합니다(README의 코드 수정 반영 절차).
 
 다른 브랜치에서 완료한 변경을 시험하려면 작업 내용을 커밋한 뒤 `local-server`에서 해당 브랜치를 merge하거나 필요한 커밋을 cherry-pick합니다. 이 폴더는 별도 worktree이므로 `juhun` 폴더를 수정했다고 자동 반영되지는 않습니다. 원격 push와 운영 배포는 이번 작업에 포함하지 않았습니다.

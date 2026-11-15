@@ -75,7 +75,7 @@
 
 ## 운영 서버 반영 순서와 롤백
 
-운영 컨테이너는 서버 PC의 `juhun` 폴더에서 `-p dev`로 빌드됩니다. 코드를 받는 것만으로는 운영에 반영되지 않고, 아래 순서대로 진행해야 반영됩니다.
+운영 컨테이너는 서버 PC의 배포 폴더(기존 이름 `juhun` 폴더)에서 `-p dev`로 빌드됩니다. **2026-11-16부터 이 폴더는 `main` 브랜치를 받습니다**(전환 방법: [README](README.md#기존-서버를-main으로-전환)). 코드를 받는 것만으로는 운영에 반영되지 않고, 아래 순서대로 진행해야 반영됩니다.
 
 **SQL 적용 후 새 버전에서 데이터가 생기면 이전 백엔드는 그 DB를 읽지 못합니다.** 이전 백엔드는 마이그레이션된 스키마에서도 기동은 됩니다. 하지만 임시저장 과제가 1건만 생겨도 과제 목록 API가 500 오류(`No enum constant TaskStatus.DRAFT`)를 냅니다. `모르겠어요` 응답이나 새 세포 클래스도 같은 위험이 있습니다. 따라서 롤백은 코드만이 아니라 **DB 덤프 복원과 함께** 해야 합니다.
 
@@ -93,7 +93,7 @@
 
 DB 기준점에는 그 이후에 생긴 데이터가 없습니다. **SQL 적용 직전에 아래 2단계로 덤프를 새로 만드세요.** 되돌림 이미지가 지워지지 않도록 롤백 필요성이 없어질 때까지 `docker image prune -a`와 `docker system prune -a`를 실행하지 마세요.
 
-### 반영 (PowerShell, `juhun` 폴더, 학생 사용이 없는 시간)
+### 반영 (PowerShell, 배포 폴더에서 `main`을 받은 뒤, 학생 사용이 없는 시간)
 
 ```powershell
 # 1. 백엔드 중지 (SQL 적용 중 쓰기 방지)
@@ -106,16 +106,20 @@ docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysqldump --user=r
 docker cp dev-mysql-1:/tmp/celldb.sql "$dir\celldb.sql"
 Select-String -Path "$dir\celldb.sql" -Pattern 'Dump completed' -SimpleMatch   # 한 줄이 나와야 함
 
-# 3. SQL 적용 (순서 유지)
+# 3. SQL 적용 (순서 유지, 아직 적용하지 않은 것만)
 docker cp backend\sql\20261015_report_replies.sql dev-mysql-1:/tmp/m1.sql
 docker cp backend\sql\20261110_coursework_workflow.sql dev-mysql-1:/tmp/m2.sql
+docker cp backend\sql\20261116_roster_name_section.sql dev-mysql-1:/tmp/m3.sql
 docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql --user=root --default-character-set=utf8mb4 celldb < /tmp/m1.sql'
 docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql --user=root --default-character-set=utf8mb4 celldb < /tmp/m2.sql'
+docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql --user=root --default-character-set=utf8mb4 celldb < /tmp/m3.sql'
 
 # 4. 새 버전 빌드·기동 후 로그 확인 (Started 확인, Schema-validation 오류 없음)
 docker compose -p dev -f docker-compose.yml -f ..\_migration\compose.restore.yml up -d --build backend frontend
 docker logs dev-backend-1 --tail 50
 ```
+
+`20261116_roster_name_section.sql`(교수 콘솔의 학생 CSV 일괄 등록: `student_roster`에 `name`·`section` 추가)은 2026-11-16 `main` 병합분에 포함됩니다. 이미 적용한 SQL은 다시 실행하지 않습니다. 적용 여부는 `crop_issue_replies` 테이블(m1), `task_attempts` 테이블(m2), `student_roster.section` 컬럼(m3)이 있는지로 확인합니다.
 
 MySQL의 `ALTER TABLE`은 자동 커밋됩니다. 3단계 중간에 오류가 나면 일부만 적용된 상태가 남습니다. **같은 SQL을 다시 실행하지 말고** 아래 롤백으로 DB를 먼저 복원하세요.
 
@@ -136,7 +140,7 @@ docker tag dev-frontend:pre-coursework-20261111 dev-frontend:latest
 docker compose -p dev -f docker-compose.yml -f ..\_migration\compose.restore.yml up -d --no-build backend frontend
 ```
 
-이후 `juhun` 폴더에서 다시 빌드하면 새 코드가 올라갑니다. 소스까지 되돌려야 하면 `git revert`로 이번 커밋들을 되돌리는 커밋을 만드세요. 강제 push는 하지 않습니다.
+이후 배포 폴더에서 다시 빌드하면 새 코드가 올라갑니다. 소스까지 되돌려야 하면 `git revert`로 이번 커밋들을 되돌리는 커밋을 만드세요. 강제 push는 하지 않습니다.
 
 ## 검증
 

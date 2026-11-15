@@ -33,7 +33,7 @@
 
 `.gitignore`에 경로가 있어도 **이미 추적하던 파일은 계속 추적됩니다.** 현재 모델과 진단용 데이터가 이에 해당합니다. 반대로 ignore된 신규 운영 데이터가 자동으로 백업된다고 생각하면 안 됩니다.
 
-현재 작업 소스는 **`juhun` 브랜치** 기준입니다. GitHub 기본 브랜치 `main`을 받는 것과 다를 수 있으므로 아래 clone 명령에 브랜치를 명시했습니다.
+**운영 서버는 `main` 브랜치로 배포합니다(2026-11-16부터).** 개인 작업 브랜치(`juhun`, `local-server` 등)는 검증한 뒤 `main`에 병합하고, 서버는 `main`만 받습니다. 그 전에는 `juhun` 브랜치로 배포했으므로, 기존 서버 폴더가 아직 `juhun`이면 아래 [기존 서버를 `main`으로 전환](#기존-서버를-main으로-전환)을 먼저 진행하세요.
 
 ## 1. 새 컴퓨터의 OS·Docker 준비
 
@@ -183,7 +183,7 @@ Alpine 이미지가 없다면 미리 준비해야 합니다. tar 파일은 Windo
 **여기부터 새 컴퓨터에서 진행합니다.** 이하 Windows 명령은 `C:\DEV` 기준입니다. 해당 폴더가 없는 새 환경이라면:
 
 ```powershell
-git clone --branch juhun --single-branch https://github.com/C-E-L-L/DEV.git C:\DEV
+git clone --branch main --single-branch https://github.com/C-E-L-L/DEV.git C:\DEV
 if ($LASTEXITCODE -ne 0) { throw '코드 다운로드 실패.' }
 Set-Location -LiteralPath 'C:\DEV'
 git status --short --branch
@@ -437,12 +437,28 @@ GPU가 있어도 현재 Compose에는 AI용 GPU 전달 설정이 없습니다. A
 ```powershell
 Set-Location -LiteralPath 'C:\DEV'
 git status --short --branch
-git pull --ff-only origin juhun
+git pull --ff-only origin main
 if ($LASTEXITCODE -ne 0) { throw '업데이트 실패. 로컬 변경 또는 브랜치 상태를 확인하세요.' }
 docker compose -p dev up -d --build
 if ($LASTEXITCODE -ne 0) { throw '업데이트 빌드/기동 실패.' }
 docker compose -p dev ps
 ```
+
+새 커밋에 `backend/sql`의 SQL 파일이 추가되었다면 운영 DB는 `validate` 모드라서 **빌드 전에** 해당 SQL을 먼저 적용해야 백엔드가 기동합니다. 순서와 백업·롤백은 [COURSEWORK_WORKFLOW.md](COURSEWORK_WORKFLOW.md#운영-서버-반영-순서와-롤백)를 따릅니다.
+
+### 기존 서버를 `main`으로 전환
+
+2026-11-16 이전에는 서버 PC의 `juhun` 폴더가 `juhun` 브랜치를 받아 배포했습니다. 같은 폴더에서 브랜치만 바꾸면 `.env`, `ssl`, `data`, Docker 볼륨(`-p dev`)은 그대로 유지됩니다. 폴더 이름은 바꾸지 않아도 됩니다.
+
+```powershell
+git status --short --branch          # 미커밋 변경이 있으면 먼저 보존
+git fetch origin
+git switch main                      # 로컬 main이 없으면: git switch -c main --track origin/main
+git pull --ff-only origin main
+git log -1 --oneline                 # origin/main과 같은 커밋인지 확인
+```
+
+전환 직후의 빌드도 위 SQL 적용 순서를 따릅니다.
 
 DB 구조가 바뀐 업데이트는 해당 변경의 마이그레이션 안내를 먼저 확인하고 백업 후 적용해야 합니다. `validate` 상태에서는 새 코드가 요구하는 스키마가 없으면 기동 실패할 수 있습니다. 모든 `backend/sql` 파일을 무조건 반복 실행하거나 초기화하지 마세요.
 
