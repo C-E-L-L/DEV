@@ -2,3 +2,6 @@
 build
 out
 *.log
+.env*
+!.env.example
+.git
