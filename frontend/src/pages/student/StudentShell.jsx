@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Icon from '../../components/login/icons';
 import logoUrl from '../../assets/login/cell-logo.svg';
+import { newReplyCount } from '../../utils/studentDashboard';
 import { courseworkState, useStudentData } from './StudentData';
 
 const COLLAPSED_KEY = 'cell-student-sidebar-collapsed';
@@ -14,7 +15,7 @@ const NAV = [
   {
     key: 'assignments', label: '과제', icon: 'clipboard', base: ['/student/assignments', '/student/work'], to: '/student/assignments',
     children: [
-      { label: '전체 과제', icon: 'clock', to: '/student/assignments', end: true, count: 'todo', also: '/student/work' },
+      { label: '전체 과제 관리', icon: 'clock', to: '/student/assignments', end: true, count: 'todo', also: '/student/work' },
       { label: '수행한 과제 목록', icon: 'history', to: '/student/assignments/history' },
     ],
   },
@@ -22,14 +23,14 @@ const NAV = [
     key: 'mypage', label: '마이페이지', icon: 'user', base: ['/student/results', '/student/questions'], to: '/student/results',
     children: [
       { label: '내 결과 분석/확인', icon: 'chart', to: '/student/results' },
-      { label: '내 질문 관리', icon: 'help', to: '/student/questions' },
+      { label: '내 질문 관리', icon: 'help', to: '/student/questions', count: 'replies' },
     ],
   },
 ];
 
 const TITLES = [
   ['/student/assignments/history', '수행한 과제 목록'],
-  ['/student/assignments', '전체 과제'],
+  ['/student/assignments', '전체 과제 관리'],
   ['/student/results', '내 결과 분석/확인'],
   ['/student/questions', '내 질문 관리'],
   ['/student', '대시보드'],
@@ -60,8 +61,12 @@ const inside = (item, pathname) => item.base?.some(base => pathname.startsWith(b
 function StudentSidebar({ rail, id }) {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
-  const { items, progress } = useStudentData();
-  const badges = { todo: items.filter(item => progress[item.key] && courseworkState(item, progress[item.key]).todo).length };
+  const { items, progress, reports } = useStudentData();
+  const badges = {
+    todo: items.filter(item => progress[item.key] && courseworkState(item, progress[item.key]).todo).length,
+    replies: newReplyCount(reports),
+  };
+  const badgeTitle = { todo: '아직 제출하지 않은 과제', replies: '최근 7일 동안 받은 교수 답변' };
   const [open, setOpen] = useState(() => ({ assignments: true, mypage: true, ...readStored(GROUPS_KEY, {}) }));
 
   useEffect(() => {
@@ -116,7 +121,7 @@ function StudentSidebar({ rail, id }) {
                         className={({ isActive }) => `prof-nav__link prof-nav__link--sub${isActive || (child.also && pathname.startsWith(child.also)) ? ' is-active' : ''}`}>
                         <Icon name={child.icon} size={15} />
                         <span className="prof-nav__label">{child.label}</span>
-                        {badges[child.count] > 0 && <span className="prof-nav__badge prof-mono is-strong" title="아직 제출하지 않은 과제">{badges[child.count]}</span>}
+                        {badges[child.count] > 0 && <span className="prof-nav__badge prof-mono is-strong" title={badgeTitle[child.count]}>{badges[child.count]}</span>}
                       </NavLink>
                     </li>
                   ))}

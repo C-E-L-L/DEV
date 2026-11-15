@@ -1,5 +1,6 @@
 // Existing student screens, shown inside the console frame. Their data and behaviour are unchanged.
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { studentHistoryApi } from '../../api/studentHistory';
 import { imageUrl } from '../../constants';
 import { answerLabel } from '../../utils/cellClasses';
@@ -127,6 +128,7 @@ export function HistoryPage() {
 }
 
 export function ResultsPage() {
+  const [params] = useSearchParams();
   return (
     <>
       <div className="prof-page-head">
@@ -136,7 +138,11 @@ export function ResultsPage() {
           <p>완료되거나 마감된 과제에서 내 응답과 확정된 정답을 비교하세요.</p>
         </div>
       </div>
-      <div className="stu-embedded"><StudentReviewPanel /></div>
+      {/* Remounted per link, so a new dashboard link opens its own coursework or cell. */}
+      <div className="stu-embedded">
+        <StudentReviewPanel key={params.toString()} initialReview={params.get('review')} initialCropId={params.get('cell')}
+          initialFocus={params.get('focus')} initialView={params.get('view')} />
+      </div>
     </>
   );
 }

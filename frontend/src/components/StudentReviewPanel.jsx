@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { submissionApi } from '../api';
 import { imageUrl } from '../constants';
+import { answerLabel } from '../utils/cellClasses';
 import AuthImage from './AuthImage';
 import ImageDisplayControls, { useImageDisplaySettings } from './ImageDisplayControls';
 import SpeciesBadge from './SpeciesBadge';
@@ -128,7 +129,7 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
                     <button
                       key={item.cropId}
                       type="button"
-                      title={`Cell #${index + 1} · 내 답 ${item.studentLabel} · 실제 정답 ${item.correctLabel || '채점 대기'}`}
+                      title={`Cell #${index + 1} · 내 답 ${answerLabel(item.studentLabel)} · 실제 정답 ${item.correctLabel || '채점 대기'}`}
                       onClick={() => onSelectIndex(index)}
                       style={{
                         position: 'absolute', left: bbox.left, top: bbox.top, width: bbox.width, height: bbox.height,
@@ -166,7 +167,7 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
                         <AuthImage src={imageUrl.crop(item.cropFilename)} alt={`Cell ${index + 1}`} style={{ width: '46px', height: '46px', objectFit: 'contain', borderRadius: '4px', background: '#f8fafc', flexShrink: 0, filter: review.scopeType === 'DIAGNOSTIC' || item.originalSmearFilename === activeSmearFilename ? imageDisplay.filter : 'none' }} />
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <strong style={{ display: 'block', fontSize: '13px' }}>Cell #{index + 1}</strong>
-                          <span style={{ display: 'block', marginTop: '3px', fontSize: '11px', color: '#334155' }}>내 답: <strong>{item.studentLabel}</strong></span>
+                          <span style={{ display: 'block', marginTop: '3px', fontSize: '11px', color: '#334155' }}>내 답: <strong>{answerLabel(item.studentLabel)}</strong></span>
                           <span style={{ display: 'block', marginTop: '1px', fontSize: '11px', color: itemMeta.color }}>실제 정답: <strong>{item.correctLabel || '채점 대기'}</strong></span>
                         </span>
                         <span style={{ fontSize: '11px', fontWeight: '800', color: itemMeta.color }}>{itemMeta.label}</span>
@@ -206,7 +207,7 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '10px', alignItems: 'stretch' }}>
                   <div style={{ ...answerBoxStyle, background: '#eef2ff', borderColor: '#c7d2fe' }}>
-                    <span style={answerLabelStyle}>내가 고른 답</span><strong>{cell.studentLabel}</strong>
+                    <span style={answerLabelStyle}>내가 고른 답</span><strong>{answerLabel(cell.studentLabel)}</strong>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', color: '#94a3b8', fontSize: '20px' }}>→</div>
                   <div style={{ ...answerBoxStyle, background: cell.correctLabel ? '#f1f9f3' : '#fffbeb', borderColor: cell.correctLabel ? '#8fd19e' : '#ffc107' }}>
@@ -225,7 +226,13 @@ function ReviewDetail({ review, selectedIndex, onSelectIndex, onBack }) {
   );
 }
 
-export default function StudentReviewPanel() {
+/**
+ * Published results of the student.
+ * Optional deep link (from the dashboard): `initialReview` ("ASSIGNMENT-2") opens that coursework,
+ * `initialCropId` selects a cell in it, `initialFocus="wrong"` starts at its first wrong answer and
+ * `initialView="wrong"` opens the cell list filtered to wrong answers.
+ */
+export default function StudentReviewPanel({ initialReview, initialCropId, initialFocus, initialView }) {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -241,6 +248,21 @@ export default function StudentReviewPanel() {
       .catch(() => setError('학습 결과를 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, []);
+
+  const [linkApplied, setLinkApplied] = useState(false);
+  useEffect(() => {
+    if (loading || linkApplied) return;
+    setLinkApplied(true);
+    if (initialView === 'wrong') { setSubTab('cells'); setCellFilter('wrong'); return; }
+    const review = reviews.find(item => `${item.scopeType}-${item.scopeId}` === initialReview);
+    if (!review) return;
+    const find = test => Math.max(0, review.cells.findIndex(test));
+    const index = initialCropId != null ? find(cell => String(cell.cropId) === String(initialCropId))
+      : initialFocus === 'wrong' ? find(cell => cell.isCorrect === false) : 0;
+    setSubTab('tasks');
+    setSelectedReview(review);
+    setSelectedCellIndex(index);
+  }, [loading, linkApplied, reviews, initialReview, initialCropId, initialFocus, initialView]);
 
   const allCells = useMemo(() => reviews.flatMap((review) =>
     review.cells.map((cell, index) => ({ review, cell, index, meta: resultMeta(cell) }))
@@ -324,7 +346,7 @@ export default function StudentReviewPanel() {
                   <span style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
                     <strong style={{ display: 'block', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{review.title}</strong>
                     <SpeciesBadge name={cell.speciesName} code={cell.speciesCode} compact style={{ marginTop: '5px' }} />
-                    <span style={{ display: 'block', marginTop: '7px', fontSize: '12px', color: '#334155' }}>내 답: <strong>{cell.studentLabel}</strong></span>
+                    <span style={{ display: 'block', marginTop: '7px', fontSize: '12px', color: '#334155' }}>내 답: <strong>{answerLabel(cell.studentLabel)}</strong></span>
                     <span style={{ display: 'block', marginTop: '2px', fontSize: '12px', color: meta.color }}>GT: <strong>{cell.correctLabel || '채점 대기'}</strong></span>
                     <span style={{ display: 'block', marginTop: '5px', fontSize: '11px', fontWeight: '800', color: meta.color }}>{meta.label}</span>
                   </span>
