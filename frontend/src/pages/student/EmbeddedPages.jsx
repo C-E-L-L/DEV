@@ -1,4 +1,4 @@
-// Existing student screens, shown inside the console frame. Their data and behaviour are unchanged.
+// Student history, results and questions inside the console frame.
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { studentHistoryApi } from '../../api/studentHistory';
@@ -6,7 +6,7 @@ import { imageUrl } from '../../constants';
 import { answerLabel } from '../../utils/cellClasses';
 import Icon from '../../components/login/icons';
 import AuthImage from '../../components/AuthImage';
-import ReportsPanel from '../../components/ReportsPanel';
+import StudentQuestions from './questions/StudentQuestions';
 import StudentReviewPanel from '../../components/StudentReviewPanel';
 
 const SCOPE_LABEL = { ASSIGNMENT: '과제', TASK: '과제', DIAGNOSTIC: '진단평가' };
@@ -149,5 +149,5 @@ export function ResultsPage() {
 }
 
 export function QuestionsPage() {
-  return <div className="professor-workspace prof-embedded stu-embedded"><ReportsPanel student /></div>;
+  return <StudentQuestions />;
 }
