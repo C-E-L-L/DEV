@@ -29,6 +29,13 @@ public class UserCoreRepository implements UserRepository {
     }
 
     @Override
+    public List<User> findAll() {
+        return userJpaRepository.findAll().stream()
+                .map(Mapper::convertToUser)
+                .toList();
+    }
+
+    @Override
     public List<User> findAllByRole(Role role) {
         return userJpaRepository.findAllByRole(role).stream()
                 .map(Mapper::convertToUser)
@@ -38,5 +45,11 @@ public class UserCoreRepository implements UserRepository {
     @Override
     public boolean existsByUsername(String username) {
         return userJpaRepository.existsByUsername(username);
+    }
+
+    @Override
+    public void deleteByUsername(String username) {
+        userJpaRepository.findByUsername(username)
+                .ifPresent(entity -> userJpaRepository.deleteById(entity.getId()));
     }
 }

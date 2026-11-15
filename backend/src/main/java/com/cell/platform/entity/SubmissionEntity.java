@@ -22,14 +22,19 @@ public class SubmissionEntity {
     @Column(nullable = false)
     private String studentId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Convert(converter = CellTypeConverter.class)
+    @Column
     private CellType studentLabel;
 
     private LocalDateTime submittedAt;
 
     @PrePersist
     void prePersist() {
+        if (this.submittedAt == null) this.submittedAt = LocalDateTime.now();
+    }
+
+    public void updateLabel(CellType newLabel) {
+        this.studentLabel = newLabel;
         this.submittedAt = LocalDateTime.now();
     }
 

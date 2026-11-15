@@ -31,4 +31,7 @@ public class Submission {
                 .studentLabel(studentLabel)
                 .build();
     }
+
+    /** A stored response with no class is an explicit abstention, not an unanswered item. */
+    public String getAnswerLabel() { return studentLabel == null ? "UNKNOWN" : studentLabel.name(); }
 }

@@ -1,6 +1,9 @@
 package com.cell.platform.controller;
 
 import com.cell.platform.dto.request.DiagnosticTaskCreateRequest;
+import com.cell.platform.dto.request.DeadlineUpdateRequest;
+import com.cell.platform.dto.request.SpeciesUpdateRequest;
+import com.cell.platform.dto.response.AnimalSpeciesResponse;
 import com.cell.platform.dto.response.DiagnosticPoolStatsResponse;
 import com.cell.platform.dto.response.TaskResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
@@ -10,6 +13,7 @@ import com.cell.platform.service.DiagnosticTaskService;
 import com.cell.platform.service.TaskService;
 // [추가된 Import]
 import com.cell.platform.service.SubmissionService;
+import com.cell.platform.service.AnimalSpeciesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +21,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
 
 import java.util.List;
 
@@ -30,20 +38,27 @@ public class TaskController {
 
     // [추가된 부분] SubmissionService 주입
     private final SubmissionService submissionService;
+    private final AnimalSpeciesService animalSpeciesService;
 
     @GetMapping
-    public ResponseEntity<List<TaskResponse>> getAllTasks() {
-        return ResponseEntity.ok(taskService.getAllTasks());
+    public ResponseEntity<List<TaskResponse>> getAllTasks(Authentication authentication) {
+        boolean student = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_STUDENT"));
+        return ResponseEntity.ok(taskService.getAllTasks(student));
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<TaskUploadResponse> uploadAndCreateTask(@RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(taskService.createTask(file));
+    public ResponseEntity<TaskUploadResponse> uploadAndCreateTask(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "deadlineAt", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime deadlineAt,
+            @RequestParam(value = "speciesId", required = false) Long speciesId) {
+        return ResponseEntity.ok(taskService.createTask(file, deadlineAt, speciesId));
     }
 
     @GetMapping("/diagnostic/pool-stats")
-    public ResponseEntity<DiagnosticPoolStatsResponse> getDiagnosticPoolStats() {
-        return ResponseEntity.ok(diagnosticTaskService.getPoolStats());
+    public ResponseEntity<DiagnosticPoolStatsResponse> getDiagnosticPoolStats(@RequestParam(required = false) Long speciesId) {
+        return ResponseEntity.ok(diagnosticTaskService.getPoolStats(speciesId));
     }
 
     @PostMapping("/diagnostic/create")
@@ -70,5 +85,22 @@ public class TaskController {
     public ResponseEntity<Void> deleteTask(@PathVariable Long taskId) {
         taskService.deleteTask(taskId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{taskId}/deadline")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public ResponseEntity<Void> updateDeadline(
+            @PathVariable Long taskId,
+            @RequestBody DeadlineUpdateRequest request) {
+        taskService.updateTaskDeadline(taskId, request.deadlineAt());
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{taskId}/species")
+    @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
+    public ResponseEntity<AnimalSpeciesResponse> updateSpecies(
+            @PathVariable Long taskId,
+            @Valid @RequestBody SpeciesUpdateRequest request) {
+        return ResponseEntity.ok(animalSpeciesService.updateTaskSpecies(taskId, request.speciesId()));
     }
 }

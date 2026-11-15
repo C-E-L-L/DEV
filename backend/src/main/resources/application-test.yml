@@ -40,3 +40,4 @@ ai-server:
 file:
   upload-dir: ./data/test/originals
   crop-dir: ./data/test/crops
+  thumbnail-dir: ./data/test/thumbnails

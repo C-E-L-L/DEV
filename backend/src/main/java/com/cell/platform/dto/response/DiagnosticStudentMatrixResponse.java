@@ -20,5 +20,9 @@ public class DiagnosticStudentMatrixResponse {
         private Map<String, Map<String, Integer>> confusionMatrix;
         private int totalSolved;
         private int accuracy;
+        private List<Long> sourceTaskIds;
+        private Map<String, Integer> sampleCounts;
+        private int unknownCount;
+        private List<String> missingClasses;
     }
 }

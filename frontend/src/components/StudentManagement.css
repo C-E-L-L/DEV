@@ -1,0 +1,54 @@
+.student-management { color: #343a40; }
+.student-management h3, .student-management h4 { margin: 0 0 12px; }
+.student-management button, .student-management input, .student-management select { font: inherit; font-size: 13px; border: 1px solid #ced4da; border-radius: 6px; background: #fff; color: #495057; padding: 8px 11px; }
+.student-management button { cursor: pointer; }
+.student-management button:hover { border-color: #74c0fc; background: #f0f7ff; }
+.student-management button:focus-visible, .student-management input:focus-visible, .student-management select:focus-visible { outline: 2px solid #0056b3; outline-offset: 2px; }
+.student-management button:disabled { opacity: .5; cursor: wait; }
+.student-management .sm-selected { background: #e7f3ff; color: #0056b3; border-color: #74c0fc; }
+.sm-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.sm-heading p { margin: 0; color: #6c757d; font-size: 13px; }
+.sm-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 22px; }
+.sm-card { border: 1px solid #dee2e6; border-radius: 8px; padding: 18px; background: #fff; min-width: 0; }
+.sm-students { align-self: start; }
+.sm-students input { width: 100%; box-sizing: border-box; margin-bottom: 14px; }
+.sm-student-list { display: flex; flex-direction: column; gap: 8px; max-height: 65vh; overflow-y: auto; }
+.sm-student-list button { text-align: left; padding: 12px; overflow-wrap: anywhere; }
+.student-management small { display: block; margin-top: 5px; font-size: 12px; line-height: 1.5; }
+.sm-student-list small { color: #6c757d; }
+.sm-total { margin-top: 18px; width: 100%; }
+.sm-tabs, .sm-filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.sm-filters label { font-size: 13px; }
+.sm-muted { color: #6c757d; font-size: 12px; line-height: 1.7; }
+.sm-empty { padding: 32px 12px; text-align: center; color: #6c757d; font-size: 14px; }
+.sm-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.sm-summary > div { border-radius: 8px; background: #f1f6fb; padding: 14px; }
+.sm-summary strong { display: block; color: #0056b3; font-size: 24px; }
+.sm-summary span { display: block; margin-top: 6px; font-size: 12px; color: #6c757d; }
+.sm-table-wrap { overflow-x: auto; }
+.student-management table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.student-management th { background: #f8f9fa; white-space: nowrap; }
+.student-management th, .student-management td { border: 1px solid #dee2e6; padding: 10px; }
+.sm-matrix { text-align: center; }
+.sm-tasks { text-align: left; }
+.sm-tasks td:first-child { overflow-wrap: anywhere; min-width: 150px; }
+.sm-tasks td:last-child { white-space: nowrap; }
+.sm-activities { display: flex; flex-direction: column; gap: 12px; }
+.sm-activity { border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
+.student-management .sm-activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; text-align: left; width: 100%; padding: 16px; border: 0; border-radius: 0; }
+.sm-activity-heading > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.sm-badge { display: inline-block; border-radius: 999px; padding: 3px 8px; margin: 0 8px 6px 0; background: #e9ecef; font-size: 11px; font-weight: 600; }
+.sm-completed { background: #d4edda; color: #155724; }
+.sm-in_progress { background: #e7f3ff; color: #0056b3; }
+.sm-closed { background: #fff3cd; color: #856404; }
+.sm-activity-score { flex-shrink: 0; text-align: right; }
+.sm-activity-score strong { display: block; }
+.sm-activity-body { padding: 0 16px 16px; }
+.sm-answers { border-top: 1px solid #dee2e6; margin-top: 20px; padding-top: 20px; }
+.sm-cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; max-height: 550px; overflow-y: auto; }
+.sm-cell { display: flex; gap: 12px; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px; align-items: center; }
+.sm-cell-result { margin-left: 8px; font-size: 12px; color: #6c757d; }
+.sm-correct { color: #218838; }
+.sm-wrong { color: #dc3545; }
+@media (max-width: 1000px) { .sm-layout { grid-template-columns: 1fr; } .sm-student-list { max-height: 220px; } }
+@media (max-width: 650px) { .sm-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .student-management .sm-activity-heading { flex-wrap: wrap; } .sm-activity-score { text-align: left; } }

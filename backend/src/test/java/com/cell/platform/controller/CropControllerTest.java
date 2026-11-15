@@ -31,6 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(CropController.class)
 @Import(SecurityConfig.class)
 class CropControllerTest {
+    @MockBean private com.cell.platform.infra.task.TaskJpaRepository imageTasks;
+    @MockBean private com.cell.platform.infra.crop.CropJpaRepository imageCrops;
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -52,14 +55,14 @@ class CropControllerTest {
         void 인증된_사용자가_요청하면_200을_반환한다() throws Exception {
             // given
             CropResponse response = new CropResponse(
-                    1L, "crop.jpg", "[10,20,30,40]", "Lymphocyte", 0.95, null);
-            given(cropService.getCropsByTaskId(1L)).willReturn(List.of(response));
+                    1L, 1L, "crop.jpg", "[10,20,30,40]", null, null, null, null, null, "orig.jpg");
+            given(cropService.getCropsByTaskId(1L, true)).willReturn(List.of(response));
 
             // when & then
             mockMvc.perform(get("/api/tasks/1/crops"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[0].id").value(1))
-                    .andExpect(jsonPath("$[0].aiPrediction").value("Lymphocyte"));
+                    .andExpect(jsonPath("$[0].pseudoLabel").doesNotExist());
         }
     }
 
@@ -102,7 +105,7 @@ class CropControllerTest {
         void 확정된_데이터_목록을_반환한다() throws Exception {
             // given
             TrainingDataResponse response = new TrainingDataResponse(
-                    1L, "crop.jpg", "Lymphocyte", 0.95);
+                    1L, "crop.jpg", "Lymphocyte");
             given(cropService.getConfirmedTrainingData()).willReturn(List.of(response));
 
             // when & then

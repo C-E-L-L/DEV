@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface CropIssueReportJpaRepository extends JpaRepository<CropIssueReportEntity, Long> {
+    java.util.List<CropIssueReportEntity> findAllByOrderByCreatedAtDescIdDesc();
+    java.util.List<CropIssueReportEntity> findAllByStudentIdOrderByCreatedAtDescIdDesc(String studentId);
 
     @Modifying
     @Query("DELETE FROM CropIssueReportEntity r WHERE r.taskId = :taskId")

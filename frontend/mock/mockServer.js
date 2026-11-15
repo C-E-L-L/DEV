@@ -1,0 +1,852 @@
+import { createProfessorMock } from './professor.js';
+import { mockLearningHistory, mockTaskDetail, mockStudentMatrices } from './studentAnalytics.js';
+import { createCourseworkMock } from './coursework.js';
+import { isPublished } from '../src/utils/coursework.js';
+
+const CELL_LABELS = ['Segment', 'Band', 'Eosinophil', 'NucleatedRBC', 'Lymphocyte', 'Monocyte'];
+
+let animalSpecies = [
+  { id: 1, code: 'DOG', name: '개 (Dog)', builtIn: true },
+  { id: 2, code: 'CAT', name: '고양이 (Cat)', builtIn: true },
+];
+
+const tasks = [
+  { id: 101, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:00:00' },
+  { id: 102, assignmentId: 10, title: '로컬 테스트 - 마감된 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', speciesId: 2, speciesCode: 'CAT', speciesName: '고양이 (Cat)', cropCount: 11, deadlineAt: '2026-08-18T18:00:00', createdAt: '2026-08-18T10:05:00' },
+  { id: 103, assignmentId: null, title: 'GT 채점 완료 과제', originalFilename: 'mock-smear-1.svg', uploadedFilename: 'mock-smear-1.svg', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T11:00:00' },
+  { id: 104, assignmentId: 11, title: '마감 예정 과제', originalFilename: 'mock-smear-2.svg', uploadedFilename: 'mock-smear-2.svg', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: '2027-01-15T18:00:00', createdAt: '2026-08-18T11:30:00' },
+  { id: 201, assignmentId: null, title: null, originalFilename: '', uploadedFilename: 'diagnostic-20260818120000', speciesId: 1, speciesCode: 'DOG', speciesName: '개 (Dog)', cropCount: 11, deadlineAt: null, createdAt: '2026-08-18T12:00:00' },
+];
+
+const boxes = [
+  [90, 110, 205, 235], [220, 105, 330, 225], [350, 145, 465, 270],
+  [500, 95, 615, 220], [640, 130, 755, 255], [780, 90, 900, 220],
+  [150, 330, 270, 455], [310, 300, 430, 430], [480, 335, 600, 465],
+  [650, 305, 775, 440], [805, 335, 925, 465],
+];
+
+const labelsByIndex = ['Segment', null, 'Band', 'Eosinophil', null, 'Segment', 'Lymphocyte', null, 'Monocyte', 'NucleatedRBC', null];
+
+function makeVotes(index) {
+  const primary = CELL_LABELS[index % CELL_LABELS.length];
+  const secondary = CELL_LABELS[(index + 1) % CELL_LABELS.length];
+  return Object.fromEntries(CELL_LABELS.map(label => [label, label === primary ? 3 : label === secondary ? 2 : 0]));
+}
+
+function makeVoters(index) {
+  const primary = CELL_LABELS[index % CELL_LABELS.length];
+  const secondary = CELL_LABELS[(index + 1) % CELL_LABELS.length];
+  const students = [
+    { studentId: '20260001', studentName: '김민지', studentDisplayName: '20260001_김민지' },
+    { studentId: '20260002', studentName: '이준호', studentDisplayName: '20260002_이준호' },
+    { studentId: '20260003', studentName: '박서연', studentDisplayName: '20260003_박서연' },
+    { studentId: '20260004', studentName: '최도윤', studentDisplayName: '20260004_최도윤' },
+    { studentId: '20260005', studentName: '정하은', studentDisplayName: '20260005_정하은' },
+  ];
+  return Object.fromEntries(CELL_LABELS.map(label => [
+    label,
+    label === primary
+      ? students.slice(0, 3)
+      : label === secondary
+        ? students.slice(3)
+        : [],
+  ]));
+}
+
+function makeCrop(taskId, index) {
+  const task = tasks.find(item => item.id === taskId);
+  const fullyGraded = [102, 103, 201].includes(taskId);
+  const finalLabel = fullyGraded ? CELL_LABELS[index % CELL_LABELS.length] : labelsByIndex[index];
+  const voteDistribution = makeVotes(index);
+  const totalAnswers = Object.values(voteDistribution).reduce((sum, count) => sum + count, 0);
+  const correctAnswers = finalLabel ? voteDistribution[finalLabel] || 0 : 0;
+  const accuracyRate = finalLabel ? Math.round((correctAnswers / totalAnswers) * 1000) / 10 : 0;
+  return {
+    taskId,
+    cropId: taskId * 100 + index + 1,
+    filename: `mock-cell-${taskId}-${index + 1}.svg`,
+    originalSmearFilename: task?.originalFilename || null,
+    speciesId: task?.speciesId || null,
+    speciesCode: task?.speciesCode || null,
+    speciesName: task?.speciesName || null,
+    bbox: JSON.stringify(boxes[index]),
+    gtLabel: taskId === 201 ? finalLabel : null,
+    pseudoLabel: CELL_LABELS[index % CELL_LABELS.length],
+    aiBboxConfidence: 0.94,
+    aiClassificationConfidence: 0.82,
+    finalLabel,
+    totalAnswers,
+    accuracyRate,
+    errorRate: finalLabel ? Math.round((100 - accuracyRate) * 10) / 10 : 0,
+    hardScore: finalLabel ? 100 - accuracyRate : 0,
+    wrongDetails: [],
+    voteDistribution,
+    votersByLabel: makeVoters(index),
+  };
+}
+
+const cropStats = new Map(tasks.map(task => [task.id, boxes.map((_, index) => makeCrop(task.id, index))]));
+const studentAnswers = new Map();
+studentAnswers.set('student', Object.fromEntries([
+  ...(cropStats.get(101) || []).slice(0, 5),
+  ...(cropStats.get(102) || []).slice(0, 3),
+  ...(cropStats.get(103) || []),
+  ...(cropStats.get(201) || []),
+].map((crop, index) => [crop.cropId, CELL_LABELS[(index + 1) % CELL_LABELS.length]])));
+let mockUsers = [
+  { id: 1, username: 'admin', name: '로컬 관리자', role: 'ADMIN', status: 'ACTIVE', createdAt: '2026-08-18T09:00:00' },
+  { id: 2, username: 'professor', name: '로컬 테스트 교수', role: 'EXPERT', status: 'ACTIVE', createdAt: '2026-08-18T09:05:00' },
+  { id: 3, username: 'student', name: '로컬 테스트 학생', role: 'STUDENT', status: 'ACTIVE', createdAt: '2026-08-18T09:10:00' },
+  { id: 4, username: '20260006', name: '미응시 학생', role: 'STUDENT', status: 'ACTIVE', createdAt: '2026-08-18T09:15:00' },
+];
+const mockSessions = new Map([
+  ['local-mock-student-token', { username: 'student', name: '로컬 테스트 학생', role: 'STUDENT' }],
+  ['local-mock-expert-token', { username: 'professor', name: '로컬 테스트 교수', role: 'EXPERT' }],
+  ['local-mock-admin-token', { username: 'admin', name: '로컬 관리자', role: 'ADMIN' }],
+]);
+const mockReports = [
+  { id: 1, studentId: 'student', taskId: 101, cropId: cropStats.get(101)[0].cropId, reason: '헷갈림: Segment와 Band를 구분하는 기준이 궁금합니다.', createdAt: '2026-10-15T10:00:00', replies: [] },
+  { id: 2, studentId: 'student', taskId: 103, cropId: cropStats.get(103)[1].cropId, reason: '화질 문제: 이미지가 흐리게 보여요.', createdAt: '2026-10-14T10:00:00', replies: [{ id: 1, authorUsername: 'professor', authorName: '로컬 테스트 교수', authorRole: 'EXPERT', message: '확인했습니다. 원본 이미지의 확대와 밝기 조절을 이용해 보세요. 이미지 상태도 점검하겠습니다.', createdAt: '2026-10-14T11:00:00' }] },
+  { id: 3, studentId: '20260006', taskId: 104, cropId: cropStats.get(104)[0].cropId, reason: '기타: 문제를 어떻게 시작하나요?', createdAt: '2026-10-14T09:00:00', replies: [] },
+];
+let nextReportId = 4;
+let nextReplyId = 2;
+function reportDto(report) {
+  const crop = (cropStats.get(report.taskId) || []).find(item => item.cropId === report.cropId);
+  return { ...report, cropFilename: crop?.filename || null, speciesCode: crop?.speciesCode, speciesName: crop?.speciesName };
+}
+for (const crops of cropStats.values()) {
+  for (const crop of crops) {
+    for (const [label, voters] of Object.entries(crop.votersByLabel)) {
+      for (const voter of voters) {
+        if (!studentAnswers.has(voter.studentId)) studentAnswers.set(voter.studentId, {});
+        studentAnswers.get(voter.studentId)[crop.cropId] = label;
+      }
+    }
+  }
+}
+
+function analyticsStudents() {
+  const students = new Map(mockUsers.filter(user => user.role === 'STUDENT').map(user => [user.username,
+    { studentId: user.username, studentName: user.name, studentDisplayName: user.name ? `${user.username}_${user.name}` : user.username }]));
+  for (const crops of cropStats.values()) {
+    for (const crop of crops) {
+      for (const voters of Object.values(crop.votersByLabel || {})) {
+        for (const voter of voters) if (!students.has(voter.studentId)) students.set(voter.studentId, voter);
+      }
+    }
+  }
+  return [...students.values()];
+}
+let mockRoster = [
+  { id: 1, studentId: 'student', registeredBy: 'admin', claimedUserId: 3, createdAt: '2026-08-18T09:00:00' },
+  { id: 2, studentId: '20260001', registeredBy: 'admin', claimedUserId: null, createdAt: '2026-08-18T09:00:00' },
+];
+
+function cropDto(crop, studentView = false) {
+  return {
+    classLabels:tasks.find(t=>t.id===crop.taskId)?.classLabels || Object.fromEntries(CELL_LABELS.map(l=>[l,l])),
+    excluded: Boolean(crop.excluded), exclusionReason: studentView ? null : crop.exclusionReason,
+    id: crop.cropId,
+    taskId: crop.taskId,
+    originalSmearFilename: crop.originalSmearFilename,
+    speciesId: crop.speciesId,
+    speciesCode: crop.speciesCode,
+    speciesName: crop.speciesName,
+    cropFilename: crop.filename,
+    bbox: crop.bbox,
+    gtLabel: studentView ? null : crop.gtLabel,
+    pseudoLabel: studentView ? null : crop.pseudoLabel,
+    aiBboxConfidence: studentView ? null : crop.aiBboxConfidence,
+    aiClassificationConfidence: studentView ? null : crop.aiClassificationConfidence,
+    finalLabel: studentView ? null : crop.finalLabel,
+  };
+}
+
+function answersFor(studentId = 'student') {
+  if (!studentAnswers.has(studentId)) studentAnswers.set(studentId, {});
+  return studentAnswers.get(studentId);
+}
+
+function resultFor(crops, studentId) {
+  const answers = answersFor(studentId);
+  const details = crops
+    .filter(crop => !crop.excluded && answers[crop.cropId])
+    .map(crop => {
+      const studentLabel = answers[crop.cropId];
+      const correctLabel = crop.finalLabel;
+      return {
+        cropId: crop.cropId,
+        cropFilename: crop.filename,
+        studentLabel,
+        correctLabel,
+        isCorrect: correctLabel ? studentLabel === correctLabel : null,
+      };
+    });
+  const scorable = details.filter(item => item.isCorrect !== null);
+  const correct = scorable.filter(item => item.isCorrect).length;
+  return {
+    total: scorable.length,
+    correct,
+    wrong: scorable.length - correct,
+    accuracy: scorable.length ? Math.round((correct / scorable.length) * 100) : 0,
+    details,
+    labels: CELL_LABELS,
+    confusionMatrix: {},
+  };
+}
+
+function reviewFor(taskGroup, studentId) {
+  if (!taskGroup.length || taskGroup.some(t => !isPublished(t))) return null;
+  const answers = answersFor(studentId);
+  const crops = taskGroup.flatMap(task => (cropStats.get(task.id) || []).filter(c => !c.excluded));
+  const submitted = crops.filter(crop => answers[crop.cropId]);
+  if (submitted.length === 0) return null;
+  const representative = taskGroup[0];
+  const diagnostic = representative.uploadedFilename?.startsWith('diagnostic-');
+  const deadlineAt = representative.deadlineAt || null;
+  const deadlinePassed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= Date.now());
+  const allAnswered = submitted.length >= crops.length;
+  const allGraded = crops.length > 0 && crops.every(crop => crop.finalLabel);
+  if (representative.resultsAfterDeadline && !deadlinePassed) return null;
+  if (!(deadlinePassed || (coursework.finalized(taskGroup, studentId) && allGraded))) return null;
+
+  const cells = submitted.map(crop => {
+    const studentLabel = answers[crop.cropId];
+    const correctLabel = crop.finalLabel;
+    return {
+      taskId: crop.taskId,
+      cropId: crop.cropId,
+      cropFilename: crop.filename,
+      originalSmearFilename: crop.originalSmearFilename,
+      speciesCode: crop.speciesCode,
+      speciesName: crop.speciesName,
+      bbox: crop.bbox,
+      studentLabel,
+      correctLabel,
+      isCorrect: correctLabel ? studentLabel === correctLabel : null,
+    };
+  });
+  const correct = cells.filter(cell => cell.isCorrect === true).length;
+  const wrong = cells.filter(cell => cell.isCorrect === false).length;
+  const pendingAnswers = cells.filter(cell => cell.isCorrect == null).length;
+  const gradedAnswers = correct + wrong;
+  return {
+    scopeType: diagnostic ? 'DIAGNOSTIC' : representative.assignmentId ? 'ASSIGNMENT' : 'TASK',
+    scopeId: representative.assignmentId || representative.id,
+    title: diagnostic ? `Diagnostic #${representative.id}` : representative.title || `Task #${representative.id}`,
+    thumbnailFilename: diagnostic ? cells[0]?.cropFilename : representative.originalFilename,
+    deadlineAt,
+    availabilityReason: diagnostic ? 'DIAGNOSTIC_COMPLETED' : deadlinePassed ? 'DEADLINE_PASSED' : 'GRADED',
+    totalCells: crops.length,
+    answeredCells: cells.length,
+    unsubmittedCells: Math.max(0, crops.length - cells.length),
+    gradedAnswers,
+    pendingAnswers,
+    correct,
+    wrong,
+    accuracy: gradedAnswers ? Math.round((correct / gradedAnswers) * 100) : null,
+    cells,
+  };
+}
+
+function getStudentReviews(studentId) {
+  const reviews = [];
+  const handledAssignments = new Set();
+  for (const task of tasks) {
+    if (task.assignmentId) {
+      if (handledAssignments.has(task.assignmentId)) continue;
+      handledAssignments.add(task.assignmentId);
+      const review = reviewFor(tasks.filter(item => item.assignmentId === task.assignmentId), studentId);
+      if (review) reviews.push(review);
+    } else {
+      const review = reviewFor([task], studentId);
+      if (review) reviews.push(review);
+    }
+  }
+  return reviews;
+}
+
+function isMockSubmissionLocked(taskId, studentId) {
+  const task = tasks.find(item => item.id === taskId);
+  if (!task) return false;
+  const group = task.assignmentId ? tasks.filter(item => item.assignmentId === task.assignmentId) : [task];
+  return group.some(t => !isPublished(t)) || coursework.finalized(group, studentId) || coursework.expired(group);
+}
+
+function refreshScore(crop) {
+  const correctAnswers = crop.finalLabel ? crop.voteDistribution[crop.finalLabel] || 0 : 0;
+  crop.accuracyRate = crop.finalLabel ? Math.round((correctAnswers / crop.totalAnswers) * 1000) / 10 : 0;
+  crop.errorRate = crop.finalLabel ? Math.round((100 - crop.accuracyRate) * 10) / 10 : 0;
+  crop.hardScore = crop.errorRate;
+}
+
+function currentStats(crop) {
+  const classLabels=tasks.find(t=>t.id===crop.taskId)?.classLabels || Object.fromEntries(CELL_LABELS.map(l=>[l,l]));
+  const votersByLabel=Object.fromEntries([...Object.keys(classLabels),'UNKNOWN'].map(label=>[label,[]]));
+  for(const [studentId,answers] of studentAnswers){
+    const label=answers[crop.cropId];if(!label)continue;
+    const user=mockUsers.find(u=>u.username===studentId);
+    (votersByLabel[label]||=[]).push({studentId,studentName:user?.name,studentDisplayName:user?.name ? `${studentId}_${user.name}` : studentId});
+  }
+  const voteDistribution=Object.fromEntries(Object.entries(votersByLabel).map(([label,voters])=>[label,voters.length]));
+  const totalAnswers=Object.values(voteDistribution).reduce((sum,n)=>sum+n,0);
+  const correct=crop.finalLabel? voteDistribution[crop.finalLabel]||0:0;
+  const errorRate=crop.finalLabel&&totalAnswers?Math.round((totalAnswers-correct)*1000/totalAnswers)/10:0;
+  return {...crop,classLabels,votersByLabel,voteDistribution,totalAnswers,errorRate,hardScore:errorRate,accuracyRate:crop.finalLabel&&totalAnswers?100-errorRate:0};
+}
+
+function json(res, data, status = 200) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.end(JSON.stringify(data));
+}
+
+function readJson(req) {
+  return new Promise(resolve => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try { resolve(body ? JSON.parse(body) : {}); }
+      catch { resolve({}); }
+    });
+  });
+}
+
+function readMultipart(req) {
+  return new Promise(resolve => {
+    const chunks = [];
+    req.on('data', chunk => { chunks.push(chunk); });
+    req.on('end', () => {
+      const contentType = String(req.headers['content-type'] || '');
+      const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.slice(1).find(Boolean);
+      if (!boundary) { resolve({ fields: {}, files: [] }); return; }
+
+      const fields = {};
+      const files = [];
+      const raw = Buffer.concat(chunks).toString('binary');
+      for (const part of raw.split(`--${boundary}`)) {
+        const headerEnd = part.indexOf('\r\n\r\n');
+        if (headerEnd < 0) continue;
+        const headers = part.slice(0, headerEnd);
+        const name = headers.match(/name="([^"]+)"/)?.[1];
+        if (!name) continue;
+        const filename = headers.match(/filename="([^"]*)"/)?.[1];
+        const value = part.slice(headerEnd + 4).replace(/\r\n$/, '');
+        if (filename !== undefined) files.push({ fieldName: name, filename });
+        else (fields[name] ||= []).push(Buffer.from(value, 'binary').toString('utf8'));
+      }
+      resolve({ fields, files });
+    });
+  });
+}
+
+function smearSvg(variant) {
+  const offset = variant === 2 ? 28 : 0;
+  const cells = boxes.map(([x1, y1, x2, y2], index) => {
+    const cx = (x1 + x2) / 2 + (index % 2 ? offset : -offset / 2);
+    const cy = (y1 + y2) / 2;
+    const rx = (x2 - x1) * 0.36;
+    const ry = (y2 - y1) * 0.39;
+    return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#f3ddec" stroke="#b782aa" stroke-width="5"/><path d="M ${cx - 22} ${cy} C ${cx - 12} ${cy - 32}, ${cx + 15} ${cy - 30}, ${cx + 22} ${cy} C ${cx + 10} ${cy + 28}, ${cx - 12} ${cy + 30}, ${cx - 22} ${cy}" fill="#633a91" opacity="0.9"/>`;
+  }).join('');
+  const redCells = Array.from({ length: 70 }, (_, index) => {
+    const x = 25 + (index * 83) % 950;
+    const y = 25 + (index * 137) % 600;
+    return `<ellipse cx="${x}" cy="${y}" rx="30" ry="22" fill="#d89ab1" opacity="0.48" stroke="#bf7896" stroke-width="2"/>`;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650"><rect width="1000" height="650" fill="#efd6df"/>${redCells}${cells}<text x="30" y="45" fill="#dc3545" font-family="Arial" font-size="24" font-weight="700">LOCAL MOCK x40</text><text x="850" y="610" fill="#dc3545" font-family="Arial" font-size="24">50um</text></svg>`;
+}
+
+function cropSvg(filename) {
+  const match = filename.match(/-(\d+)\.svg$/);
+  const index = Math.max(0, Number(match?.[1] || 1) - 1);
+  const label = CELL_LABELS[index % CELL_LABELS.length];
+  const colors = {
+    Segment: '#59317d', Band: '#70459a', Eosinophil: '#b75476',
+    NucleatedRBC: '#4c276e', Lymphocyte: '#3e1d70', Monocyte: '#765099',
+  };
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220"><rect width="220" height="220" fill="#f4e5ec"/><circle cx="110" cy="110" r="82" fill="#e8c9dc" stroke="#bd87aa" stroke-width="8"/><path d="M55 112 C65 55, 100 55, 108 98 C120 50, 165 65, 164 118 C160 164, 125 168, 108 132 C92 168, 60 158, 55 112" fill="${colors[label]}"/><circle cx="78" cy="85" r="8" fill="#f3d9e6" opacity="0.8"/><text x="110" y="207" text-anchor="middle" font-family="Arial" font-size="15" fill="#495057">${label} · MOCK</text></svg>`;
+}
+
+function serveImage(pathname, res) {
+  const filename = decodeURIComponent(pathname.split('/').pop());
+  const svg = filename.startsWith('mock-smear')
+    ? smearSvg(filename.includes('-2.') ? 2 : 1)
+    : cropSvg(filename);
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.end(svg);
+}
+
+const professor = createProfessorMock({tasks,cropStats,species:()=>animalSpecies,users:()=>mockUsers,roster:()=>mockRoster,students:analyticsStudents,answersFor,finalized:(...args)=>coursework.finalized(...args),labels:CELL_LABELS,json,readJson});
+const coursework = createCourseworkMock({ classLabelsFor:professor.activeLabels, tasks, cropStats, species: () => animalSpecies, labels: CELL_LABELS, makeCrop, cropDto, answersFor, json, readJson, reviewFor });
+
+export function mockServerPlugin() {
+  return {
+    name: 'cell-local-mock-server',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = new URL(req.url, 'http://localhost');
+        const { pathname } = url;
+        const currentUser = mockSessions.get(String(req.headers.authorization || '').replace(/^Bearer /, ''));
+        const studentRequest = currentUser?.role === 'STUDENT';
+
+        if (pathname.startsWith('/data/')) {
+          serveImage(pathname, res);
+          return;
+        }
+        if (!pathname.startsWith('/api/')) {
+          next();
+          return;
+        }
+
+        if (req.method === 'POST' && pathname === '/api/auth/login') {
+          const body = await readJson(req);
+          const username = String(body.username || 'professor').toLowerCase();
+          const knownUser = mockUsers.find(user => user.username === username);
+          const role = knownUser?.role || (analyticsStudents().some(user => user.studentId === username) ? 'STUDENT' : 'EXPERT');
+          const names = { ADMIN: '로컬 관리자', STUDENT: '로컬 테스트 학생', EXPERT: '로컬 테스트 교수' };
+          const accessToken = ['student', 'professor', 'admin'].includes(username) ? `local-mock-${role.toLowerCase()}-token` : `local-mock-${role.toLowerCase()}-${encodeURIComponent(username)}-token`;
+          const session = { username, name: knownUser?.name || names[role], role };
+          mockSessions.set(accessToken, session);
+          json(res, { ...session, accessToken });
+          return;
+        }
+        if (await professor.handle(req,res,url,currentUser)) return;
+        if (await coursework.handle(req, res, url, currentUser)) return;
+        const scopedStudentRead = pathname.match(/^\/api\/(tasks|assignments)\/(\d+)(?:\/|$)/);
+        if (studentRequest && scopedStudentRead) {
+          const group = scopedStudentRead[1] === 'tasks' ? coursework.scope(Number(scopedStudentRead[2])) : tasks.filter(t => t.assignmentId === Number(scopedStudentRead[2]));
+          if (!group.length || group.some(t => !isPublished(t))) { json(res, { message: '게시된 과제를 찾을 수 없습니다.' }, 404); return; }
+        }
+        if (req.method === 'POST' && pathname === '/api/assignments') {
+          if (!currentUser || studentRequest) { json(res, { message: '교수 계정이 필요합니다.' }, 403); return; }
+          const multipart = await readMultipart(req);
+          const title = multipart.fields.title?.[0] || '목업 도말 과제';
+          const speciesIds = (multipart.fields.speciesIds || []).map(Number);
+          const deadlineAt = multipart.fields.deadlineAt?.[0] || null;
+          const assignmentId = Math.max(...tasks.map(task => task.assignmentId || 0), 0) + 1;
+          const createdTasks = [];
+
+          multipart.files.filter(file => file.fieldName === 'files').forEach((file, index) => {
+            const species = animalSpecies.find(item => item.id === speciesIds[index]) || animalSpecies[0];
+            const task = {
+              status: 'DRAFT', kind: 'PRACTICE', revision: 0, requireLabels: false, classLabels:professor.activeLabels(species.id),
+              id: Math.max(...tasks.map(item => item.id), 0) + 1,
+              assignmentId,
+              title,
+              originalFilename: index % 2 === 0 ? 'mock-smear-1.svg' : 'mock-smear-2.svg',
+              uploadedFilename: file.filename || `mock-smear-${index + 1}.png`,
+              speciesId: species.id,
+              speciesCode: species.code,
+              speciesName: species.name,
+              cropCount: boxes.length,
+              deadlineAt,
+              createdAt: new Date().toISOString(),
+            };
+            tasks.push(task);
+            const crops = boxes.map((_, cropIndex) => ({ ...makeCrop(task.id, cropIndex), finalLabel: null, gtLabel: null, totalAnswers: 0, voteDistribution: {}, votersByLabel: {} }));
+            cropStats.set(task.id, crops);
+            createdTasks.push({
+              taskId: task.id,
+              originalImage: task.originalFilename,
+              speciesId: species.id,
+              speciesCode: species.code,
+              speciesName: species.name,
+              totalDetected: crops.length,
+              crops: crops.map(crop => cropDto(crop)),
+            });
+          });
+
+          json(res, {
+            assignmentId,
+            title,
+            expertUsername: 'professor',
+            createdAt: new Date().toISOString(),
+            tasks: createdTasks,
+            totalCrops: createdTasks.reduce((sum, task) => sum + task.totalDetected, 0),
+          });
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/tasks') {
+          json(res, tasks.filter(t => !studentRequest || isPublished(t)).map(coursework.taskDto));
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/species') {
+          json(res, animalSpecies);
+          return;
+        }
+        if (req.method === 'POST' && pathname === '/api/species') {
+          const body = await readJson(req);
+          const name = String(body.name || '').trim().replace(/\s+/g, ' ');
+          if (!name || name.length > 60 || animalSpecies.some(item => item.name.toLowerCase() === name.toLowerCase())) {
+            json(res, { message: !name ? '동물 종 이름은 필수입니다.' : name.length > 60 ? '동물 종 이름은 60자 이하여야 합니다.' : `이미 등록된 동물 종입니다: ${name}` }, 400);
+            return;
+          }
+          const created = {
+            id: Math.max(...animalSpecies.map(item => item.id), 0) + 1,
+            code: `ANIMAL_MOCK_${Date.now()}`,
+            name,
+            builtIn: false,
+          };
+          animalSpecies.push(created);
+          json(res, created);
+          return;
+        }
+
+        const speciesRenameMatch = pathname.match(/^\/api\/species\/(\d+)$/);
+        if (req.method === 'PUT' && speciesRenameMatch) {
+          const species = animalSpecies.find(item => item.id === Number(speciesRenameMatch[1]));
+          const body = await readJson(req);
+          if (!species) {
+            json(res, { message: '동물 종을 찾을 수 없습니다.' }, 404);
+            return;
+          }
+          const name = String(body.name || '').trim().replace(/\s+/g, ' ');
+          if (!name || name.length > 60 || animalSpecies.some(item => item.id !== species.id && item.name.toLowerCase() === name.toLowerCase())) {
+            json(res, { message: !name ? '동물 종 이름은 필수입니다.' : name.length > 60 ? '동물 종 이름은 60자 이하여야 합니다.' : `이미 등록된 동물 종입니다: ${name}` }, 400);
+            return;
+          }
+          species.name = name;
+          tasks.filter(task => task.speciesId === species.id).forEach(task => { task.speciesName = species.name; });
+          [...cropStats.values()].flat().filter(crop => crop.speciesId === species.id).forEach(crop => { crop.speciesName = species.name; });
+          json(res, species);
+          return;
+        }
+
+        const taskSpeciesMatch = pathname.match(/^\/api\/tasks\/(\d+)\/species$/);
+        if (req.method === 'PUT' && taskSpeciesMatch) {
+          const task = tasks.find(item => item.id === Number(taskSpeciesMatch[1]));
+          const body = await readJson(req);
+          const species = animalSpecies.find(item => item.id === Number(body.speciesId));
+          if (!task || !species) {
+            json(res, { message: '도말 이미지 또는 동물 종을 찾을 수 없습니다.' }, 404);
+            return;
+          }
+          task.speciesId = species.id;
+          task.speciesCode = species.code;
+          task.speciesName = species.name;
+          (cropStats.get(task.id) || []).forEach(crop => {
+            crop.speciesId = species.id;
+            crop.speciesCode = species.code;
+            crop.speciesName = species.name;
+          });
+          json(res, species);
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/all-stats') {
+          json(res, [...cropStats.values()].flat().filter(c=>!c.excluded).map(currentStats));
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/student/reviews') {
+          if (!studentRequest) { json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return; }
+          json(res, { reviews: getStudentReviews(currentUser.username) });
+          return;
+        }
+
+        const ownHistoryTask = pathname.match(/^\/api\/student\/history\/tasks\/(\d+)$/);
+        if (req.method === 'GET' && (pathname === '/api/student/history' || ownHistoryTask)) {
+          if (!studentRequest) { json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return; }
+          if (ownHistoryTask) {
+            const task = tasks.find(item => item.id === Number(ownHistoryTask[1]));
+            if (!task) { json(res, { message: 'Task not found' }, 404); return; }
+            const detail = mockTaskDetail(task, cropStats.get(task.id) || [], answersFor(currentUser.username), currentUser.username);
+            json(res, detail.cells.filter(cell => cell.studentLabel).map(({ cropId, cropFilename, studentLabel, submittedAt }) => ({ cropId, cropFilename, studentLabel, submittedAt })));
+          } else {
+            const history = mockLearningHistory(tasks, cropStats, answersFor(currentUser.username), currentUser.username);
+            json(res, { activities: history.activities.filter(item => item.summary.answeredCells > 0).map(item => ({
+              scopeType: item.scopeType, scopeId: item.scopeId, title: item.title, deadlineAt: item.deadlineAt,
+              totalCells: item.summary.totalCells, answeredCells: item.summary.answeredCells,
+              tasks: item.tasks.map(task => ({ taskId: task.taskId, filename: task.filename, totalCells: task.summary.totalCells, answeredCells: task.summary.answeredCells })),
+            })) });
+          }
+          return;
+        }
+
+        const taskCropsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/crops$/);
+        if (req.method === 'GET' && taskCropsMatch) {
+          json(res, coursework.activeCrops(Number(taskCropsMatch[1])).map(crop => cropDto(crop, studentRequest)));
+          return;
+        }
+
+        const assignmentCropsMatch = pathname.match(/^\/api\/assignments\/(\d+)\/crops$/);
+        if (req.method === 'GET' && assignmentCropsMatch) {
+          const assignmentId = Number(assignmentCropsMatch[1]);
+          const assignmentTaskIds = tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id);
+          json(res, assignmentTaskIds.flatMap(taskId => coursework.activeCrops(taskId)).map(crop => cropDto(crop, studentRequest)));
+          return;
+        }
+
+        const taskLabelsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/submissions\/([^/]+)\/labels$/);
+        if (req.method === 'GET' && taskLabelsMatch) {
+          const taskId = Number(taskLabelsMatch[1]);
+          const studentId = decodeURIComponent(taskLabelsMatch[2]);
+          const taskCropIds = new Set(coursework.activeCrops(taskId).map(crop => crop.cropId));
+          const labels = Object.fromEntries(Object.entries(answersFor(studentId)).filter(([cropId]) => taskCropIds.has(Number(cropId))));
+          json(res, labels);
+          return;
+        }
+
+        const assignmentLabelsMatch = pathname.match(/^\/api\/assignments\/(\d+)\/submissions\/([^/]+)\/labels$/);
+        if (req.method === 'GET' && assignmentLabelsMatch) {
+          const assignmentId = Number(assignmentLabelsMatch[1]);
+          const studentId = decodeURIComponent(assignmentLabelsMatch[2]);
+          const assignmentTaskIds = new Set(tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id));
+          const cropIds = new Set([...cropStats.values()].flat().filter(crop => !crop.excluded && assignmentTaskIds.has(crop.taskId)).map(crop => crop.cropId));
+          const labels = Object.fromEntries(Object.entries(answersFor(studentId)).filter(([cropId]) => cropIds.has(Number(cropId))));
+          json(res, labels);
+          return;
+        }
+
+        const taskSolvedMatch = pathname.match(/^\/api\/tasks\/(\d+)\/submissions\/([^/]+)$/);
+        if (req.method === 'GET' && taskSolvedMatch) {
+          const taskId = Number(taskSolvedMatch[1]);
+          const studentId = decodeURIComponent(taskSolvedMatch[2]);
+          const taskCropIds = new Set(coursework.activeCrops(taskId).map(crop => crop.cropId));
+          json(res, Object.keys(answersFor(studentId)).map(Number).filter(cropId => taskCropIds.has(cropId)));
+          return;
+        }
+
+        const assignmentSolvedMatch = pathname.match(/^\/api\/assignments\/(\d+)\/submissions\/([^/]+)$/);
+        if (req.method === 'GET' && assignmentSolvedMatch) {
+          const assignmentId = Number(assignmentSolvedMatch[1]);
+          const studentId = decodeURIComponent(assignmentSolvedMatch[2]);
+          const assignmentTaskIds = new Set(tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id));
+          const cropIds = new Set([...cropStats.values()].flat().filter(crop => !crop.excluded && assignmentTaskIds.has(crop.taskId)).map(crop => crop.cropId));
+          json(res, Object.keys(answersFor(studentId)).map(Number).filter(cropId => cropIds.has(cropId)));
+          return;
+        }
+
+        if (req.method === 'POST' && pathname === '/api/submit') {
+          const body = await readJson(req);
+          const crop = [...cropStats.values()].flat().find(item => item.cropId === Number(body.cropId));
+          if (!crop || crop.excluded || !currentUser || ![...Object.keys(tasks.find(t=>t.id===crop?.taskId)?.classLabels||Object.fromEntries(CELL_LABELS.map(l=>[l,l]))), 'UNKNOWN'].includes(body.studentLabel)) { json(res, { message: '출제 문항과 응답을 확인해주세요.' }, 400); return; }
+          if (isMockSubmissionLocked(crop.taskId, currentUser.username)) {
+            json(res, { message: '이미 마감되었거나 결과가 공개된 과제의 답안은 수정할 수 없습니다.' }, 400);
+            return;
+          }
+          answersFor(currentUser.username)[body.cropId] = body.studentLabel;
+          json(res, { success: true });
+          return;
+        }
+
+        const taskResultsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/my-results\/([^/]+)$/);
+        if (req.method === 'GET' && taskResultsMatch) {
+          const taskId = Number(taskResultsMatch[1]);
+          const task = tasks.find(item => item.id === taskId);
+          const group = task?.assignmentId ? tasks.filter(item => item.assignmentId === task.assignmentId) : task ? [task] : [];
+          if (!reviewFor(group, decodeURIComponent(taskResultsMatch[2]))) {
+            json(res, { message: '채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.' }, 400);
+            return;
+          }
+          json(res, resultFor(cropStats.get(taskId) || [], decodeURIComponent(taskResultsMatch[2])));
+          return;
+        }
+
+        const assignmentResultsMatch = pathname.match(/^\/api\/assignments\/(\d+)\/my-results\/([^/]+)$/);
+        if (req.method === 'GET' && assignmentResultsMatch) {
+          const assignmentId = Number(assignmentResultsMatch[1]);
+          const assignmentTaskIds = new Set(tasks.filter(task => task.assignmentId === assignmentId).map(task => task.id));
+          const crops = [...cropStats.values()].flat().filter(crop => !crop.excluded && assignmentTaskIds.has(crop.taskId));
+          if (!reviewFor(tasks.filter(task => task.assignmentId === assignmentId), decodeURIComponent(assignmentResultsMatch[2]))) {
+            json(res, { message: '채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.' }, 400);
+            return;
+          }
+          json(res, resultFor(crops, decodeURIComponent(assignmentResultsMatch[2])));
+          return;
+        }
+
+        const statsMatch = pathname.match(/^\/api\/tasks\/(\d+)\/stats$/);
+        if (req.method === 'GET' && statsMatch) {
+          json(res, coursework.activeCrops(Number(statsMatch[1])).map(currentStats));
+          return;
+        }
+
+        const assignmentDeadlineMatch = pathname.match(/^\/api\/assignments\/(\d+)\/deadline$/);
+        if (req.method === 'PUT' && assignmentDeadlineMatch) {
+          const assignmentId = Number(assignmentDeadlineMatch[1]);
+          const assignmentTasks = tasks.filter(task => task.assignmentId === assignmentId);
+          if (assignmentTasks.some(task => task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now())) {
+            json(res, { message: '이미 마감된 과제의 마감일은 변경하거나 해제할 수 없습니다.' }, 400);
+            return;
+          }
+          const body = await readJson(req);
+          assignmentTasks.forEach(task => { task.deadlineAt = body.deadlineAt || null; });
+          json(res, { success: true });
+          return;
+        }
+
+        const taskDeadlineMatch = pathname.match(/^\/api\/tasks\/(\d+)\/deadline$/);
+        if (req.method === 'PUT' && taskDeadlineMatch) {
+          const task = tasks.find(item => item.id === Number(taskDeadlineMatch[1]));
+          if (!task || task.assignmentId || task.uploadedFilename?.startsWith('diagnostic-')) {
+            json(res, { message: '이 Task의 마감일은 개별 변경할 수 없습니다.' }, 400);
+            return;
+          }
+          if (task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now()) {
+            json(res, { message: '이미 마감된 과제의 마감일은 변경하거나 해제할 수 없습니다.' }, 400);
+            return;
+          }
+          const body = await readJson(req);
+          task.deadlineAt = body.deadlineAt || null;
+          json(res, { success: true });
+          return;
+        }
+
+        const confirmMatch = pathname.match(/^\/api\/crops\/(\d+)\/confirm$/);
+        if (req.method === 'PUT' && confirmMatch) {
+          const cropId = Number(confirmMatch[1]);
+          const body = await readJson(req);
+          const crop = [...cropStats.values()].flat().find(item => item.cropId === cropId);
+          if (!crop) {
+            json(res, { message: 'Mock crop not found' }, 404);
+            return;
+          }
+          crop.finalLabel = body.finalLabel || null;
+          refreshScore(crop);
+          json(res, { success: true });
+          return;
+        }
+
+        if (req.method === 'GET' && (pathname === '/api/reports' || pathname === '/api/student/reports')) {
+          const mine = pathname === '/api/student/reports';
+          if (!currentUser || (mine ? !studentRequest : !['EXPERT', 'ADMIN'].includes(currentUser.role))) {
+            json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return;
+          }
+          json(res, mockReports.filter(item => !mine || item.studentId === currentUser.username)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id).map(reportDto));
+          return;
+        }
+        if (req.method === 'POST' && pathname === '/api/reports') {
+          if (!currentUser) { json(res, { message: 'Unauthorized' }, 401); return; }
+          const body = await readJson(req);
+          const crop = [...cropStats.values()].flat().find(item => item.cropId === body.cropId);
+          if (!crop) { json(res, { message: 'Cell not found' }, 404); return; }
+          if (crop.taskId !== body.taskId || typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length > 2000) {
+            json(res, { message: 'Invalid report' }, 400); return;
+          }
+          mockReports.push({ id: nextReportId++, studentId: currentUser.username, taskId: body.taskId, cropId: body.cropId, reason: body.reason.trim(), createdAt: new Date().toISOString(), replies: [] });
+          json(res, { success: true });
+          return;
+        }
+
+        const replyMatch = pathname.match(/^\/api\/reports\/(\d+)\/replies$/);
+        if (req.method === 'POST' && replyMatch) {
+          if (!currentUser || !['EXPERT', 'ADMIN'].includes(currentUser.role)) { json(res, { message: 'Forbidden' }, currentUser ? 403 : 401); return; }
+          const report = mockReports.find(item => item.id === Number(replyMatch[1]));
+          if (!report) { json(res, { message: 'Report not found' }, 404); return; }
+          const body = await readJson(req);
+          if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 4000) { json(res, { message: '답변은 1~4000자로 입력해주세요.' }, 400); return; }
+          const reply = { id: nextReplyId++, authorUsername: currentUser.username, authorName: currentUser.name, authorRole: currentUser.role, message: body.message.trim(), createdAt: new Date().toISOString() };
+          report.replies.push(reply);
+          json(res, reply);
+          return;
+        }
+
+        if (req.method === 'GET' && pathname === '/api/admin/smears') {
+          json(res, tasks.map(task => {
+            const crops = cropStats.get(task.id) || [];
+            const labeledCrops = crops.filter(crop => crop.finalLabel).length;
+            return {
+              taskId: task.id,
+              originalFilename: task.originalFilename,
+              uploadedFilename: task.uploadedFilename,
+              speciesId: task.speciesId,
+              speciesCode: task.speciesCode,
+              speciesName: task.speciesName,
+              createdAt: task.createdAt,
+              totalCrops: crops.length,
+              labeledCrops,
+              hasLabel: labeledCrops > 0,
+            };
+          }));
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/admin/crops') {
+          json(res, [...cropStats.values()].flat().map(crop => ({
+            cropId: crop.cropId,
+            taskId: crop.taskId,
+            cropFilename: crop.filename,
+            originalSmearFilename: crop.originalSmearFilename,
+            speciesId: crop.speciesId,
+            speciesCode: crop.speciesCode,
+            speciesName: crop.speciesName,
+            gtLabel: crop.gtLabel,
+            pseudoLabel: crop.pseudoLabel,
+            finalLabel: crop.finalLabel,
+            hasLabel: Boolean(crop.finalLabel),
+          })));
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/admin/users') {
+          json(res, mockUsers);
+          return;
+        }
+        if (req.method === 'POST' && pathname === '/api/admin/users') {
+          const body = await readJson(req);
+          mockUsers.push({ id: Math.max(...mockUsers.map(user => user.id), 0) + 1, username: body.username, name: body.name || null, role: body.role || 'EXPERT', status: 'ACTIVE', createdAt: new Date().toISOString() });
+          json(res, { success: true });
+          return;
+        }
+        const deleteUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+        if (req.method === 'DELETE' && deleteUserMatch) {
+          const username = decodeURIComponent(deleteUserMatch[1]);
+          mockUsers = mockUsers.filter(user => user.username !== username);
+          json(res, { success: true });
+          return;
+        }
+        const userStatusMatch = pathname.match(/^\/api\/admin\/users\/(\d+)\/status$/);
+        if (req.method === 'PUT' && userStatusMatch) {
+          const body = await readJson(req);
+          const user = mockUsers.find(item => item.id === Number(userStatusMatch[1]));
+          if (user) user.status = body.status;
+          json(res, { success: true });
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/admin/student-roster') {
+          json(res, mockRoster);
+          return;
+        }
+        if (req.method === 'POST' && pathname === '/api/admin/student-roster') {
+          const body = await readJson(req);
+          let added = 0;
+          let skipped = 0;
+          for (const studentId of body.studentIds || []) {
+            if (mockRoster.some(item => item.studentId === studentId)) { skipped += 1; continue; }
+            mockRoster.push({ id: Math.max(...mockRoster.map(item => item.id), 0) + 1, studentId, registeredBy: 'admin', claimedUserId: null, createdAt: new Date().toISOString() });
+            added += 1;
+          }
+          json(res, { added, skipped });
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/tasks/diagnostic/student-matrices') {
+          if (studentRequest) { json(res, { message: 'Forbidden' }, 403); return; }
+          json(res, mockStudentMatrices(analyticsStudents(), tasks, cropStats, studentAnswers, CELL_LABELS));
+          return;
+        }
+        const studentHistoryMatch = pathname.match(/^\/api\/analytics\/students\/([^/]+)\/history$/);
+        const studentTaskMatch = pathname.match(/^\/api\/analytics\/students\/([^/]+)\/tasks\/(\d+)$/);
+        if (req.method === 'GET' && (studentHistoryMatch || studentTaskMatch)) {
+          if (studentRequest) { json(res, { message: 'Forbidden' }, 403); return; }
+          const studentId = decodeURIComponent((studentHistoryMatch || studentTaskMatch)[1]);
+          if (studentHistoryMatch) {
+            json(res, mockLearningHistory(tasks, cropStats, answersFor(studentId), studentId));
+          } else {
+            const task = tasks.find(item => item.id === Number(studentTaskMatch[2]));
+            if (!task) { json(res, { message: 'Task not found' }, 404); return; }
+            json(res, mockTaskDetail(task, cropStats.get(task.id) || [], answersFor(studentId), studentId));
+          }
+          return;
+        }
+        if (req.method === 'GET' && pathname === '/api/tasks/diagnostic/pool-stats') {
+          json(res, { totalAvailable: 0, availableByClass: Object.fromEntries(CELL_LABELS.map(label => [label, 0])) });
+          return;
+        }
+
+        json(res, { message: `Mock API가 지원하지 않는 요청입니다: ${req.method} ${pathname}` }, 404);
+      });
+    },
+  };
+}

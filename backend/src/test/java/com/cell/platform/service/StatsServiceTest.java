@@ -5,6 +5,7 @@ import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CropRepository;
 import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.submission.SubmissionRepository;
+import com.cell.platform.domain.user.UserRepository;
 import com.cell.platform.dto.response.CropStatsResponse;
 import com.cell.platform.fixture.CropFixture;
 import org.junit.jupiter.api.Nested;
@@ -25,6 +26,7 @@ class StatsServiceTest {
     @InjectMocks private StatsService statsService;
     @Mock private CropRepository cropRepository;
     @Mock private SubmissionRepository submissionRepository;
+    @Mock private UserRepository userRepository;
 
     @Nested
     class getTaskStats_메서드는 {
@@ -34,7 +36,7 @@ class StatsServiceTest {
             Crop crop1 = CropFixture.createDomainWithFinalLabel();
             Crop crop2 = Crop.builder()
                     .id(2L).taskId(1L).cropFilename("crop2.jpg").bbox("[0,0,10,10]")
-                    .aiPrediction(CellType.Band).aiConfidence(0.5).finalLabel(CellType.Band).build();
+                    .pseudoLabel(CellType.Band).aiClassificationConfidence(0.5).finalLabel(CellType.Band).build();
 
             given(cropRepository.findAllByTaskId(1L)).willReturn(List.of(crop1, crop2));
             given(submissionRepository.findAllByCropIdIn(List.of(1L, 2L))).willReturn(List.of());

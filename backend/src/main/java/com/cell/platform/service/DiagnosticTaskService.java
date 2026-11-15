@@ -10,6 +10,7 @@ import com.cell.platform.dto.response.DiagnosticPoolStatsResponse;
 import com.cell.platform.dto.response.TaskUploadResponse;
 import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.exception.ErrorCode;
+import com.cell.platform.entity.AnimalSpeciesEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,37 +26,58 @@ public class DiagnosticTaskService {
 
     private final DiagnosticDatasetService diagnosticDatasetService;
     private final TaskRepository taskRepository;
+    private final AnimalSpeciesService animalSpeciesService;
+    private final CellClassService cellClassService;
 
+    @Transactional
     public DiagnosticPoolStatsResponse getPoolStats() {
-        Map<CellType, Integer> available = diagnosticDatasetService.getAvailableCounts();
+        return getPoolStats(null);
+    }
+
+    @Transactional
+    public DiagnosticPoolStatsResponse getPoolStats(Long speciesId) {
+        AnimalSpeciesEntity species = speciesId == null ? animalSpeciesService.getDog() : animalSpeciesService.getRequired(speciesId);
+        Map<String,String> classLabels = cellClassService.activeLabels(species.getId());
+        Map<CellType, Integer> available = new LinkedHashMap<>();
+        var pool = diagnosticDatasetService.getAvailableCounts(species.getCode());
+        classLabels.keySet().forEach(code -> available.put(CellType.valueOf(code), pool.getOrDefault(CellType.valueOf(code),0)));
         Map<String, Integer> byClass = new LinkedHashMap<>();
         int total = 0;
-        for (CellType type : CellType.values()) {
+        for (CellType type : available.keySet()) {
             int count = available.getOrDefault(type, 0);
             byClass.put(type.name(), count);
             total += count;
         }
-        return new DiagnosticPoolStatsResponse(total, byClass);
+        return new DiagnosticPoolStatsResponse(
+                total, byClass, species.getId(), species.getCode(), species.getName()
+        );
     }
 
     @Transactional
     public TaskUploadResponse createDiagnosticTask(DiagnosticTaskCreateRequest request) {
-        Map<CellType, Integer> available = diagnosticDatasetService.getAvailableCounts();
+        AnimalSpeciesEntity species = request.speciesId() == null ? animalSpeciesService.getDog() : animalSpeciesService.getRequired(request.speciesId());
+        Map<String,String> classLabels = cellClassService.activeLabels(species.getId());
+        Map<CellType, Integer> available = new LinkedHashMap<>();
+        var pool = diagnosticDatasetService.getAvailableCounts(species.getCode());
+        classLabels.keySet().forEach(code -> available.put(CellType.valueOf(code), pool.getOrDefault(CellType.valueOf(code),0)));
         Map<CellType, Integer> distribution = normalizeAndValidateDistribution(request, available);
-        List<DiagnosticDatasetService.DiagnosticCell> selected = diagnosticDatasetService.sampleCells(distribution);
+        List<DiagnosticDatasetService.DiagnosticCell> selected = diagnosticDatasetService.sampleCells(distribution, species.getCode());
 
         String title = "diagnostic-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        Task task = Task.create("", title);
+        Task task = Task.create("", title, request.deadlineAt(), species.getId(), species.getCode(), species.getName());
+        task.prepareDraft(com.cell.platform.domain.task.TaskKind.DIAGNOSTIC,
+                request.title() == null || request.title().isBlank() ? "진단평가" : request.title().trim());
         selected.forEach(cell -> {
             Crop crop = Crop.create(cell.cropFilename(), cell.bbox(), cell.label(), null, null, null);
             task.getCrops().add(crop);
         });
 
+        task.setClassLabels(cellClassService.activeLabels(species.getId()));
         Task savedTask = taskRepository.save(task);
         List<CropResponse> cropResponses = savedTask.getCrops().stream()
                 .map(CropResponse::from)
                 .toList();
-        return TaskUploadResponse.of(savedTask.getId(), savedTask.getOriginalFilename(), cropResponses);
+        return TaskUploadResponse.of(savedTask, savedTask.getOriginalFilename(), cropResponses);
     }
 
     private Map<CellType, Integer> normalizeAndValidateDistribution(
@@ -66,7 +88,7 @@ public class DiagnosticTaskService {
         Map<String, Integer> raw = request.classDistribution();
 
         Set<String> validKeys = new HashSet<>();
-        for (CellType type : CellType.values()) {
+        for (CellType type : available.keySet()) {
             validKeys.add(type.name());
         }
         List<String> unknownKeys = raw.keySet().stream()
@@ -78,8 +100,10 @@ public class DiagnosticTaskService {
 
         Map<CellType, Integer> normalized = new LinkedHashMap<>();
         int sum = 0;
-        for (CellType type : CellType.values()) {
-            int requested = Math.max(raw.getOrDefault(type.name(), 0), 0);
+        for (CellType type : available.keySet()) {
+            Integer count = raw.getOrDefault(type.name(), 0);
+            if (count == null || count < 0) throw new BadRequestException("문항 수는 0 이상의 정수여야 합니다.", ErrorCode.G000);
+            int requested = count;
             int max = available.getOrDefault(type, 0);
             if (requested > max) {
                 throw new BadRequestException(

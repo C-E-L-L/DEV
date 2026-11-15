@@ -32,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(TaskController.class)
 @Import(SecurityConfig.class)
 class TaskControllerTest {
+    @MockBean private com.cell.platform.infra.task.TaskJpaRepository imageTasks;
+    @MockBean private com.cell.platform.infra.crop.CropJpaRepository imageCrops;
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -41,6 +44,9 @@ class TaskControllerTest {
 
     @MockBean
     private DiagnosticTaskService diagnosticTaskService;
+
+    @MockBean private com.cell.platform.service.SubmissionService submissionService;
+    @MockBean private com.cell.platform.service.AnimalSpeciesService speciesService;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -55,9 +61,9 @@ class TaskControllerTest {
             TaskResponse response = new TaskResponse(
                     1L, TaskStatus.IN_PROGRESS.name(),
                     "orig.jpg", "blood.jpg",
-                    LocalDateTime.now(), 3
+                    null, "Test", LocalDateTime.now(), null, 3
             );
-            given(taskService.getAllTasks()).willReturn(List.of(response));
+            given(taskService.getAllTasks(true)).willReturn(List.of(response));
 
             // when & then
             mockMvc.perform(get("/api/tasks"))
@@ -83,9 +89,9 @@ class TaskControllerTest {
             MockMultipartFile file = new MockMultipartFile(
                     "file", "blood.jpg", "image/jpeg", "test-image".getBytes());
             CropResponse cropResponse = new CropResponse(
-                    1L, "crop_abc.jpg", "[10,20,30,40]", "Lymphocyte", 0.95, null);
+                    1L, 1L, "crop_abc.jpg", "[10,20,30,40]", null, "Lymphocyte", null, null, 0.95, "orig.jpg");
             TaskUploadResponse response = TaskUploadResponse.of(1L, "orig.jpg", List.of(cropResponse));
-            given(taskService.createTask(any())).willReturn(response);
+            given(taskService.createTask(any(), any(), any())).willReturn(response);
 
             // when & then
             mockMvc.perform(multipart("/api/tasks/upload").file(file).with(csrf()))

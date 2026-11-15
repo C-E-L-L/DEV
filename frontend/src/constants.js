@@ -20,4 +20,5 @@ export const REPORT_REASONS = [
 export const imageUrl = {
   original: (filename) => `/data/originals/${filename}`,
   crop: (filename) => `/data/crops/${filename}`,
+  thumbnail: (filename) => `/data/thumbnails/${filename}`,
 };

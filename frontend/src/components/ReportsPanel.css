@@ -1,0 +1,33 @@
+.reports-panel { color: #343a40; }
+.reports-panel button, .my-page button { padding: 8px 13px; border: 1px solid #ced4da; border-radius: 6px; background: #fff; color: #245782; cursor: pointer; font-weight: 600; }
+.reports-panel button:disabled, .my-page button:disabled { opacity: .55; cursor: default; }
+.report-actions, .report-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-actions h3 { flex: 1; margin: 0; }
+.report-filters { margin: 20px 0; }
+.report-filters input, .report-filters select, .report-form textarea { border: 1px solid #ced4da; border-radius: 6px; padding: 8px; font: inherit; }
+.report-card { background: #fff; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.report-heading { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.report-context { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; min-width: 160px; }
+.report-context > span:last-child, .report-muted { color: #687582; font-size: 13px; }
+.report-status { padding: 5px 9px; border-radius: 20px; background: #fff3cd; color: #856404; font-size: 12px; font-weight: 700; }
+.report-status.answered { background: #d4edda; color: #155724; }
+.report-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.report-reply { border-left: 3px solid #4dabf7; padding: 13px 16px; background: #f1f7fd; border-radius: 5px; margin-bottom: 12px; }
+.report-reply .report-text { margin-bottom: 0; }
+.report-reply-author { font-size: 13px; color: #345675; }
+.report-reply-author span { color: #687582; margin-left: 8px; }
+.report-form { display: grid; gap: 9px; margin-top: 14px; }
+.report-form textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.report-error { color: #b42318; }
+.report-empty { text-align: center; padding: 40px 15px; color: #687582; background: #fff; border-radius: 8px; }
+.my-page { max-width: 1400px; margin: auto; padding: 30px; color: #343a40; }
+.my-page-header { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; border-bottom: 1px solid #dee2e6; margin-bottom: 20px; padding-bottom: 15px; }
+.my-page-header h2 { margin: 0 0 8px; }
+.my-page-tabs { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+.my-page .my-page-tabs button[aria-pressed="true"] { color: #fff; background: #0056b3; border-color: #0056b3; }
+.my-history-card { border: 1px solid #dee2e6; border-radius: 10px; padding: 18px; background: #fff; margin-bottom: 14px; }
+.my-history-card summary { cursor: pointer; line-height: 1.8; }
+.my-history-tasks { display: grid; gap: 12px; padding-top: 15px; }
+.my-history-cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 12px; }
+.my-history-cell { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid #e9ecef; border-radius: 6px; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .my-page { padding: 16px; } .report-card { padding: 14px; } }

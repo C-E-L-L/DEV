@@ -32,21 +32,22 @@ public class AuthService {
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
-        String username = normalizeRequired(request.username(), "학번");
-        validateUniqueUsername(username);
+        validateUniqueUsername(request.username());
         Role role = Role.find(request.role());
         validateRegisterRole(role);
-        validateStudentId(username);
         validateStudentName(role, request.name());
 
+        UserStatus status = resolveSignupStatus(role, request.username());
         String hashedPassword = passwordEncoder.encode(request.password());
-        Optional<StudentRosterEntity> roster = studentRosterJpaRepository.findByStudentId(username);
-        UserStatus status = roster.isPresent() ? UserStatus.ACTIVE : UserStatus.PENDING;
-        User user = User.create(username, normalizeName(request.name()), hashedPassword, role, status);
+        User user = User.create(request.username(), normalizeName(request.name()), hashedPassword, role, status);
         User savedUser = userRepository.save(user);
-        roster.ifPresent(item -> item.claim(savedUser.getId()));
 
-        return status == UserStatus.ACTIVE ? RegisterResponse.active() : RegisterResponse.pending();
+        if (status == UserStatus.ACTIVE) {
+            studentRosterJpaRepository.findByStudentId(request.username())
+                    .ifPresent(roster -> roster.claim(savedUser.getId()));
+            return RegisterResponse.active();
+        }
+        return RegisterResponse.pending();
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -55,6 +56,27 @@ public class AuthService {
         validateLoginStatus(user);
         String token = jwtTokenProvider.generateToken(user.getUsername(), user.getRole().name());
         return LoginResponse.of(token, user.getRole().name(), user.getUsername(), user.getName());
+    }
+
+    private UserStatus resolveSignupStatus(Role role, String username) {
+        if (role != Role.STUDENT) {
+            return UserStatus.ACTIVE;
+        }
+        Optional<StudentRosterEntity> roster = studentRosterJpaRepository.findByStudentId(username);
+        return roster.isPresent() ? UserStatus.ACTIVE : UserStatus.PENDING;
+    }
+
+    private void validateLoginStatus(User user) {
+        UserStatus status = user.getStatus();
+        if (status == UserStatus.PENDING) {
+            throw new BadRequestException("관리자 승인 대기 중인 계정입니다.", ErrorCode.U001);
+        }
+        if (status == UserStatus.REJECTED) {
+            throw new BadRequestException("관리자가 가입을 거절한 계정입니다.", ErrorCode.U001);
+        }
+        if (status == UserStatus.INACTIVE) {
+            throw new BadRequestException("비활성화된 계정입니다. 관리자에게 문의하세요.", ErrorCode.U001);
+        }
     }
 
     private void validateUniqueUsername(String username) {
@@ -70,14 +92,11 @@ public class AuthService {
     }
 
     private void validateRegisterRole(Role role) {
-        if (role != Role.STUDENT) {
-            throw new BadRequestException("학생 계정만 회원가입할 수 있습니다. 교수 계정은 관리자가 생성합니다.", ErrorCode.U003);
+        if (role == Role.ADMIN) {
+            throw new BadRequestException("관리자 계정은 회원가입으로 생성할 수 없습니다.", ErrorCode.U003);
         }
-    }
-
-    private void validateStudentId(String username) {
-        if (!username.matches("\\d{10}")) {
-            throw new BadRequestException("학번은 10자리 숫자여야 합니다.", ErrorCode.U003);
+        if (role == Role.EXPERT) {
+            throw new BadRequestException("교수/전문가 계정은 관리자에게 문의하세요.", ErrorCode.U003);
         }
     }
 
@@ -95,25 +114,5 @@ public class AuthService {
         if (!passwordEncoder.matches(rawPassword, hashedPassword)) {
             throw new BadRequestException("아이디 또는 비밀번호가 일치하지 않습니다.", ErrorCode.U001);
         }
-    }
-
-    private void validateLoginStatus(User user) {
-        UserStatus status = user.getStatus();
-        if (status == UserStatus.PENDING) {
-            throw new BadRequestException("관리자 승인 대기 중인 계정입니다.", ErrorCode.U001);
-        }
-        if (status == UserStatus.REJECTED) {
-            throw new BadRequestException("관리자가 거절한 계정입니다.", ErrorCode.U001);
-        }
-        if (status == UserStatus.INACTIVE) {
-            throw new BadRequestException("비활성화된 계정입니다.", ErrorCode.U001);
-        }
-    }
-
-    private String normalizeRequired(String value, String fieldName) {
-        if (value == null || value.isBlank()) {
-            throw new BadRequestException(fieldName + "은(는) 필수입니다.", ErrorCode.G000);
-        }
-        return value.trim();
     }
 }

@@ -12,6 +12,12 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleConcurrentEdit(Exception e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(
+                "다른 화면에서 변경된 자료입니다. 최신 내용을 다시 불러온 후 저장해주세요.", ErrorCode.G000.name()));
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException e) {
         log.warn("ERROR CODE {} : {}", e.getErrorCode(), e.getMessage());

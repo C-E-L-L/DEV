@@ -10,6 +10,9 @@ public record CropStatsResponse(
         Long cropId,
         String filename,
         String originalSmearFilename,
+        Long speciesId,
+        String speciesCode,
+        String speciesName,
         String bbox,
         String gtLabel,
         String pseudoLabel,
@@ -21,6 +24,14 @@ public record CropStatsResponse(
         double accuracyRate,
         double hardScore,
         List<String> wrongDetails,
-        Map<String, Integer> voteDistribution
+        Map<String, Integer> voteDistribution,
+        Map<String, List<VoterDetail>> votersByLabel,
+        Map<String,String> classLabels
 ) {
+    public record VoterDetail(
+            String studentId,
+            String studentName,
+            String studentDisplayName
+    ) {
+    }
 }

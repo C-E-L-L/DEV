@@ -5,6 +5,7 @@ import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.user.User;
 import com.cell.platform.entity.CropEntity;
+import com.cell.platform.entity.AnimalSpeciesEntity;
 import com.cell.platform.entity.SubmissionEntity;
 import com.cell.platform.entity.TaskEntity;
 import com.cell.platform.entity.UserEntity;
@@ -46,9 +47,21 @@ public final class Mapper {
         Task task = Task.builder()
                 .id(entity.getId())
                 .status(entity.getStatus())
+                .kind(entity.getKind())
+                .classLabels(entity.getClassLabels())
+                .requireLabels(entity.isRequireLabels())
+                .resultsAfterDeadline(entity.isResultsAfterDeadline())
+                .revision(entity.getRevision())
+                .publishedAt(entity.getPublishedAt())
                 .originalFilename(entity.getOriginalFilename())
                 .uploadedFilename(entity.getUploadedFilename())
+                .assignmentId(entity.getAssignmentId())
+                .title(entity.getTitle())
+                .speciesId(entity.getAnimalSpecies() != null ? entity.getAnimalSpecies().getId() : null)
+                .speciesCode(entity.getAnimalSpecies() != null ? entity.getAnimalSpecies().getCode() : null)
+                .speciesName(entity.getAnimalSpecies() != null ? entity.getAnimalSpecies().getName() : null)
                 .createdAt(entity.getCreatedAt())
+                .deadlineAt(entity.getDeadlineAt())
                 .crops(new ArrayList<>())
                 .build();
         if (entity.getCrops() != null) {
@@ -61,12 +74,26 @@ public final class Mapper {
     }
 
     public static TaskEntity convertToTaskEntity(Task task) {
+        return convertToTaskEntity(task, null);
+    }
+
+    public static TaskEntity convertToTaskEntity(Task task, AnimalSpeciesEntity animalSpecies) {
         return TaskEntity.builder()
                 .id(task.getId())
                 .status(task.getStatus())
+                .kind(task.getKind())
+                .classLabels(task.getClassLabels())
+                .requireLabels(task.isRequireLabels())
+                .resultsAfterDeadline(task.isResultsAfterDeadline())
+                .revision(task.getRevision())
+                .publishedAt(task.getPublishedAt())
                 .originalFilename(task.getOriginalFilename())
                 .uploadedFilename(task.getUploadedFilename())
+                .assignmentId(task.getAssignmentId())
+                .title(task.getTitle())
+                .animalSpecies(animalSpecies)
                 .createdAt(task.getCreatedAt())
+                .deadlineAt(task.getDeadlineAt())
                 .build();
     }
 
@@ -75,9 +102,19 @@ public final class Mapper {
         return Crop.builder()
                 .id(entity.getId())
                 .taskId(entity.getTaskId())
-                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getUploadedFilename() : null)
+                .classLabels(entity.getTask() == null ? null : entity.getTask().getClassLabels())
+                .originalSmearFilename(entity.getTask() != null ? entity.getTask().getOriginalFilename() : null)
+                .speciesId(entity.getTask() != null && entity.getTask().getAnimalSpecies() != null
+                        ? entity.getTask().getAnimalSpecies().getId() : null)
+                .speciesCode(entity.getTask() != null && entity.getTask().getAnimalSpecies() != null
+                        ? entity.getTask().getAnimalSpecies().getCode() : null)
+                .speciesName(entity.getTask() != null && entity.getTask().getAnimalSpecies() != null
+                        ? entity.getTask().getAnimalSpecies().getName() : null)
                 .cropFilename(entity.getCropFilename())
                 .bbox(entity.getBbox())
+                .excluded(entity.isExcluded())
+                .exclusionReason(entity.getExclusionReason())
+                .taskPublished(entity.getTask() != null && entity.getTask().isPublished())
                 .gtLabel(entity.getGtLabel())
                 .pseudoLabel(entity.getPseudoLabel())
                 .aiBboxConfidence(entity.getAiBboxConfidence())
@@ -91,6 +128,8 @@ public final class Mapper {
                 .id(crop.getId())
                 .cropFilename(crop.getCropFilename())
                 .bbox(crop.getBbox())
+                .excluded(crop.isExcluded())
+                .exclusionReason(crop.getExclusionReason())
             .gtLabel(crop.getGtLabel())
             .pseudoLabel(crop.getPseudoLabel())
             .aiBboxConfidence(crop.getAiBboxConfidence())

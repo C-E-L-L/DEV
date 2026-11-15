@@ -31,7 +31,7 @@ public class CropIssueReportEntity {
     @Column(name = "crop_id", nullable = false)
     private Long cropId;
 
-    @Column(name = "reason", nullable = false)
+    @Column(name = "reason", nullable = false, columnDefinition = "TEXT")
     private String reason;
 
     @Column(name = "created_at", nullable = false)

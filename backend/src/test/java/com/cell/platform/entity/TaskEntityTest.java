@@ -46,7 +46,7 @@ class TaskEntityTest {
                     .build();
             CropEntity crop = CropEntity.builder()
                     .id(10L).cropFilename("crop.jpg").bbox("[0,0,10,10]")
-                    .aiPrediction(CellType.Band).aiConfidence(0.8).build();
+                    .pseudoLabel(CellType.Band).aiClassificationConfidence(0.8).build();
 
             // when
             task.addCrop(crop);

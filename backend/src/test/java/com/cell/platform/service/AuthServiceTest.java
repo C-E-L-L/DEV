@@ -9,6 +9,7 @@ import com.cell.platform.dto.request.RegisterRequest;
 import com.cell.platform.dto.response.LoginResponse;
 import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.infra.user.StudentRosterJpaRepository;
+import com.cell.platform.service.AuthService;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +42,6 @@ class AuthServiceTest {
         @Test
         void 정상적으로_회원가입한다() {
             given(userRepository.existsByUsername("user")).willReturn(false);
-            given(studentRosterJpaRepository.findByStudentId("user")).willReturn(Optional.empty());
             given(passwordEncoder.encode("pass")).willReturn("$hashed$");
             given(userRepository.save(any(User.class))).willAnswer(i -> i.getArgument(0));
 

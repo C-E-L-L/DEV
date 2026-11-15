@@ -7,3 +7,4 @@ export { diagnosticApi } from './diagnostic';
 export { reportApi } from './reports';
 export { adminApi } from './admin';
 export { labelingApi } from './labeling';
+export { speciesApi } from './species';

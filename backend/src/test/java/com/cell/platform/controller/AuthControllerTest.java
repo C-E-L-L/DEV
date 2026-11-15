@@ -25,6 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AuthController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class AuthControllerTest {
+    @MockBean private com.cell.platform.infra.task.TaskJpaRepository imageTasks;
+    @MockBean private com.cell.platform.infra.crop.CropJpaRepository imageCrops;
+
 
     @Autowired
     private MockMvc mockMvc;

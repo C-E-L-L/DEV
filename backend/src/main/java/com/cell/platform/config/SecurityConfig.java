@@ -20,6 +20,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -33,19 +34,34 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
-                .requestMatchers("/data/**").permitAll()
+                .requestMatchers("/h2-console/**").hasRole("ADMIN")
+                .requestMatchers("/data/**").authenticated()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/coursework/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/professor/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/student/tasks/**").hasRole("STUDENT")
+                .requestMatchers("/api/game/**").hasRole("ADMIN")
                 .requestMatchers("/api/labeling/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/training-data").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers("/api/analytics/students/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/all-stats").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/student/reviews", "/api/student/reviews/**").hasRole("STUDENT")
+                .requestMatchers("/api/student/history/**", "/api/student/history", "/api/student/reports").hasRole("STUDENT")
+                .requestMatchers(HttpMethod.POST, "/api/reports/*/replies").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/reports").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/reports").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/tasks/diagnostic/**").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/tasks/*/stats").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/tasks/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/tasks/diagnostic/**").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/tasks/upload").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/assignments").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/species").hasAnyRole("EXPERT", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/crops/*/confirm").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/species/**", "/api/tasks/*/species").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/tasks/*/deadline").hasAnyRole("EXPERT", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/assignments/*/deadline").hasAnyRole("EXPERT", "ADMIN")
                 .anyRequest().authenticated()
             )
                 .exceptionHandling(exception -> exception
@@ -72,7 +88,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedOrigins(List.of("http://localhost:5173", "https://cell.cbnu.ac.kr"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

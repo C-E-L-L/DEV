@@ -21,13 +21,13 @@ class CropTest {
             Double aiConfidence = 0.95;
 
             // when
-            Crop crop = Crop.create(cropFilename, bbox, aiPrediction, aiConfidence);
+            Crop crop = Crop.create(cropFilename, bbox, null, aiPrediction, null, aiConfidence);
 
             // then
             assertThat(crop.getCropFilename()).isEqualTo(cropFilename);
             assertThat(crop.getBbox()).isEqualTo(bbox);
-            assertThat(crop.getAiPrediction()).isEqualTo(CellType.Lymphocyte);
-            assertThat(crop.getAiConfidence()).isEqualTo(0.95);
+            assertThat(crop.getPseudoLabel()).isEqualTo(CellType.Lymphocyte);
+            assertThat(crop.getAiClassificationConfidence()).isEqualTo(0.95);
             assertThat(crop.getId()).isNull();
             assertThat(crop.getTaskId()).isNull();
             assertThat(crop.getFinalLabel()).isNull();

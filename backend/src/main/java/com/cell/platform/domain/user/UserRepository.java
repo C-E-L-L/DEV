@@ -9,7 +9,11 @@ public interface UserRepository {
 
     Optional<User> findByUsername(String username);
 
+    List<User> findAll();
+
     List<User> findAllByRole(Role role);
 
     boolean existsByUsername(String username);
+
+    void deleteByUsername(String username);
 }

@@ -1,3 +1,11 @@
 spring:
   profiles:
     include: test
+
+# Test-only values: no developer environment or running AI service is required.
+jwt:
+  secret: cell-automated-tests-only-not-a-production-key-0123456789abcdef
+ai-server:
+  base-url: http://127.0.0.1:1
+JWT_SECRET: cell-automated-tests-only-not-a-production-key-0123456789abcdef
+AI_SERVER_URL: http://127.0.0.1:1

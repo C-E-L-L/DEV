@@ -5,21 +5,28 @@ import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.entity.CropEntity;
 import com.cell.platform.entity.TaskEntity;
+import com.cell.platform.entity.AnimalSpeciesEntity;
+import com.cell.platform.infra.species.AnimalSpeciesJpaRepository;
 import com.cell.platform.util.Mapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 @Repository
 @RequiredArgsConstructor
 public class TaskCoreRepository implements TaskRepository {
 
     private final TaskJpaRepository taskJpaRepository;
+    private final AnimalSpeciesJpaRepository animalSpeciesJpaRepository;
 
     @Override
     public Task save(Task task) {
-        TaskEntity entity = Mapper.convertToTaskEntity(task);
+        AnimalSpeciesEntity species = task.getSpeciesId() != null
+                ? animalSpeciesJpaRepository.findById(task.getSpeciesId()).orElseThrow()
+                : animalSpeciesJpaRepository.findByCode("DOG").orElse(null);
+        TaskEntity entity = Mapper.convertToTaskEntity(task, species);
         // Task에 포함된 Crop들도 함께 저장
         for (Crop crop : task.getCrops()) {
             CropEntity cropEntity = Mapper.convertToCropEntity(crop);
@@ -44,6 +51,30 @@ public class TaskCoreRepository implements TaskRepository {
     @Override
     public List<Long> findIdsByUploadedFilenameStartingWith(String prefix) {
         return taskJpaRepository.findIdsByUploadedFilenameStartingWith(prefix);
+    }
+
+    @Override
+    public List<Task> findByAssignmentId(Long assignmentId) {
+        return taskJpaRepository.findAllByAssignmentId(assignmentId).stream()
+                .map(Mapper::convertToTask)
+                .toList();
+    }
+
+    @Override
+    public void updateDeadlineAt(Long taskId, LocalDateTime deadlineAt) {
+        taskJpaRepository.findById(taskId)
+                .orElseThrow()
+                .updateDeadlineAt(deadlineAt);
+    }
+
+    @Override
+    public void updateDeadlineAtByAssignmentId(Long assignmentId, LocalDateTime deadlineAt) {
+        taskJpaRepository.findAllByAssignmentId(assignmentId)
+                .forEach(task -> task.updateDeadlineAt(deadlineAt));
+    }
+
+    public List<Long> findIdsByAssignmentId(Long assignmentId) {
+        return taskJpaRepository.findIdsByAssignmentId(assignmentId);
     }
 
     @Override

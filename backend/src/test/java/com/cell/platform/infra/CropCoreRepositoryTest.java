@@ -35,8 +35,8 @@ class CropCoreRepositoryTest extends RepositoryContext {
     @BeforeEach
     void setUp() {
         Task task = Task.create("orig.jpg", "blood.jpg");
-        Crop crop1 = Crop.create("crop_01.jpg", "[10,20,30,40]", CellType.Lymphocyte, 0.95);
-        Crop crop2 = Crop.create("crop_02.jpg", "[50,60,70,80]", CellType.Band, 0.7);
+        Crop crop1 = Crop.create("crop_01.jpg", "[10,20,30,40]", null, CellType.Lymphocyte, null, 0.95);
+        Crop crop2 = Crop.create("crop_02.jpg", "[50,60,70,80]", null, CellType.Band, null, 0.7);
         task.getCrops().add(crop1);
         task.getCrops().add(crop2);
         savedTask = taskRepository.save(task);
@@ -53,8 +53,8 @@ class CropCoreRepositoryTest extends RepositoryContext {
                     .taskId(taskId)
                     .cropFilename("crop_new.jpg")
                     .bbox("[100,200,300,400]")
-                    .aiPrediction(CellType.Monocyte)
-                    .aiConfidence(0.88)
+                    .pseudoLabel(CellType.Monocyte)
+                    .aiClassificationConfidence(0.88)
                     .build();
 
             // when
@@ -65,8 +65,8 @@ class CropCoreRepositoryTest extends RepositoryContext {
                     () -> assertThat(saved.getId()).isNotNull(),
                     () -> assertThat(saved.getTaskId()).isEqualTo(taskId),
                     () -> assertThat(saved.getCropFilename()).isEqualTo("crop_new.jpg"),
-                    () -> assertThat(saved.getAiPrediction()).isEqualTo(CellType.Monocyte),
-                    () -> assertThat(saved.getAiConfidence()).isEqualTo(0.88)
+                    () -> assertThat(saved.getPseudoLabel()).isEqualTo(CellType.Monocyte),
+                    () -> assertThat(saved.getAiClassificationConfidence()).isEqualTo(0.88)
             );
         }
     }

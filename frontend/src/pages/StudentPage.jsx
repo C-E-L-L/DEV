@@ -1,29 +1,41 @@
-import { useState, useEffect } from 'react';
+import { cellChoices, answerLabel } from '../utils/cellClasses';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { taskApi, cropApi, submissionApi, reportApi } from '../api';
 import { CELL_TYPES, REPORT_REASONS, imageUrl } from '../constants';
+import AuthImage from '../components/AuthImage';
+import StudentReviewPanel from '../components/StudentReviewPanel';
+import ImageDisplayControls, { useImageDisplaySettings } from '../components/ImageDisplayControls';
+import SpeciesBadge from '../components/SpeciesBadge';
+import { isDiagnostic, isPublished } from '../utils/coursework';
 
 function isDiagnosticTask(task) {
-  return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
+  return isDiagnostic(task);
 }
 
 /* ──────────────── Task Card (과제 목록용) ──────────────── */
-function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumber = null }) {
+function TaskCardItem({ task, username, onClick, onReview, diagnostic = false, displayNumber = null }) {
   const [total, setTotal] = useState(0);
   const [solved, setSolved] = useState(0);
   const [accuracy, setAccuracy] = useState(null);
+  const [reviewAvailable, setReviewAvailable] = useState(false);
+  const [submitted,setSubmitted] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
+      setReviewAvailable(false);
       try {
+        const {data:state} = await submissionApi.attempt(task.id);
+        setSubmitted(state.submitted);setReviewAvailable(state.reviewAvailable);
         const cropsRes = await cropApi.getByTaskId(task.id);
         setTotal(cropsRes.data.length);
         const solvedRes = await submissionApi.getSolvedCrops(task.id, username);
         setSolved(solvedRes.data.length);
-        if (cropsRes.data.length > 0 && solvedRes.data.length === cropsRes.data.length) {
+        if (state.reviewAvailable && cropsRes.data.length > 0 && solvedRes.data.length === cropsRes.data.length) {
           const statsRes = await submissionApi.getMyResults(task.id, username);
           if (statsRes.data?.accuracy !== undefined) setAccuracy(statsRes.data.accuracy);
+          setReviewAvailable(true);
         }
       } catch (err) { console.error(err); }
     };
@@ -32,11 +44,13 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
 
   const percent = total === 0 ? 0 : Math.round((solved / total) * 100);
   const isCompleted = total > 0 && solved === total;
+  const isExpired = Boolean(task.deadlineAt && new Date(task.deadlineAt).getTime() <= Date.now());
+  const openReview = isExpired || reviewAvailable;
 
   return (
-    <div style={taskCardStyle} onClick={onClick}>
+    <div style={taskCardStyle} onClick={openReview ? onReview : onClick}>
       {task.originalFilename ? (
-        <img src={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
+        <AuthImage src={imageUrl.thumbnail(task.originalFilename)} fallbackSrc={imageUrl.original(task.originalFilename)} alt={`Task ${task.id}`} style={thumbnailStyle} />
       ) : diagnostic ? (
         <div style={noImageStyle}>Diagnostic Task</div>
       ) : (
@@ -45,7 +59,7 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
       <div style={{ padding: '15px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', columnGap: '10px', rowGap: '6px' }}>
           <span style={{ fontWeight: '700', fontSize: '16px', lineHeight: 1.2, color: '#343a40', marginRight: '8px' }}>
-            {diagnostic ? `Diagnostic #${displayNumber || task.id}` : `Task #${task.id}`}
+            {task.title || (diagnostic ? `진단평가 #${displayNumber || task.id}` : `분류 실습 #${task.id}`)}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {diagnostic && (
@@ -53,13 +67,15 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
                 DIAGNOSTIC
               </span>
             )}
-            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isCompleted ? '#d4edda' : '#e9ecef', color: isCompleted ? '#155724' : '#495057' }}>
-              {isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}
+            <SpeciesBadge name={task.speciesName} code={task.speciesCode} compact />
+            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isExpired ? '#f8d7da' : isCompleted ? '#d4edda' : '#e9ecef', color: isExpired ? '#842029' : isCompleted ? '#155724' : '#495057' }}>
+              {isExpired ? '마감' : submitted ? '최종 제출 완료' : isCompleted ? '응답 완료 · 제출 필요' : '응답 중'}
             </span>
           </div>
         </div>
         <div style={{ color: '#6c757d', fontSize: '13px', marginBottom: '15px' }}>
           {task.uploadedFilename && <div style={{ fontSize: '11px', wordBreak: 'break-all' }}>{task.uploadedFilename}</div>}
+          {task.deadlineAt && <div style={{ fontSize: '11px', marginTop: '4px' }}>마감: {new Date(task.deadlineAt).toLocaleString('ko-KR')}</div>}
         </div>
         <div style={{ background: '#e9ecef', borderRadius: '4px', height: '8px', width: '100%', overflow: 'hidden', marginBottom: '6px' }}>
           <div style={{ background: isCompleted ? '#28a745' : '#0056b3', height: '100%', width: `${percent}%`, transition: 'width 0.5s ease-in-out' }} />
@@ -79,6 +95,72 @@ function TaskCardItem({ task, username, onClick, diagnostic = false, displayNumb
   );
 }
 
+/* ──────────────── Assignment Card ──────────────── */
+function AssignmentCard({ assignment, username, onClick, onReview }) {
+  const [progress, setProgress] = useState({ total: 0, solved: 0 });
+  const [reviewAvailable, setReviewAvailable] = useState(false);
+  const [submitted,setSubmitted] = useState(false);
+
+  useEffect(() => {
+    setReviewAvailable(false);
+    const total = assignment.tasks.reduce((sum, t) => sum + (t.cropCount || 0), 0);
+    if (total === 0) { setProgress({ total: 0, solved: 0 }); return; }
+    submissionApi.attempt(assignment.tasks[0].id).then(({data})=>{setSubmitted(data.submitted);setReviewAvailable(data.reviewAvailable);}).catch(console.error);
+    submissionApi.getSolvedCropsForAssignment(assignment.id, username)
+      .then(async ({ data }) => {
+        setProgress({ total, solved: data.length });
+        if (data.length >= total) {
+          try {
+            await submissionApi.getMyResultsForAssignment(assignment.id, username);
+            setReviewAvailable(true);
+          } catch {
+            setReviewAvailable(false);
+          }
+        }
+      })
+      .catch(() => setProgress({ total, solved: 0 }));
+  }, [assignment, username]);
+
+  const percent = progress.total === 0 ? 0 : Math.round((progress.solved / progress.total) * 100);
+  const isCompleted = progress.total > 0 && progress.solved >= progress.total;
+  const deadlineAt = assignment.tasks[0]?.deadlineAt;
+  const isExpired = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= Date.now());
+
+  return (
+    <div style={taskCardStyle} onClick={isExpired || reviewAvailable ? onReview : onClick}>
+      {assignment.tasks[0]?.originalFilename ? (
+        <AuthImage src={imageUrl.thumbnail(assignment.tasks[0].originalFilename)} fallbackSrc={imageUrl.original(assignment.tasks[0].originalFilename)} alt="smear" style={thumbnailStyle} />
+      ) : (
+        <div style={noImageStyle}>No Image</div>
+      )}
+      <div style={{ padding: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontWeight: '700', fontSize: '16px', color: '#343a40' }}>{assignment.title}</span>
+          <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: isExpired ? '#f8d7da' : isCompleted ? '#d4edda' : '#e9ecef', color: isExpired ? '#842029' : isCompleted ? '#155724' : '#495057' }}>
+            {isExpired ? '마감' : submitted ? '최종 제출 완료' : isCompleted ? '응답 완료 · 제출 필요' : '응답 중'}
+          </span>
+        </div>
+        <div style={{ color: '#6c757d', fontSize: '12px', marginBottom: '12px' }}>
+          도말 {assignment.tasks.length}장 · 총 {progress.total}개 세포
+          <div style={{ marginTop: '6px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+            {Array.from(new Map(assignment.tasks.map(task => [task.speciesCode || 'DOG', task])).values()).map(task => (
+              <SpeciesBadge key={task.speciesCode || 'DOG'} name={task.speciesName} code={task.speciesCode} compact />
+            ))}
+          </div>
+          {deadlineAt && <div style={{ marginTop: '4px' }}>마감: {new Date(deadlineAt).toLocaleString('ko-KR')}</div>}
+        </div>
+        <div style={{ background: '#e9ecef', borderRadius: '4px', height: '8px', overflow: 'hidden', marginBottom: '6px' }}>
+          <div style={{ background: isCompleted ? '#28a745' : '#0056b3', height: '100%', width: `${percent}%`, transition: 'width 0.5s ease' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#6c757d', fontWeight: '600' }}>
+          <span>{progress.solved} / {progress.total}</span>
+          <span style={{ color: isCompleted ? '#28a745' : '#0056b3' }}>{percent}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ──────────────── Main StudentPage ──────────────── */
 export default function StudentPage() {
   const { user } = useAuth();
@@ -88,6 +170,7 @@ export default function StudentPage() {
   const [tasks, setTasks] = useState([]);
   const [taskTab, setTaskTab] = useState('practice');
   const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [crops, setCrops] = useState([]);
   const [currentCropIndex, setCurrentCropIndex] = useState(0);
   const [solvedCrops, setSolvedCrops] = useState(new Set());
@@ -95,9 +178,11 @@ export default function StudentPage() {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
   const [showResult, setShowResult] = useState(false);
   const [resultData, setResultData] = useState(null);
+  const [answerBusy,setAnswerBusy] = useState(false);
+  const [attempt, setAttempt] = useState({ submitted: false, locked: false, reviewAvailable: false });
 
   useEffect(() => {
-    taskApi.getAll().then(({ data }) => setTasks(data)).catch(console.error);
+    taskApi.getAll().then(({ data }) => setTasks(data.filter(isPublished))).catch(console.error);
   }, []);
 
   // 브라우저 뒤로가기 방지
@@ -111,16 +196,75 @@ export default function StudentPage() {
   }, [navigate]);
 
   const handleSelectTask = async (task) => {
-    setSelectedTask(task);
-    setCurrentCropIndex(0);
-    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
-    setSolvedLabels({});
+    setAttempt({ submitted: false, locked: false, reviewAvailable: false });
     setShowResult(false);
     setResultData(null);
-    const cropsRes = await cropApi.getByTaskId(task.id);
-    setCrops(cropsRes.data);
-    const solvedRes = await submissionApi.getSolvedCrops(task.id, username);
-    setSolvedCrops(new Set(solvedRes.data));
+    setCrops([]);
+    setSolvedLabels({});
+    setSolvedCrops(new Set());
+    setCurrentCropIndex(0);
+    setSelectedAssignment(null);
+    setSelectedTask(task);
+    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    try {
+      const [cropsRes, labelsRes, attemptRes] = await Promise.all([
+        cropApi.getByTaskId(task.id),
+        submissionApi.getSolvedCropLabels(task.id, username),
+        submissionApi.attempt(task.id),
+      ]);
+      const cropsData = cropsRes.data;
+      const labels = labelsRes.data;
+      setAttempt(attemptRes.data);
+      const solvedSet = new Set(Object.keys(labels).map(Number));
+      setCrops(cropsData);
+      setSolvedLabels(labels);
+      setSolvedCrops(solvedSet);
+      const firstUnsolved = cropsData.findIndex(c => !labels[c.id]);
+      setCurrentCropIndex(firstUnsolved !== -1 ? firstUnsolved : Math.max(0, cropsData.length - 1));
+      const allSolved = cropsData.length > 0 && cropsData.every(c => labels[c.id]);
+      if (attemptRes.data.reviewAvailable && allSolved) {
+        const statsRes = await submissionApi.getMyResults(task.id, username);
+        setResultData(statsRes.data);
+        setShowResult(true);
+      }
+    } catch (e) {
+      console.error('과제 로드 실패:', e);
+      setSelectedTask(null);
+      alert('과제를 불러오는데 실패했습니다.');
+    }
+  };
+
+  const handleSelectAssignment = async (assignment) => {
+    setAttempt({ submitted: false, locked: false, reviewAvailable: false });
+    setShowResult(false);
+    setResultData(null);
+    setCrops([]);
+    setSolvedLabels({});
+    setSolvedCrops(new Set());
+    setCurrentCropIndex(0);
+    setSelectedAssignment(assignment);
+    setSelectedTask({ ...assignment.tasks[0], assignmentId: assignment.id, title: assignment.title });
+    setImageSize({ width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+    try {
+      const [cropsRes, labelsRes, attemptRes] = await Promise.all([
+        cropApi.getByAssignmentId(assignment.id),
+        submissionApi.getSolvedCropLabelsForAssignment(assignment.id, username),
+        submissionApi.attempt(assignment.tasks[0].id),
+      ]);
+      const cropsData = cropsRes.data;
+      const labels = labelsRes.data;
+      setAttempt(attemptRes.data);
+      setCrops(cropsData);
+      setSolvedLabels(labels);
+      setSolvedCrops(new Set(Object.keys(labels).map(Number)));
+      const firstUnsolved = cropsData.findIndex(c => !labels[c.id]);
+      setCurrentCropIndex(firstUnsolved !== -1 ? firstUnsolved : Math.max(0, cropsData.length - 1));
+    } catch (e) {
+      console.error('과제 로드 실패:', e);
+      setSelectedAssignment(null);
+      setSelectedTask(null);
+      alert('과제를 불러오는데 실패했습니다.');
+    }
   };
 
   const handleImageLoad = (e) => {
@@ -140,57 +284,113 @@ export default function StudentPage() {
   };
 
   const handleStudentSubmit = async (label) => {
+    if (attempt.locked || answerBusy) return;
     const currentCrop = crops[currentCropIndex];
     if (!currentCrop) return;
+    const wasAlreadySolved = solvedCrops.has(currentCrop.id);
+    setAnswerBusy(true);
     try {
       await submissionApi.submit(currentCrop.id, username, label);
       setSolvedCrops(prev => new Set(prev).add(currentCrop.id));
       setSolvedLabels(prev => ({ ...prev, [currentCrop.id]: label }));
-      const nextIdx = crops.findIndex((c, i) => i > currentCropIndex && !solvedCrops.has(c.id) && c.id !== currentCrop.id);
-      if (nextIdx !== -1) setCurrentCropIndex(nextIdx);
-    } catch { alert("제출에 실패했습니다."); }
+      if (!wasAlreadySolved) {
+        const nextIdx = crops.findIndex((c, i) => i > currentCropIndex && !solvedCrops.has(c.id) && c.id !== currentCrop.id);
+        if (nextIdx !== -1) setCurrentCropIndex(nextIdx);
+      }
+    } catch (error) {
+      const message = error?.response?.data?.message || '제출에 실패했습니다.';
+      alert(message);
+      if (error?.response?.status === 400 && /마감|결과가 공개/.test(message)) {
+        setSelectedTask(null);
+        setSelectedAssignment(null);
+        setTaskTab('review');
+      }
+    } finally {setAnswerBusy(false);}
   };
 
   const handleFinalSubmit = async () => {
+    if(answerBusy || attempt.locked) return;
+    setAnswerBusy(true);
     try {
-      const { data } = await submissionApi.getMyResults(selectedTask.id, username);
+      const { data: submitted } = await submissionApi.finalize(selectedTask.id);
+      setAttempt({ ...submitted, locked: true });
+      if (!submitted.reviewAvailable) {
+        alert('최종 제출했습니다. 정답 확정 및 결과 공개 시점 이후 학습 결과에서 확인할 수 있습니다.');
+        setSelectedTask(null); setSelectedAssignment(null);
+        return;
+      }
+      let data;
+      if (selectedAssignment) {
+        ({ data } = await submissionApi.getMyResultsForAssignment(selectedAssignment.id, username));
+      } else {
+        ({ data } = await submissionApi.getMyResults(selectedTask.id, username));
+      }
       setResultData(data);
       setShowResult(true);
-    } catch { alert("결과를 불러오는데 실패했습니다."); }
+    } catch (error) {
+      alert(error?.response?.data?.message || '최종 제출 또는 결과 조회에 실패했습니다. 다시 시도해주세요.');
+    } finally {setAnswerBusy(false);}
   };
 
   const [reportReason, setReportReason] = useState('이미지 잘림');
   const [reportOtherReason, setReportOtherReason] = useState('');
   const [showReportForm, setShowReportForm] = useState(false);
+  const [reportSending, setReportSending] = useState(false);
 
   const handleReportCrop = () => {
-    if (!currentCrop || !selectedTask) return;
-    const reason = reportReason === '기타'
-      ? reportOtherReason.trim()
-      : reportReason;
-    if (!reason) {
+    if (!currentCrop || !selectedTask || reportSending) return;
+    const detail = reportOtherReason.trim();
+    const reason = detail ? `${reportReason}: ${detail}` : reportReason;
+    if (reportReason === '기타' && !detail) {
       alert('기타 사유를 입력해주세요.');
       return;
     }
 
+    setReportSending(true);
     reportApi.create({
-      taskId: selectedTask.id,
+      taskId: currentCrop.taskId,
       cropId: currentCrop.id,
       studentId: username,
       reason,
     })
       .then(() => {
-        alert('신고가 접수되었습니다.');
+        alert('신고·질문이 접수되었습니다. 답변은 My Page → My Reports에서 확인할 수 있습니다.');
         setReportOtherReason('');
         setShowReportForm(false);
       })
-      .catch(() => alert('신고 접수에 실패했습니다.'));
+      .catch(() => alert('신고·질문 접수에 실패했습니다.'))
+      .finally(() => setReportSending(false));
   };
 
   const currentCrop = crops[currentCropIndex];
   const allCompleted = crops.length > 0 && solvedCrops.size >= crops.length;
-  const isDiagnosticMode = isDiagnosticTask(selectedTask);
-  const practiceTasks = tasks.filter((task) => !isDiagnosticTask(task));
+  const isDiagnosticMode = !selectedAssignment && isDiagnosticTask(selectedTask);
+  const activeSmearFilename = currentCrop?.originalSmearFilename || selectedTask?.originalFilename;
+  const imageDisplay = useImageDisplaySettings(activeSmearFilename || `task-${selectedTask?.id || 'none'}`);
+
+  // 과제(assignment) 내 도말 이미지별로 세포를 그룹화 (도말 간 이동 내비게이션용)
+  const smearGroups = useMemo(() => {
+    const order = [];
+    const map = {};
+    crops.forEach((crop, idx) => {
+      const filename = crop.originalSmearFilename || selectedTask?.originalFilename;
+      if (!map[filename]) {
+        map[filename] = { filename, indices: [] };
+        order.push(filename);
+      }
+      map[filename].indices.push(idx);
+    });
+    return order.map((filename) => map[filename]);
+  }, [crops, selectedTask]);
+
+  const currentSmearGroupIndex = smearGroups.findIndex((g) => g.filename === activeSmearFilename);
+
+  const goToSmearGroup = (groupIndex) => {
+    if (groupIndex < 0 || groupIndex >= smearGroups.length) return;
+    const group = smearGroups[groupIndex];
+    const targetIdx = group.indices.find((i) => !solvedCrops.has(crops[i].id));
+    setCurrentCropIndex(targetIdx !== undefined ? targetIdx : group.indices[0]);
+  };
   const diagnosticTasks = tasks.filter((task) => isDiagnosticTask(task));
   const diagnosticTasksOrdered = [...diagnosticTasks].sort((a, b) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -198,42 +398,98 @@ export default function StudentPage() {
     if (aTime !== bTime) return aTime - bTime;
     return (a.id || 0) - (b.id || 0);
   });
-  const visibleTasks = taskTab === 'diagnostic' ? diagnosticTasksOrdered : practiceTasks;
+
+  // 일반 과제를 assignment별로 그룹화
+  const { assignments, individualTasks } = useMemo(() => {
+    const assignmentMap = {};
+    const individual = [];
+    tasks.filter(t => !isDiagnosticTask(t)).forEach(task => {
+      if (task.assignmentId) {
+        if (!assignmentMap[task.assignmentId]) {
+          assignmentMap[task.assignmentId] = { id: task.assignmentId, title: task.title || `Assignment #${task.assignmentId}`, tasks: [] };
+        }
+        assignmentMap[task.assignmentId].tasks.push(task);
+      } else {
+        individual.push(task);
+      }
+    });
+    return { assignments: Object.values(assignmentMap), individualTasks: individual };
+  }, [tasks]);
 
   /* ====== 화면 1: 과제 목록 ====== */
   if (!selectedTask) {
     return (
       <div style={containerStyle}>
         <div style={{ borderBottom: '2px solid #dee2e6', paddingBottom: '15px', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0 }}>Task Dashboard (Student)</h2>
+          <h2 style={{ margin: 0 }}>내 과제</h2>
           <span style={{ color: '#6c757d' }}>
             {taskTab === 'diagnostic'
               ? '진단평가 과제를 선택해 GT 기반으로 채점받으세요.'
-              : '일반 과제를 선택해 분류 연습을 진행하세요.'}
+              : taskTab === 'review'
+                ? '완료되거나 마감된 과제에서 내 응답과 GT 정답을 비교하세요.'
+                : '일반 과제를 선택해 분류 연습을 진행하세요.'}
           </span>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          <button onClick={() => setTaskTab('practice')} style={taskTab === 'practice' ? tabActive : tabInactive}>일반 과제</button>
-          <button onClick={() => setTaskTab('diagnostic')} style={taskTab === 'diagnostic' ? tabActive : tabInactive}>진단평가</button>
+          <button onClick={() => setTaskTab('practice')} style={taskTab === 'practice' ? tabActive : tabInactive}>전체 과제</button>
+          <button onClick={() => setTaskTab('review')} style={taskTab === 'review' ? tabActive : tabInactive}>학습 결과</button>
+          <button onClick={() => navigate('/student/my-page')} style={tabInactive}>My Page</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-          {visibleTasks.map((task, index) => (
-            <TaskCardItem
-              key={task.id}
-              task={task}
-              username={username}
-              diagnostic={isDiagnosticTask(task)}
-              displayNumber={taskTab === 'diagnostic' ? index + 1 : null}
-              onClick={() => handleSelectTask(task)}
-            />
-          ))}
-        </div>
-        {visibleTasks.length === 0 && (
-          <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>
-            {taskTab === 'diagnostic' ? 'No diagnostic tasks available.' : 'No practice tasks available.'}
-          </p>
+        {taskTab === 'review' ? (
+          <StudentReviewPanel />
+        ) : taskTab === 'practice' ? (
+          <>
+            <section aria-label="진단평가" style={{ marginBottom: '30px' }}>
+              <h3>진단평가</h3><p style={{ color: '#63737b' }}>학생 수준을 확인하는 과제입니다. 먼저 진단평가를 진행해주세요.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                {diagnosticTasksOrdered.map((task, index) => <TaskCardItem key={task.id} task={task} username={username} diagnostic displayNumber={index + 1} onClick={() => handleSelectTask(task)} onReview={() => setTaskTab('review')} />)}
+              </div>
+              {!diagnosticTasksOrdered.length && <p>게시된 진단평가가 없습니다.</p>}
+            </section>
+            <h3>분류 실습</h3>
+            {assignments.length === 0 && individualTasks.length === 0 && (
+              <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>No practice tasks available.</p>
+            )}
+            {assignments.length > 0 && (
+              <>
+                <div style={{ fontWeight: '600', color: '#495057', marginBottom: '12px', fontSize: '14px' }}>과제 목록</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+                  {assignments.map(assignment => (
+                    <AssignmentCard
+                      key={assignment.id}
+                      assignment={assignment}
+                      username={username}
+                      onClick={() => handleSelectAssignment(assignment)}
+                      onReview={() => setTaskTab('review')}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+            {individualTasks.length > 0 && (
+              <>
+                <div style={{ fontWeight: '600', color: '#495057', marginBottom: '12px', fontSize: '14px' }}>개별 과제</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                  {individualTasks.map(task => (
+                    <TaskCardItem key={task.id} task={task} username={username} diagnostic={false} onClick={() => handleSelectTask(task)} onReview={() => setTaskTab('review')} />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+              {diagnosticTasksOrdered.map((task, index) => (
+                <TaskCardItem key={task.id} task={task} username={username} diagnostic displayNumber={index + 1} onClick={() => handleSelectTask(task)} />
+              ))}
+            </div>
+            {diagnosticTasksOrdered.length === 0 && (
+              <p style={{ textAlign: 'center', color: '#6c757d', marginTop: '50px' }}>No diagnostic tasks available.</p>
+            )}
+          </>
         )}
       </div>
     );
@@ -245,7 +501,7 @@ export default function StudentPage() {
       <div style={containerStyle}>
         <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #dee2e6' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
-            📊 {isDiagnosticMode ? '진단평가 채점 결과' : 'AI 채점 결과'}
+            📊 {isDiagnosticMode ? '진단평가 채점 결과' : '분류 실습 채점 결과'}
           </h2>
           <div style={{ display: 'flex', justifyContent: 'space-around', padding: '30px 0', background: '#f8f9fa', borderRadius: '8px', marginBottom: '20px' }}>
             <div style={resultStatStyle}>
@@ -273,9 +529,10 @@ export default function StudentPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px', marginTop: '15px' }}>
                 {resultData.details.map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', padding: '10px', border: `2px solid ${item.isCorrect === null ? '#adb5bd' : item.isCorrect ? '#28a745' : '#dc3545'}`, borderRadius: '8px', background: '#fff' }}>
-                    <img src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
+                    <AuthImage src={imageUrl.crop(item.cropFilename)} alt="cell" style={{ width: '60px', height: '60px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '4px' }} />
                     <div style={{ flex: 1, marginLeft: '10px' }}>
-                      <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{item.studentLabel}</strong></div>
+                      <SpeciesBadge name={item.speciesName} code={item.speciesCode} compact style={{ marginBottom: '4px' }} />
+                      <div style={{ fontSize: '13px' }}><span style={{ color: '#6c757d' }}>내 답: </span><strong>{answerLabel(item.studentLabel)}</strong></div>
                       <div style={{ fontSize: '13px' }}>
                         <span style={{ color: '#6c757d' }}>정답: </span>
                         <strong style={{ color: item.isCorrect === null ? '#6c757d' : item.isCorrect ? '#28a745' : '#dc3545' }}>
@@ -286,34 +543,6 @@ export default function StudentPage() {
                     <span style={{ fontSize: '24px' }}>{item.isCorrect === null ? '⏳' : item.isCorrect ? '✅' : '❌'}</span>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-          {isDiagnosticMode && resultData.confusionMatrix && resultData.labels?.length > 0 && (
-            <div style={{ marginTop: '30px' }}>
-              <h3 style={{ borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>학생 혼동행렬 (GT x 예측)</h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px', background: '#fff' }}>
-                  <thead>
-                    <tr>
-                      <th style={cmHeadStyle}>GT \ Pred</th>
-                      {resultData.labels.map((label) => (
-                        <th key={label} style={cmHeadStyle}>{label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resultData.labels.map((actual) => (
-                      <tr key={actual}>
-                        <td style={cmRowHeaderStyle}>{actual}</td>
-                        {resultData.labels.map((pred) => {
-                          const value = resultData.confusionMatrix?.[actual]?.[pred] ?? 0;
-                          return <td key={`${actual}_${pred}`} style={cmCellStyle}>{value}</td>;
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </div>
           )}
@@ -332,8 +561,13 @@ export default function StudentPage() {
       {/* 상단 바 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #dee2e6', paddingBottom: '15px' }}>
         <h2 style={{ margin: 0 }}>
-          Task #{selectedTask.id} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
+          {selectedAssignment ? selectedAssignment.title : `Task #${selectedTask.id}`} - {isDiagnosticMode ? '진단평가' : '세포 분류'}
           {isDiagnosticMode && <span style={{ marginLeft: '10px', fontSize: '14px', color: '#856404', background: '#fff3cd', padding: '3px 8px', borderRadius: '5px' }}>GT Scoring</span>}
+          <SpeciesBadge
+            name={currentCrop?.speciesName || selectedTask?.speciesName}
+            code={currentCrop?.speciesCode || selectedTask?.speciesCode}
+            style={{ marginLeft: '10px', verticalAlign: 'middle' }}
+          />
         </h2>
         <button onClick={() => setSelectedTask(null)} style={{ padding: '8px 16px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>← 목록으로 돌아가기</button>
       </div>
@@ -343,20 +577,44 @@ export default function StudentPage() {
         {/* 왼쪽: 혈액 도말 이미지 + 바운딩 박스 */}
         {!isDiagnosticMode && (
         <div style={{ flex: '2 1 720px', background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
-          <div style={sectionHeaderStyle}>🔬 혈액 도말 이미지</div>
+          <div style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>🔬 혈액 도말 이미지 · {currentCrop?.speciesName || selectedTask?.speciesName || '개 (Dog)'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {smearGroups.length > 1 && (
+                <>
+                <button
+                  onClick={() => goToSmearGroup(currentSmearGroupIndex - 1)}
+                  disabled={currentSmearGroupIndex <= 0}
+                  style={{ ...smearNavBtnStyle, opacity: currentSmearGroupIndex <= 0 ? 0.4 : 1 }}
+                >◀ 이전 도말</button>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#495057' }}>
+                  도말 {currentSmearGroupIndex + 1} / {smearGroups.length}
+                </span>
+                <button
+                  onClick={() => goToSmearGroup(currentSmearGroupIndex + 1)}
+                  disabled={currentSmearGroupIndex >= smearGroups.length - 1}
+                  style={{ ...smearNavBtnStyle, opacity: currentSmearGroupIndex >= smearGroups.length - 1 ? 0.4 : 1 }}
+                >다음 도말 ▶</button>
+                </>
+              )}
+              <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />
+            </div>
+          </div>
           <div style={{ padding: '15px', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', background: '#f8f9fa' }}>
             <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
               <span style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(220,53,69,0.9)', color: '#fff', padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', borderRadius: '4px', zIndex: 10 }}>x40</span>
-              {selectedTask.originalFilename && (
-                <img
-                  src={imageUrl.original(selectedTask.originalFilename)}
+              {activeSmearFilename && (
+                <AuthImage
+                  key={activeSmearFilename}
+                  src={imageUrl.original(activeSmearFilename)}
                   alt="Blood Smear"
                   onLoad={handleImageLoad}
-                  style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 300px)', height: 'auto', objectFit: 'contain', display: 'block' }}
+                  style={{ width: '100%', maxWidth: '100%', maxHeight: 'calc(100vh - 300px)', height: 'auto', objectFit: 'contain', display: 'block', filter: imageDisplay.filter }}
                 />
               )}
-              {/* 바운딩 박스 오버레이 */}
+              {/* 바운딩 박스 오버레이 (현재 표시 중인 도말의 세포만) */}
               {crops.map((crop, idx) => {
+                if ((crop.originalSmearFilename || selectedTask?.originalFilename) !== activeSmearFilename) return null;
                 const bbox = getScaledBbox(crop.bbox);
                 const isSelected = idx === currentCropIndex;
                 const isSolved = solvedCrops.has(crop.id);
@@ -395,7 +653,7 @@ export default function StudentPage() {
                     marginBottom: '5px', border: '1px solid #eee', background: isSelected ? '#f0f4f8' : '#fff',
                     borderLeft: isSelected ? '4px solid #495057' : '4px solid transparent',
                   }}>
-                    <img src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa' }} />
+                    <AuthImage src={imageUrl.crop(crop.cropFilename)} alt={`Cell ${idx + 1}`} style={{ width: '40px', height: '40px', objectFit: 'contain', borderRadius: '4px', background: '#f8f9fa', filter: (crop.originalSmearFilename || selectedTask?.originalFilename) === activeSmearFilename ? imageDisplay.filter : 'none' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: '600', fontSize: '14px' }}>#{idx + 1}</div>
                       <div style={{ fontSize: '12px', color: isSolved ? '#28a745' : '#6c757d' }}>{isSolved ? (label || '분류완료') : '미분류'}</div>
@@ -409,36 +667,44 @@ export default function StudentPage() {
 
           {/* 세포 분류 패널 */}
           <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dee2e6', overflow: 'hidden' }}>
-            <div style={sectionHeaderStyle}>🏷️ 세포 분류</div>
+            <div style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+              <span>🏷️ 세포 분류</span>
+              {isDiagnosticMode && <ImageDisplayControls settings={imageDisplay.settings} onChange={imageDisplay.updateSetting} onReset={imageDisplay.resetSettings} />}
+            </div>
             {currentCrop && (
               <div style={{ padding: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '10px' }}>
                   <button onClick={() => currentCropIndex > 0 && setCurrentCropIndex(currentCropIndex - 1)} disabled={currentCropIndex === 0} style={{ ...navBtnStyle, opacity: currentCropIndex === 0 ? 0.3 : 1 }}>◀</button>
                   <div style={{ width: '180px', height: '180px', border: '2px solid #dee2e6', borderRadius: '8px', overflow: 'hidden', background: '#f8f9fa' }}>
-                    <img src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <AuthImage src={imageUrl.crop(currentCrop.cropFilename)} alt="Current Cell" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: imageDisplay.filter }} />
                   </div>
                   <button onClick={() => currentCropIndex < crops.length - 1 && setCurrentCropIndex(currentCropIndex + 1)} disabled={currentCropIndex === crops.length - 1} style={{ ...navBtnStyle, opacity: currentCropIndex === crops.length - 1 ? 0.3 : 1 }}>▶</button>
                 </div>
                 <div style={{ textAlign: 'center', marginBottom: '15px', color: '#6c757d', fontSize: '13px' }}>
                   세포 #{currentCropIndex + 1} / {crops.length}
+                  <SpeciesBadge name={currentCrop.speciesName} code={currentCrop.speciesCode} compact style={{ marginLeft: '8px' }} />
                   {solvedCrops.has(currentCrop.id) && <span style={{ color: '#28a745', marginLeft: '10px' }}>✓ 분류완료</span>}
                 </div>
                 <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: '600' }}>👆 클래스를 선택하세요</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                  {CELL_TYPES.map((cls) => (
-                    <button key={cls.key} onClick={() => handleStudentSubmit(cls.key)} disabled={solvedCrops.has(currentCrop.id)} style={{
-                      padding: '12px 8px', background: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '6px', fontSize: '13px',
-                      fontWeight: '600', cursor: solvedCrops.has(currentCrop.id) ? 'not-allowed' : 'pointer',
-                      opacity: solvedCrops.has(currentCrop.id) ? 0.5 : 1,
-                    }}>
-                      {cls.label}
-                    </button>
-                  ))}
+                  {cellChoices(currentCrop).map((cls) => {
+                    const isSelected = solvedLabels[currentCrop.id] === cls.key;
+                    return (
+                      <button key={cls.key} disabled={attempt.locked || answerBusy} onClick={() => handleStudentSubmit(cls.key)} style={{
+                        padding: '12px 8px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                        background: isSelected ? '#0d6efd' : '#f8f9fa',
+                        color: isSelected ? '#fff' : 'inherit',
+                        border: isSelected ? '2px solid #0d6efd' : '1px solid #dee2e6',
+                      }}>
+                        {cls.label}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div style={{ marginTop: '12px' }}>
-                  <button onClick={() => setShowReportForm(true)} style={reportBtnStyle}>
-                    잘 모르겠어요
-                  </button>
+                  <button disabled={attempt.locked || answerBusy} aria-pressed={solvedLabels[currentCrop.id] === 'UNKNOWN'} onClick={() => handleStudentSubmit('UNKNOWN')} style={reportBtnStyle}>모르겠어요로 응답</button>
+                  <p style={{ color: '#687881', fontSize: '12px' }}>모르겠어요도 응답 완료로 저장됩니다. 점수에는 오답으로 반영되며 클래스 혼동행렬에서는 제외됩니다.</p>
+                  <button onClick={() => setShowReportForm(true)} style={reportBtnStyle}>질문·이미지 오류 신고</button>
                 </div>
               </div>
             )}
@@ -453,13 +719,14 @@ export default function StudentPage() {
             <span style={{ fontWeight: '600' }}>진행률: </span>
             <span>{solvedCrops.size} / {crops.length} 완료 ({crops.length > 0 ? Math.round((solvedCrops.size / crops.length) * 100) : 0}%)</span>
           </div>
-          <button onClick={handleFinalSubmit} disabled={!allCompleted} style={{
+          <button onClick={handleFinalSubmit} disabled={!allCompleted || attempt.locked || answerBusy} style={{
             padding: '10px 24px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '600',
             opacity: allCompleted ? 1 : 0.5, cursor: allCompleted ? 'pointer' : 'not-allowed',
           }}>
-            {allCompleted ? '🎯 제출하고 채점 받기' : `⏳ ${crops.length - solvedCrops.size}개 남음`}
+            {attempt.submitted ? '최종 제출 완료 · 결과 공개 대기' : attempt.locked ? '마감된 과제' : allCompleted ? '최종 제출' : `⏳ ${crops.length - solvedCrops.size}개 남음`}
           </button>
         </div>
+        <p style={{ fontSize: '12px', color: '#687881' }}>답안은 자동 저장됩니다. 최종 제출 전에는 수정할 수 있으며, 제출 후에는 수정할 수 없습니다.</p>
         <div style={{ background: '#e9ecef', height: '10px', borderRadius: '5px', overflow: 'hidden' }}>
           <div style={{ background: '#28a745', height: '100%', width: `${crops.length > 0 ? (solvedCrops.size / crops.length) * 100 : 0}%`, transition: 'width 0.3s' }} />
         </div>
@@ -470,7 +737,7 @@ export default function StudentPage() {
       <div style={reportModalOverlayStyle}>
         <div style={reportModalStyle}>
           <div style={{ fontSize: '15px', fontWeight: '700', marginBottom: '10px', color: '#343a40' }}>
-            신고 사유 선택
+            신고 및 질문
           </div>
           <select
             value={reportReason}
@@ -481,19 +748,21 @@ export default function StudentPage() {
               <option key={reason} value={reason}>{reason}</option>
             ))}
           </select>
-          {reportReason === '기타' && (
-            <input
+            <textarea
               value={reportOtherReason}
               onChange={(e) => setReportOtherReason(e.target.value)}
-              placeholder="기타 사유 입력"
+              placeholder="궁금한 점이나 문제 상황을 입력하세요. (기타 선택 시 필수)"
+              rows={4}
+              maxLength={1900}
+              disabled={reportSending}
               style={reportInputStyle}
             />
-          )}
+          <div style={{ color: '#6c757d', fontSize: '12px' }}>답변은 My Page → My Reports에서 확인할 수 있습니다.</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button onClick={handleReportCrop} style={reportBtnStyle}>
-              신고하기
+            <button onClick={handleReportCrop} disabled={reportSending} style={reportBtnStyle}>
+              {reportSending ? '접수 중…' : '보내기'}
             </button>
-            <button onClick={() => setShowReportForm(false)} style={reportCancelBtnStyle}>
+            <button onClick={() => setShowReportForm(false)} disabled={reportSending} style={reportCancelBtnStyle}>
               취소
             </button>
           </div>
@@ -507,6 +776,7 @@ export default function StudentPage() {
 const containerStyle = { maxWidth: '1800px', width: '98%', margin: '0 auto', padding: '20px', fontFamily: 'Inter, sans-serif', color: '#343a40' };
 const sectionHeaderStyle = { background: '#495057', color: '#fff', padding: '12px 20px', fontSize: '15px', fontWeight: '600' };
 const navBtnStyle = { width: '40px', height: '40px', borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+const smearNavBtnStyle = { padding: '6px 12px', borderRadius: '6px', border: '1px solid #ced4da', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#495057' };
 const resultStatStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center' };
 const taskCardStyle = { background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'transform 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' };
 const thumbnailStyle = { width: '100%', height: '180px', objectFit: 'cover', borderBottom: '1px solid #dee2e6' };

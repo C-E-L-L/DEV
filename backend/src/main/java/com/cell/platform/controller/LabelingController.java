@@ -1,7 +1,7 @@
 package com.cell.platform.controller;
 
-import com.cell.platform.dto.request.LabelingImportRequest;
 import com.cell.platform.service.LabelingService;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -27,7 +27,7 @@ public class LabelingController {
         byte[] zip = labelingService.exportTask(taskId);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"task_" + taskId + "_labeling.zip\"")
+                        "attachment; filename=\"" + labelingService.buildArchiveFilename(taskId) + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(zip);
     }
@@ -35,9 +35,9 @@ public class LabelingController {
     @PostMapping("/{taskId}/import")
     public ResponseEntity<Map<String, Integer>> importLabels(
             @PathVariable Long taskId,
-            @RequestBody LabelingImportRequest request
+            @RequestBody JsonNode viaJson
     ) {
-        int updated = labelingService.importLabels(taskId, request);
+        int updated = labelingService.importLabels(taskId, viaJson);
         return ResponseEntity.ok(Map.of("updated", updated));
     }
 }

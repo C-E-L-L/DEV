@@ -28,6 +28,8 @@ class TaskServiceTest {
     @Mock private TaskRepository taskRepository;
     @Mock private FileStorageService fileStorageService;
     @Mock private AiClientService aiClientService;
+    @Mock private AnimalSpeciesService animalSpeciesService;
+    @Mock private CellClassService cellClassService;
 
     @Nested
     class getAllTasks_메서드는 {
@@ -59,7 +61,11 @@ class TaskServiceTest {
         void 파일_업로드와_AI_분석_후_과제를_생성한다() {
             MultipartFile file = mock(MultipartFile.class);
             given(file.getOriginalFilename()).willReturn("blood.jpg");
-            given(fileStorageService.saveOriginal(file)).willReturn("orig_abc.jpg");
+            var dog = com.cell.platform.entity.AnimalSpeciesEntity.builder().id(1L).code("DOG").name("Dog").build();
+            given(cellClassService.activeLabels(1L)).willReturn(com.cell.platform.domain.crop.CellType.defaultLabels());
+            given(animalSpeciesService.getDog()).willReturn(dog);
+            given(animalSpeciesService.getRequired(1L)).willReturn(dog);
+            given(fileStorageService.saveOriginal(file, "DOG")).willReturn("orig_abc.jpg");
 
             AiAnalysisResponse aiResponse = mock(AiAnalysisResponse.class);
             given(aiResponse.getCells()).willReturn(List.of());

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,7 +26,11 @@ public class DiagnosticDatasetService {
     private String processedDir;
 
     public Map<CellType, Integer> getAvailableCounts() {
-        List<DiagnosticCell> cells = loadCells();
+        return getAvailableCounts("DOG");
+    }
+
+    public Map<CellType, Integer> getAvailableCounts(String speciesCode) {
+        List<DiagnosticCell> cells = loadCells().stream().filter(c -> c.speciesCode().equals(speciesCode)).toList();
         Map<CellType, Long> grouped = cells.stream()
                 .collect(Collectors.groupingBy(DiagnosticCell::label, Collectors.counting()));
 
@@ -33,11 +38,16 @@ public class DiagnosticDatasetService {
         for (CellType type : CellType.values()) {
             result.put(type, grouped.getOrDefault(type, 0L).intValue());
         }
+        grouped.forEach((type, count) -> result.putIfAbsent(type, count.intValue()));
         return result;
     }
 
     public List<DiagnosticCell> sampleCells(Map<CellType, Integer> distribution) {
-        List<DiagnosticCell> cells = loadCells();
+        return sampleCells(distribution, "DOG");
+    }
+
+    public List<DiagnosticCell> sampleCells(Map<CellType, Integer> distribution, String speciesCode) {
+        List<DiagnosticCell> cells = loadCells().stream().filter(c -> c.speciesCode().equals(speciesCode)).toList();
         Map<CellType, List<DiagnosticCell>> grouped = cells.stream()
                 .collect(Collectors.groupingBy(DiagnosticCell::label));
 
@@ -76,6 +86,7 @@ public class DiagnosticDatasetService {
 
     private List<DiagnosticCell> loadCells() {
         Path manifestPath = Paths.get(processedDir).resolve("manifest.json").toAbsolutePath().normalize();
+        if (!Files.exists(manifestPath)) return List.of();
         try {
             JsonNode root = objectMapper.readTree(manifestPath.toFile());
             if (!root.isArray()) {
@@ -92,10 +103,22 @@ public class DiagnosticDatasetService {
                 }
 
                 CellType label = CellType.valueOf(labelText);
+                Path rootDir = manifestPath.getParent().resolve("crops").normalize();
+                Path cropPath = rootDir.resolve(cropFilename).normalize();
+                if (!cropPath.startsWith(rootDir) || !Files.isRegularFile(cropPath)) continue;
                 String bbox = bboxNode.toString();
-                result.add(new DiagnosticCell(cropFilename, label, bbox));
+                String speciesCode = node.path("speciesCode").asText("DOG");
+                result.add(new DiagnosticCell(cropFilename, label, bbox, speciesCode));
             }
-            return result;
+            // One source image must not be sampled twice in a diagnostic.
+            Map<String, DiagnosticCell> unique = new LinkedHashMap<>();
+            for (DiagnosticCell cell : result) {
+                DiagnosticCell prior = unique.putIfAbsent(cell.cropFilename(), cell);
+                if (prior != null && (prior.label() != cell.label() || !prior.speciesCode().equals(cell.speciesCode()))) {
+                    throw new IllegalArgumentException("Conflicting diagnostic labels: " + cell.cropFilename());
+                }
+            }
+            return new ArrayList<>(unique.values());
         } catch (IllegalArgumentException e) {
             throw new InfraStructureException("진단 데이터셋 클래스 매핑이 유효하지 않습니다.", ErrorCode.G001);
         } catch (IOException e) {
@@ -106,7 +129,11 @@ public class DiagnosticDatasetService {
     public record DiagnosticCell(
             String cropFilename,
             CellType label,
-            String bbox
+            String bbox,
+            String speciesCode
     ) {
+        public DiagnosticCell(String cropFilename, CellType label, String bbox) {
+            this(cropFilename, label, bbox, "DOG");
+        }
     }
 }

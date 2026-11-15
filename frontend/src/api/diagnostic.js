@@ -2,8 +2,8 @@ import api from './client';
 import client from './client';
 
 export const diagnosticApi = {
-  getPoolStats: () =>
-    api.get('/tasks/diagnostic/pool-stats'),
+  getPoolStats: (speciesId) =>
+    api.get('/tasks/diagnostic/pool-stats', { params: { speciesId } }),
 
   createTask: (payload) =>
     api.post('/tasks/diagnostic/create', payload),

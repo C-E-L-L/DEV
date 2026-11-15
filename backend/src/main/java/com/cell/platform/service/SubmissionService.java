@@ -5,6 +5,7 @@ import com.cell.platform.domain.crop.Crop;
 import com.cell.platform.domain.crop.CropRepository;
 import com.cell.platform.domain.submission.Submission;
 import com.cell.platform.domain.submission.SubmissionRepository;
+import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.domain.user.Role;
 import com.cell.platform.domain.user.User;
@@ -16,6 +17,7 @@ import com.cell.platform.entity.StudentConfusionMatrixEntity;
 import com.cell.platform.dto.response.DiagnosticStudentMatrixResponse;
 
 import com.cell.platform.dto.response.MyResultsResponse;
+import com.cell.platform.dto.response.StudentReviewResponse;
 import com.cell.platform.exception.BadRequestException;
 import com.cell.platform.exception.ErrorCode;
 import com.cell.platform.exception.NotFoundException;
@@ -29,9 +31,11 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Comparator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -48,27 +52,147 @@ public class SubmissionService {
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
     private final DiagnosticDatasetService diagnosticDatasetService;
-
-    // 혼동행렬 레포지토리 주입
     private final ConfusionMatrixRepository confusionMatrixRepository;
+    private final com.cell.platform.infra.submission.TaskAttemptJpaRepository attemptRepository;
 
     @Transactional
     public void submit(Long cropId, String studentId, String studentLabel) {
         Crop crop = cropRepository.findById(cropId)
                 .orElseThrow(() -> new NotFoundException(
                         "크롭(Crop)을 찾을 수 없습니다. cropId=" + cropId, ErrorCode.S000));
-        CellType label = parseCellType(studentLabel);
-        Submission submission = Submission.create(crop.getId(), studentId, label);
-        submissionRepository.save(submission);
-
-        // 정답(GT) 판별 및 혼동행렬 실시간 업데이트
-        CellType correctLabel = resolveCorrectLabel(crop, isDiagnosticTask(crop.getTaskId()));
-        if (correctLabel != null) {
-            updateConfusionMatrix(studentId, crop.getTaskId(), correctLabel.name(), label.name());
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(crop.getTaskId()), studentId);
+        if (crop.isExcluded() || scope.tasks().stream().anyMatch(t -> !t.isPublished())) {
+            throw new BadRequestException("게시되지 않았거나 출제에서 제외된 문항입니다.", ErrorCode.S001);
         }
+        if (isSubmissionLocked(scope)) {
+            throw new BadRequestException("이미 마감되었거나 결과가 공개된 과제의 답안은 수정할 수 없습니다.", ErrorCode.S001);
+        }
+        CellType newLabel = "UNKNOWN".equals(studentLabel) ? null : parseCellType(studentLabel);
+        if (newLabel != null && !crop.getClassLabels().containsKey(newLabel.name())) {
+            throw new BadRequestException("이 과제에서 선택할 수 없는 클래스입니다.", ErrorCode.S001);
+        }
+        CellType correctLabel = resolveCorrectLabel(crop, isDiagnosticTask(crop.getTaskId()));
+
+        submissionRepository.findByCropIdAndStudentId(cropId, studentId)
+                .ifPresentOrElse(
+                        existing -> {
+                            CellType oldLabel = existing.getStudentLabel();
+                            submissionRepository.updateLabel(cropId, studentId, newLabel);
+                            if (correctLabel != null) {
+                                if (oldLabel != null) subtractConfusionMatrixEntry(studentId, crop.getTaskId(),
+                                        correctLabel.name(), oldLabel.name());
+                                if (newLabel != null) updateConfusionMatrix(studentId, crop.getTaskId(),
+                                        correctLabel.name(), newLabel.name());
+                            }
+                        },
+                        () -> {
+                            submissionRepository.save(Submission.create(cropId, studentId, newLabel));
+                            if (correctLabel != null && newLabel != null) {
+                                updateConfusionMatrix(studentId, crop.getTaskId(),
+                                        correctLabel.name(), newLabel.name());
+                            }
+                        }
+                );
+    }
+
+    @Transactional
+    public Map<String, Boolean> finalizeAttempt(Long taskId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(taskId), studentId);
+        if (scope.tasks().isEmpty() || scope.tasks().stream().anyMatch(t -> !t.isPublished())) {
+            throw new BadRequestException("게시된 과제를 찾을 수 없습니다.", ErrorCode.S001);
+        }
+        if (!scope.finalized()) {
+            if (isDeadlinePassed(scope.tasks())) throw new BadRequestException("이미 마감된 과제입니다.", ErrorCode.S001);
+            if (scope.crops().isEmpty() || scope.submissions().size() != scope.crops().size()) {
+                throw new BadRequestException("모든 문항에 응답해주세요. 모르는 문항은 '모르겠어요'로 응답할 수 있습니다.", ErrorCode.S001);
+            }
+            scope.tasks().forEach(t -> attemptRepository.save(new com.cell.platform.entity.TaskAttemptEntity(t.getId(), studentId)));
+        }
+        ScopeSnapshot finalized = new ScopeSnapshot(scope.tasks(), scope.crops(), scope.submissions(), scope.diagnostic(), true);
+        return Map.of("submitted", true, "reviewAvailable", isReviewAvailable(finalized));
+    }
+
+    public Map<String, Boolean> getAttemptState(Long taskId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(taskId), studentId);
+        if (scope.tasks().stream().anyMatch(t -> !t.isPublished())) throw new NotFoundException("게시된 과제를 찾을 수 없습니다.", ErrorCode.T000);
+        return Map.of("submitted", scope.finalized(), "locked", isSubmissionLocked(scope), "reviewAvailable", isReviewAvailable(scope));
     }
 
     // --- 여기서부터 원래 주훈님이 가지고 계시던 소중한 코드들 복구 --- //
+
+    public Map<Long, String> getSolvedCropLabels(Long taskId, String studentId) {
+        List<Crop> crops = cropRepository.findAllByTaskId(taskId);
+        List<Long> cropIds = crops.stream().map(Crop::getId).toList();
+        Map<Long, String> result = new LinkedHashMap<>();
+        submissionRepository.findAllByCropIdInAndStudentId(cropIds, studentId)
+                .forEach(sub -> result.put(sub.getCropId(), sub.getAnswerLabel()));
+        return result;
+    }
+
+    public Map<Long, String> getSolvedCropLabelsForAssignment(Long assignmentId, String studentId) {
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        List<Long> allCropIds = tasks.stream()
+                .flatMap(task -> cropRepository.findAllByTaskId(task.getId()).stream())
+                .map(Crop::getId)
+                .toList();
+        Map<Long, String> result = new LinkedHashMap<>();
+        submissionRepository.findAllByCropIdInAndStudentId(allCropIds, studentId)
+                .forEach(sub -> result.put(sub.getCropId(), sub.getAnswerLabel()));
+        return result;
+    }
+
+    public List<Long> getSolvedCropIdsForAssignment(Long assignmentId, String studentId) {
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        List<Long> allCropIds = tasks.stream()
+                .flatMap(task -> cropRepository.findAllByTaskId(task.getId()).stream())
+                .map(crop -> crop.getId())
+                .toList();
+        return submissionRepository.findAllByCropIdInAndStudentId(allCropIds, studentId)
+                .stream().map(sub -> sub.getCropId()).toList();
+    }
+
+    public MyResultsResponse getMyResultsForAssignment(Long assignmentId, String studentId) {
+        List<Task> tasks = taskRepository.findByAssignmentId(assignmentId);
+        List<Crop> allCrops = new ArrayList<>();
+        for (Task task : tasks) {
+            allCrops.addAll(cropRepository.findAllByTaskId(task.getId()));
+        }
+        List<Long> cropIds = allCrops.stream().map(Crop::getId).toList();
+        Map<Long, Crop> cropMap = allCrops.stream()
+                .collect(Collectors.toMap(Crop::getId, c -> c));
+        List<Submission> submissions = submissionRepository
+                .findAllByCropIdInAndStudentId(cropIds, studentId);
+
+        int correct = 0, wrong = 0;
+        List<MyResultsResponse.Detail> details = new ArrayList<>();
+        List<String> labels = allCrops.stream().flatMap(c -> c.getClassLabels().keySet().stream()).distinct().toList();
+        Map<String, Map<String, Integer>> confusionMatrix = initConfusionMatrix(labels);
+
+        for (Submission sub : submissions) {
+            Crop crop = cropMap.get(sub.getCropId());
+            if (crop == null) continue;
+            CellType resolvedLabel = resolveCorrectLabel(crop, false);
+            String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
+            Boolean isCorrect = null;
+            if (correctLabel != null) {
+                isCorrect = sub.getAnswerLabel().equals(correctLabel);
+                if (isCorrect) correct++; else wrong++;
+                if (sub.getStudentLabel() != null) confusionMatrix.get(correctLabel)
+                        .compute(sub.getAnswerLabel(), (k, v) -> v == null ? 1 : v + 1);
+            }
+            details.add(MyResultsResponse.Detail.builder()
+                    .cropId(crop.getId()).cropFilename(crop.getCropFilename())
+                    .speciesCode(crop.getSpeciesCode()).speciesName(crop.getSpeciesName())
+                    .studentLabel(sub.getAnswerLabel())
+                    .correctLabel(correctLabel).isCorrect(isCorrect).build());
+        }
+
+        int total = correct + wrong;
+        int accuracy = total > 0 ? Math.round((float) correct / total * 100) : 0;
+        return MyResultsResponse.builder().total(total).correct(correct).wrong(wrong)
+                .accuracy(accuracy).details(details).labels(labels)
+                .confusionMatrix(confusionMatrix).build();
+    }
 
     public List<Long> getSolvedCropIds(Long taskId, String studentId) {
         List<Crop> crops = cropRepository.findAllByTaskId(taskId);
@@ -92,8 +216,7 @@ public class SubmissionService {
         int correct = 0;
         int wrong = 0;
         List<MyResultsResponse.Detail> details = new ArrayList<>();
-        List<String> labels = Arrays.stream(CellType.values())
-                .map(Enum::name)
+        List<String> labels = crops.stream().flatMap(c -> c.getClassLabels().keySet().stream()).distinct()
                 .toList();
         Map<String, Map<String, Integer>> confusionMatrix = initConfusionMatrix(labels);
 
@@ -105,18 +228,20 @@ public class SubmissionService {
             String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
             Boolean isCorrect = null;
             if (correctLabel != null) {
-                isCorrect = sub.getStudentLabel().name().equals(correctLabel);
+                isCorrect = sub.getAnswerLabel().equals(correctLabel);
                 if (isCorrect) correct++;
                 else wrong++;
 
-                confusionMatrix.get(correctLabel)
-                        .compute(sub.getStudentLabel().name(), (key, value) -> value == null ? 1 : value + 1);
+                if (sub.getStudentLabel() != null) confusionMatrix.get(correctLabel)
+                        .compute(sub.getAnswerLabel(), (key, value) -> value == null ? 1 : value + 1);
             }
 
             details.add(MyResultsResponse.Detail.builder()
                     .cropId(crop.getId())
                     .cropFilename(crop.getCropFilename())
-                    .studentLabel(sub.getStudentLabel().name())
+                    .speciesCode(crop.getSpeciesCode())
+                    .speciesName(crop.getSpeciesName())
+                    .studentLabel(sub.getAnswerLabel())
                     .correctLabel(correctLabel)
                     .isCorrect(isCorrect)
                     .build());
@@ -136,17 +261,184 @@ public class SubmissionService {
                 .build();
     }
 
+    public void assertReviewAvailableForTask(Long taskId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(getScopeTasks(taskId), studentId);
+        if (!isReviewAvailable(scope)) {
+            throw new BadRequestException("채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.", ErrorCode.S001);
+        }
+    }
+
+    public void assertReviewAvailableForAssignment(Long assignmentId, String studentId) {
+        ScopeSnapshot scope = createScopeSnapshot(taskRepository.findByAssignmentId(assignmentId), studentId);
+        if (!isReviewAvailable(scope)) {
+            throw new BadRequestException("채점이 완료되거나 마감된 뒤 결과를 확인할 수 있습니다.", ErrorCode.S001);
+        }
+    }
+
+    public StudentReviewResponse getStudentReviews(String studentId) {
+        List<Task> allTasks = taskRepository.findAllByOrderByIdDesc();
+        List<StudentReviewResponse.ReviewGroup> reviews = new ArrayList<>();
+        Set<Long> handledAssignments = new HashSet<>();
+
+        for (Task task : allTasks) {
+            if (task.getAssignmentId() != null) {
+                if (!handledAssignments.add(task.getAssignmentId())) continue;
+                buildReviewGroup(taskRepository.findByAssignmentId(task.getAssignmentId()), studentId)
+                        .ifPresent(reviews::add);
+            } else {
+                buildReviewGroup(List.of(task), studentId).ifPresent(reviews::add);
+            }
+        }
+
+        reviews.sort(Comparator.comparing(
+                (StudentReviewResponse.ReviewGroup review) -> review.deadlineAt() != null
+                        ? review.deadlineAt()
+                        : LocalDateTime.MIN
+        ).reversed().thenComparing(StudentReviewResponse.ReviewGroup::scopeId, Comparator.reverseOrder()));
+        return new StudentReviewResponse(reviews);
+    }
+
+    private java.util.Optional<StudentReviewResponse.ReviewGroup> buildReviewGroup(
+            List<Task> tasks,
+            String studentId
+    ) {
+        ScopeSnapshot scope = createScopeSnapshot(tasks, studentId);
+        if (!isReviewAvailable(scope) || scope.submissions().isEmpty()) {
+            return java.util.Optional.empty();
+        }
+
+        Map<Long, Crop> cropById = scope.crops().stream()
+                .collect(Collectors.toMap(Crop::getId, Function.identity()));
+        List<StudentReviewResponse.ReviewCell> cells = new ArrayList<>();
+        int correct = 0;
+        int wrong = 0;
+        int pending = 0;
+
+        for (Submission submission : scope.submissions()) {
+            Crop crop = cropById.get(submission.getCropId());
+            if (crop == null) continue;
+            CellType resolvedLabel = resolveCorrectLabel(crop, scope.diagnostic());
+            String correctLabel = resolvedLabel != null ? resolvedLabel.name() : null;
+            Boolean isCorrect = correctLabel == null
+                    ? null
+                    : submission.getAnswerLabel().equals(correctLabel);
+            if (isCorrect == null) pending++;
+            else if (isCorrect) correct++;
+            else wrong++;
+
+            cells.add(new StudentReviewResponse.ReviewCell(
+                    crop.getTaskId(), crop.getId(), crop.getCropFilename(),
+                    crop.getOriginalSmearFilename(), crop.getSpeciesCode(), crop.getSpeciesName(), crop.getBbox(),
+                    submission.getAnswerLabel(), correctLabel, isCorrect
+            ));
+        }
+
+        cells.sort(Comparator.comparing(StudentReviewResponse.ReviewCell::taskId)
+                .thenComparing(StudentReviewResponse.ReviewCell::cropId));
+        int gradedAnswers = correct + wrong;
+        Integer accuracy = gradedAnswers == 0 ? null : Math.round((float) correct / gradedAnswers * 100);
+        Task representative = scope.tasks().get(0);
+        String scopeType = scope.diagnostic()
+                ? "DIAGNOSTIC"
+                : representative.getAssignmentId() != null ? "ASSIGNMENT" : "TASK";
+        Long scopeId = representative.getAssignmentId() != null
+                ? representative.getAssignmentId()
+                : representative.getId();
+        String title = scope.diagnostic()
+                ? "Diagnostic #" + representative.getId()
+                : representative.getTitle() != null && !representative.getTitle().isBlank()
+                ? representative.getTitle()
+                : "Task #" + representative.getId();
+        String thumbnail = scope.diagnostic()
+                ? cells.stream().findFirst().map(StudentReviewResponse.ReviewCell::cropFilename).orElse(null)
+                : representative.getOriginalFilename();
+
+        return java.util.Optional.of(new StudentReviewResponse.ReviewGroup(
+                scopeType, scopeId, title, thumbnail, getDeadlineAt(scope.tasks()),
+                getAvailabilityReason(scope), scope.crops().size(), scope.submissions().size(),
+                Math.max(0, scope.crops().size() - scope.submissions().size()),
+                gradedAnswers, pending, correct, wrong, accuracy, cells
+        ));
+    }
+
+    private List<Task> getScopeTasks(Long taskId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new NotFoundException(
+                        "과제를 찾을 수 없습니다. taskId=" + taskId, ErrorCode.T000));
+        return task.getAssignmentId() == null
+                ? List.of(task)
+                : taskRepository.findByAssignmentId(task.getAssignmentId());
+    }
+
+    private ScopeSnapshot createScopeSnapshot(List<Task> tasks, String studentId) {
+        if (tasks == null || tasks.isEmpty()) {
+            return new ScopeSnapshot(List.of(), List.of(), List.of(), false, false);
+        }
+        List<Long> taskIds = tasks.stream().map(Task::getId).toList();
+        List<Crop> crops = cropRepository.findAllByTaskIdIn(taskIds);
+        List<Long> cropIds = crops.stream().map(Crop::getId).toList();
+        List<Submission> submissions = cropIds.isEmpty()
+                ? List.of()
+                : submissionRepository.findAllByCropIdInAndStudentId(cropIds, studentId);
+        return new ScopeSnapshot(tasks, crops, submissions, isDiagnosticTask(tasks.get(0)),
+                attemptRepository.existsByTaskIdInAndStudentId(taskIds, studentId));
+    }
+
+    private boolean isReviewAvailable(ScopeSnapshot scope) {
+        if (scope.tasks().isEmpty() || scope.tasks().stream().anyMatch(t -> !t.isPublished())) return false;
+        if (scope.tasks().stream().anyMatch(Task::isResultsAfterDeadline) && !isDeadlinePassed(scope.tasks())) return false;
+        if (scope.crops().isEmpty() || scope.submissions().isEmpty()) return false;
+        if (isDeadlinePassed(scope.tasks())) return true;
+        if (!scope.finalized()) return false;
+        boolean allGraded = scope.crops().stream().allMatch(crop -> crop.getFinalLabel() != null);
+        return allGraded;
+    }
+
+    private boolean isSubmissionLocked(ScopeSnapshot scope) {
+        return scope.finalized() || isDeadlinePassed(scope.tasks());
+    }
+
+    private boolean isDeadlinePassed(List<Task> tasks) {
+        LocalDateTime deadlineAt = getDeadlineAt(tasks);
+        return deadlineAt != null && !deadlineAt.isAfter(LocalDateTime.now());
+    }
+
+    private LocalDateTime getDeadlineAt(List<Task> tasks) {
+        return tasks.stream()
+                .map(Task::getDeadlineAt)
+                .filter(java.util.Objects::nonNull)
+                .min(LocalDateTime::compareTo)
+                .orElse(null);
+    }
+
+    private String getAvailabilityReason(ScopeSnapshot scope) {
+        if (scope.diagnostic()) return "DIAGNOSTIC_COMPLETED";
+        return isDeadlinePassed(scope.tasks()) ? "DEADLINE_PASSED" : "GRADED";
+    }
+
+    private boolean isDiagnosticTask(Task task) {
+        return task.isDiagnostic();
+    }
+
+    private record ScopeSnapshot(
+            List<Task> tasks,
+            List<Crop> crops,
+            List<Submission> submissions,
+            boolean diagnostic,
+            boolean finalized
+    ) {
+    }
+
     private boolean isDiagnosticTask(Long taskId) {
         if (taskId == null) {
             return false;
         }
         return taskRepository.findById(taskId)
-                .map(task -> task.getUploadedFilename() != null
-                        && task.getUploadedFilename().startsWith(DIAGNOSTIC_PREFIX))
+                .map(Task::isDiagnostic)
                 .orElse(false);
     }
 
-    private CellType resolveCorrectLabel(Crop crop, boolean diagnosticTask) {
+    CellType resolveCorrectLabel(Crop crop, boolean diagnosticTask) {
         if (crop.getFinalLabel() != null) {
             return crop.getFinalLabel();
         }
@@ -182,6 +474,35 @@ public class SubmissionService {
     }
 
     // --- 여기서부터 새롭게 추가된 혼동행렬 저장 핵심 로직 --- //
+
+    @Transactional
+    public void backfillConfusionMatrixForCrop(Long cropId, Long taskId, CellType oldFinalLabel, CellType newFinalLabel) {
+        if (java.util.Objects.equals(oldFinalLabel, newFinalLabel)) return;
+        List<Submission> submissions = submissionRepository.findAllByCropId(cropId);
+        for (Submission sub : submissions) {
+            if (sub.getStudentLabel() == null) continue;
+            String studentId = sub.getStudentId();
+            String predicted = sub.getAnswerLabel();
+            if (oldFinalLabel != null) {
+                subtractConfusionMatrixEntry(studentId, taskId, oldFinalLabel.name(), predicted);
+            }
+            if (newFinalLabel != null) updateConfusionMatrix(studentId, taskId, newFinalLabel.name(), predicted);
+        }
+    }
+
+    private void subtractConfusionMatrixEntry(String studentId, Long taskId, String actualLabel, String predictedLabel) {
+        confusionMatrixRepository.findByStudentIdAndTaskId(studentId, taskId).ifPresent(entity -> {
+            Map<String, Map<String, Integer>> data = entity.getMatrixData();
+            if (data == null) return;
+            Map<String, Integer> row = data.get(actualLabel);
+            if (row == null) return;
+            int current = row.getOrDefault(predictedLabel, 0);
+            row.put(predictedLabel, Math.max(0, current - 1));
+            entity.setMatrixData(data);
+            entity.setUpdatedAt(LocalDateTime.now());
+            confusionMatrixRepository.save(entity);
+        });
+    }
 
     private void updateConfusionMatrix(String studentId, Long taskId, String actualLabel, String predictedLabel) {
         // 1. 기존 혼동행렬 조회 또는 빈 행렬 새로 생성
@@ -251,7 +572,7 @@ public class SubmissionService {
     public DiagnosticStudentMatrixResponse getCumulativeStudentMatrices() {
         List<User> students = userRepository.findAllByRole(Role.STUDENT);
         List<String> labels = Arrays.stream(CellType.values())
-                .map(Enum::name)
+                .map(CellType::name)
                 .toList();
 
         Map<String, Map<String, Map<String, Integer>>> matrixByStudent = new LinkedHashMap<>();

@@ -30,6 +30,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(SubmissionController.class)
 @Import(SecurityConfig.class)
 class SubmissionControllerTest {
+    @org.junit.jupiter.api.BeforeEach
+    void useJwtStyleStringPrincipal() {
+        var context = org.springframework.security.core.context.SecurityContextHolder.getContext();
+        var authentication = context.getAuthentication();
+        if (authentication != null) context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                authentication.getName(), null, authentication.getAuthorities()));
+    }
+    @MockBean private com.cell.platform.infra.task.TaskJpaRepository imageTasks;
+    @MockBean private com.cell.platform.infra.crop.CropJpaRepository imageCrops;
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -47,7 +57,7 @@ class SubmissionControllerTest {
     class 답안_제출_API는 {
 
         @Test
-        @WithMockUser(roles = "STUDENT")
+        @WithMockUser(username = "student01", roles = "STUDENT")
         void 정상_요청이면_200을_반환한다() throws Exception {
             // given
             doNothing().when(submissionService).submit(any(), any(), any());
@@ -87,7 +97,7 @@ class SubmissionControllerTest {
     class 풀이_이력_조회_API는 {
 
         @Test
-        @WithMockUser(roles = "STUDENT")
+        @WithMockUser(username = "student01", roles = "STUDENT")
         void 풀이한_크롭_ID_목록을_반환한다() throws Exception {
             // given
             given(submissionService.getSolvedCropIds(1L, "student01"))
@@ -105,12 +115,12 @@ class SubmissionControllerTest {
     class 내_결과_조회_API는 {
 
         @Test
-        @WithMockUser(roles = "STUDENT")
+        @WithMockUser(username = "student01", roles = "STUDENT")
         void 정답률과_상세_결과를_반환한다() throws Exception {
             // given
             MyResultsResponse.Detail detail = MyResultsResponse.Detail.builder()
                     .cropId(1L).cropFilename("crop.jpg")
-                    .studentLabel("Lymphocyte").aiLabel("Lymphocyte")
+                    .studentLabel("Lymphocyte").correctLabel("Lymphocyte")
                     .isCorrect(true).build();
             MyResultsResponse response = MyResultsResponse.builder()
                     .total(1).correct(1).wrong(0).accuracy(100)

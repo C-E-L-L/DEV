@@ -8,6 +8,9 @@ import java.util.List;
 
 public interface TaskJpaRepository extends JpaRepository<TaskEntity, Long> {
 
+    @Query("select count(t) from TaskEntity t where t.originalFilename = :filename and t.status in :statuses")
+    long countVisibleImage(@Param("filename") String filename, @Param("statuses") List<com.cell.platform.domain.task.TaskStatus> statuses);
+
     List<TaskEntity> findAllByOrderByIdDesc();
 
     @Query("""
@@ -21,4 +24,11 @@ public interface TaskJpaRepository extends JpaRepository<TaskEntity, Long> {
 
     @Query("select t.id from TaskEntity t where t.uploadedFilename like concat(:prefix, '%')")
     List<Long> findIdsByUploadedFilenameStartingWith(@Param("prefix") String prefix);
+
+    List<TaskEntity> findAllByAssignmentId(Long assignmentId);
+
+    List<TaskEntity> findAllByAnimalSpeciesIsNull();
+
+    @Query("select t.id from TaskEntity t where t.assignmentId = :assignmentId")
+    List<Long> findIdsByAssignmentId(@Param("assignmentId") Long assignmentId);
 }
