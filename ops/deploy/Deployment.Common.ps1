@@ -95,7 +95,17 @@ function Save-ReleaseAsset($Release, [string]$Name, [string]$Destination) {
     if ($assets[0].browser_download_url -cne $expected -or $assets[0].size -gt 1048576) {
         throw 'Unexpected release asset URL or size.'
     }
-    Invoke-WebRequest -UseBasicParsing -Uri $expected -OutFile $Destination -TimeoutSec 60
+    # curl handles GitHub's release-asset CDN redirects reliably on Windows PowerShell 5.
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($null -eq $curl) { $curl = Get-Command curl -CommandType Application -ErrorAction Stop }
+    $savedPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $downloadError = & $curl.Source --fail --silent --show-error --location --connect-timeout 10 --max-time 60 --output ($Destination + '.download') $expected 2>&1
+        $downloadExit = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $savedPreference }
+    if ($downloadExit -ne 0) { throw ('Release download failed: ' + ($downloadError -join ' ')) }
+    Move-Item -LiteralPath ($Destination + '.download') -Destination $Destination -Force
 }
 
 function Assert-ProductionMounts {
