@@ -37,6 +37,24 @@ const PATHS = {
   download: <><path d="M12 4v12M7 11l5 5 5-5" /><path d="M4 20h16" /></>,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  // Professor console
+  grid: <><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></>,
+  clipboard: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4h6v3H9zM9 12h6M9 16h4" /></>,
+  users: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.1.8 3.5 2.7 3.5 5.7" /></>,
+  help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01" /></>,
+  settings: <><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></>,
+  logout: <><path d="M10 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4" /><path d="M15 8l4 4-4 4M19 12H9" /></>,
+  bell: <><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
+  search: <><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  checkCircle: <><circle cx="12" cy="12" r="9" /><path d="M8.5 12.5l2.5 2.5 4.5-5" /></>,
+  plusCircle: <><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></>,
+  panelLeft: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
+  history: <><path d="M4 12a8 8 0 1 0 2.6-5.9L4 8.5" /><path d="M4 4v4.5h4.5M12 8v4.5l3 1.8" /></>,
+  send: <><path d="M20 4L3 11l7 3 3 7z" /><path d="M10 14L20 4" /></>,
+  alarm: <><circle cx="12" cy="13" r="7" /><path d="M12 9.5V13l2.5 1.5M5 4L2.5 6.5M19 4l2.5 2.5" /></>,
+  bot: <><rect x="5" y="8" width="14" height="11" rx="3" /><path d="M12 8V4.5M9.5 13v1.5M14.5 13v1.5" /><circle cx="12" cy="3.5" r="1" /></>,
+  edit: <><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" /><path d="M14 8l3 3" /></>,
 };
 
 export default function Icon({ name, size = 16, className }) {

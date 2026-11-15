@@ -32,7 +32,7 @@ function LoadState({ request }) {
   );
 }
 
-export default function StudentManagement() {
+export default function StudentManagement({ showRegistration = true }) {
   const [species, setSpecies] = useState([]);
   const [speciesId, setSpeciesId] = useState('');
   const [source, setSource] = useState('INITIAL');
@@ -50,7 +50,7 @@ export default function StudentManagement() {
 
   return (
     <div className="student-management">
-      <StudentRegistration onChanged={request.reload} />
+      {showRegistration && <StudentRegistration onChanged={request.reload} />}
       <div className="sm-heading"><div><h3>학생 관리</h3><p>학생별 학습 이력과 채점 결과를 확인합니다.</p></div><button onClick={request.reload} disabled={request.loading}>새로고침</button></div>
       <div className="sm-filters">
         <label>동물 종 <select value={speciesId} onChange={e => {setSpeciesId(e.target.value);setSchema('');}}>{species.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>

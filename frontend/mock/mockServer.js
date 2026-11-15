@@ -380,7 +380,7 @@ function serveImage(pathname, res) {
   res.end(svg);
 }
 
-const professor = createProfessorMock({tasks,cropStats,species:()=>animalSpecies,users:()=>mockUsers,roster:()=>mockRoster,students:analyticsStudents,answersFor,finalized:(...args)=>coursework.finalized(...args),labels:CELL_LABELS,json,readJson});
+const professor = createProfessorMock({tasks,cropStats,species:()=>animalSpecies,users:()=>mockUsers,roster:()=>mockRoster,students:analyticsStudents,answersFor,finalized:(...args)=>coursework.finalized(...args),labels:CELL_LABELS,json,readJson,reports:()=>mockReports});
 const coursework = createCourseworkMock({ classLabelsFor:professor.activeLabels, tasks, cropStats, species: () => animalSpecies, labels: CELL_LABELS, makeCrop, cropDto, answersFor, json, readJson, reviewFor });
 
 export function mockServerPlugin() {

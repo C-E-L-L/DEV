@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 
-export default function StudentRegistration({ onChanged }) {
+export default function StudentRegistration({ onChanged, defaultOpen = false }) {
   const [roster, setRoster] = useState([]);
   const [ids, setIds] = useState('');
   const [account, setAccount] = useState({ username: '', name: '', password: '' });
@@ -23,7 +23,7 @@ export default function StudentRegistration({ onChanged }) {
     } catch (error) { setMessage(error.response?.data?.message || '학생 등록에 실패했습니다.'); }
     finally { setBusy(false); }
   };
-  return <details className="pw-card"><summary>학생 등록 및 계정 만들기</summary>
+  return <details className="pw-card" open={defaultOpen || undefined}><summary>학생 등록 및 계정 만들기</summary>
     <p>명단에 학번을 등록하면 해당 학번으로 학생이 가입할 수 있습니다. 직접 계정을 만들 수도 있습니다.</p>
     <form onSubmit={event => submit(event, 'roster')}>
       <label className="pw-field">가입 허용 학번 목록<textarea required value={ids} onChange={event => setIds(event.target.value)} placeholder="줄바꿈 또는 쉼표로 여러 학번 입력" disabled={busy} /></label>
@@ -35,6 +35,6 @@ export default function StudentRegistration({ onChanged }) {
       <button disabled={busy}>학생 계정 생성</button>
     </form>
     {message && <p role="status">{message}</p>}
-    <p>가입 허용 명단 {roster.length}명</p><div className="pw-actions">{roster.map(item => <span className="pw-badge" key={item.id}>{item.studentId} · {item.claimedUserId ? '가입 완료' : '가입 대기'}</span>)}</div>
+    <p>가입 허용 명단 {roster.length}명</p><div className="pw-actions">{roster.map(item => <span className="pw-badge" key={item.id}>{item.studentId}{item.name ? ` ${item.name}` : ''}{item.section ? ` · ${item.section}` : ''} · {item.claimedUserId ? '가입 완료' : '가입 대기'}</span>)}</div>
   </details>;
 }

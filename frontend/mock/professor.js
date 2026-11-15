@@ -1,6 +1,6 @@
 import {isDiagnostic,isPublished} from '../src/utils/coursework.js';
 
-export function createProfessorMock({tasks,cropStats,species,users,roster,students,answersFor,finalized,labels,json,readJson}) {
+export function createProfessorMock({tasks,cropStats,species,users,roster,students,answersFor,finalized,labels,json,readJson,reports=()=>[]}) {
   const catalogs=new Map();
   const classes=id=>{id=Number(id);if(!catalogs.has(id))catalogs.set(id,labels.map((code,i)=>({id:id*1000+i+1,speciesId:id,code,name:code,active:true})));return catalogs.get(id);};
   const activeLabels=id=>Object.fromEntries(classes(id).filter(c=>c.active).map(c=>[c.code,c.name]));
@@ -41,6 +41,43 @@ export function createProfessorMock({tasks,cropStats,species,users,roster,studen
         for(const task of chosen)for(const cell of cropStats.get(task.id)||[]){const answer=answersFor(student.studentId)[cell.cropId];if(cell.excluded||!cell.finalLabel||!answer)continue;if(answer==='UNKNOWN'){unknownCount++;continue;}if(!confusionMatrix[cell.finalLabel]||!codes.includes(answer))continue;confusionMatrix[cell.finalLabel][answer]++;sampleCounts[cell.finalLabel]++;totalSolved++;if(answer===cell.finalLabel)correct++;}
         return {...student,confusionMatrix,sampleCounts,totalSolved,accuracy:totalSolved?Math.floor(correct*100/totalSolved):0,unknownCount,sourceTaskIds:chosen.map(t=>t.id),missingClasses:codes.filter(c=>!sampleCounts[c])};
       });json(res,{speciesId:animal.id,speciesName:animal.name,source,schema:selected,schemas,labels:codes,studentMatrices});return true;
+    }
+    // Professor console: class list import, submission progress, activity feed (same shapes as the backend).
+    if(path==='/api/professor/students/roster/import'&&req.method==='POST'){
+      let added=0,updated=0,skipped=0;const seen=new Set();
+      for(const row of (await readJson(req)).rows||[]){
+        const studentId=String(row?.studentId||'').trim(),name=row?.name?.trim()||null,section=row?.section?.trim()||null;
+        if(!studentId||seen.has(studentId)){skipped++;continue;}seen.add(studentId);
+        const existing=roster().find(s=>s.studentId===studentId);
+        if(!existing){roster().push({id:Math.max(...roster().map(s=>s.id),0)+1,studentId,name,section,registeredBy:user.username,claimedUserId:null,createdAt:new Date().toISOString()});added++;}
+        else if((name&&name!==existing.name)||(section&&section!==existing.section)){Object.assign(existing,{name:name||existing.name,section:section||existing.section});updated++;}
+        else skipped++;
+      }
+      json(res,{added,updated,skipped});return true;
+    }
+    const scopes=()=>{const groups=new Map();for(const t of [...tasks].sort((a,b)=>b.id-a.id)){if(!isPublished(t))continue;const key=t.assignmentId?`A${t.assignmentId}`:`T${t.id}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(t);}return [...groups.values()];};
+    const title=t=>t.title||(isDiagnostic(t)?'진단평가':t.uploadedFilename||`Task #${t.id}`);
+    const deadline=group=>group.map(t=>t.deadlineAt).filter(Boolean).sort()[0]||null;
+    if(path==='/api/professor/progress'){
+      const section=id=>roster().find(s=>s.studentId===id)?.section||null;
+      const list=students().map(s=>({studentId:s.studentId,name:s.studentName||null,section:section(s.studentId),registered:true}));
+      for(const entry of roster())if(!list.some(s=>s.studentId===entry.studentId))list.push({studentId:entry.studentId,name:entry.name||null,section:entry.section||null,registered:false});
+      list.sort((a,b)=>a.studentId.localeCompare(b.studentId));
+      // The mock keeps no submission time, so finalizedAt is null.
+      const items=scopes().map(group=>({id:group[0].id,assignmentId:group[0].assignmentId||null,taskIds:group.map(t=>t.id),title:title(group[0]),kind:isDiagnostic(group[0])?'DIAGNOSTIC':'PRACTICE',deadlineAt:deadline(group),
+        submitted:list.filter(s=>s.registered&&finalized(group,s.studentId)).map(s=>({studentId:s.studentId,finalizedAt:null}))}));
+      json(res,{students:list,items});return true;
+    }
+    if(path==='/api/professor/activity'){
+      const name=id=>students().find(s=>s.studentId===id)?.studentName||null,events=[];
+      for(const group of scopes()){const due=deadline(group);if(!due||new Date(due)>new Date())continue;
+        const pendingLabels=group.flatMap(t=>cropStats.get(t.id)||[]).filter(c=>!c.excluded&&!c.finalLabel).length;
+        events.push({id:`D-${group[0].id}-${due}`,type:'DEADLINE_PASSED',at:due,taskId:group[0].id,title:title(group[0]),pendingLabels});}
+      for(const report of reports()){const task=tasks.find(t=>t.id===report.taskId);
+        events.push({id:`Q-${report.id}`,type:'QUESTION',at:report.createdAt,taskId:report.taskId,title:task?title(task):null,studentId:report.studentId,studentName:name(report.studentId),reportId:report.id,detail:report.reason.slice(0,80),answered:Boolean(report.replies?.length)});}
+      events.sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+      const limit=Math.max(1,Math.min(Number(url.searchParams.get('limit'))||30,100));
+      json(res,{events:events.slice(0,limit),unansweredReports:reports().filter(r=>!r.replies?.length).length});return true;
     }
     return fail(res,'지원하지 않는 요청입니다.',404);
   }

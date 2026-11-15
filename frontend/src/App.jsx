@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Routes, Route, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { NavBar } from './components/common';
 import { useAuth } from './context/AuthContext';
@@ -6,23 +6,33 @@ import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import StudentPage from './pages/StudentPage';
 import StudentMyPage from './pages/StudentMyPage';
-import ExpertPage from './pages/ProfessorWorkspace';
+import ProfessorApp from './pages/professor/ProfessorApp';
 import AdminPage from './pages/AdminPage';
 import BombGamePage from './pages/BombGamePage';
 
+// A data router (instead of <BrowserRouter>) so screens can ask before leaving unsaved work (useBlocker).
+const router = createBrowserRouter([{ path: '*', element: <Root /> }]);
+
 export default function App() {
+  return <RouterProvider router={router} />;
+}
+
+function Root() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route
-            path="/game"
-            element={<ProtectedRoute allowedRole="ADMIN"><BombGamePage /></ProtectedRoute>}
-          />
-          <Route path="*" element={<MainLayout />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <Routes>
+        <Route
+          path="/game"
+          element={<ProtectedRoute allowedRole="ADMIN"><BombGamePage /></ProtectedRoute>}
+        />
+        {/* The professor console has its own frame (sidebar + top bar) instead of the shared NavBar. */}
+        <Route
+          path="/expert/*"
+          element={<ProtectedRoute allowedRole="EXPERT"><ProfessorApp /></ProtectedRoute>}
+        />
+        <Route path="*" element={<MainLayout />} />
+      </Routes>
+    </AuthProvider>
   );
 }
 
@@ -41,10 +51,6 @@ function MainLayout() {
           <Route
             path="/student/my-page"
             element={<ProtectedRoute allowedRole="STUDENT"><StudentMyPage /></ProtectedRoute>}
-          />
-          <Route
-            path="/expert"
-            element={<ProtectedRoute allowedRole="EXPERT"><ExpertPage /></ProtectedRoute>}
           />
           <Route
             path="/admin"
