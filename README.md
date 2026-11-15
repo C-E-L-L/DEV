@@ -1,5 +1,7 @@
 [Coursework workflow, migration and verification](COURSEWORK_WORKFLOW.md)
 
+[실제 백엔드·DB·AI를 사용하는 로컬 서버 실행 가이드](LOCAL_SERVER.md)
+
 # C.E.L.L. Platform
 
 **Hierarchical Human-in-the-Loop (HITL) Labeling Platform for WBC Dataset Construction and Education**
