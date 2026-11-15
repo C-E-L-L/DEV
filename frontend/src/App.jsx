@@ -4,8 +4,7 @@ import { NavBar } from './components/common';
 import { useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
-import StudentPage from './pages/StudentPage';
-import StudentMyPage from './pages/StudentMyPage';
+import StudentApp from './pages/student/StudentApp';
 import ProfessorApp from './pages/professor/ProfessorApp';
 import AdminPage from './pages/AdminPage';
 import BombGamePage from './pages/BombGamePage';
@@ -30,6 +29,11 @@ function Root() {
           path="/expert/*"
           element={<ProtectedRoute allowedRole="EXPERT"><ProfessorApp /></ProtectedRoute>}
         />
+        {/* So does the student console. */}
+        <Route
+          path="/student/*"
+          element={<ProtectedRoute allowedRole="STUDENT"><StudentApp /></ProtectedRoute>}
+        />
         <Route path="*" element={<MainLayout />} />
       </Routes>
     </AuthProvider>
@@ -44,14 +48,6 @@ function MainLayout() {
         <Routes>
           <Route path="/" element={<LoginRedirect><LandingPage /></LoginRedirect>} />
           <Route path="/login" element={<LoginRedirect><LoginPage /></LoginRedirect>} />
-          <Route
-            path="/student"
-            element={<ProtectedRoute allowedRole="STUDENT"><StudentPage /></ProtectedRoute>}
-          />
-          <Route
-            path="/student/my-page"
-            element={<ProtectedRoute allowedRole="STUDENT"><StudentMyPage /></ProtectedRoute>}
-          />
           <Route
             path="/admin"
             element={<ProtectedRoute allowedRole="ADMIN"><AdminPage /></ProtectedRoute>}
