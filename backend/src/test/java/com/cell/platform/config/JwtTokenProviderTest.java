@@ -28,6 +28,17 @@ class JwtTokenProviderTest {
         }
     }
 
+    @Test
+    void credentialVersionAcceptsLegacyTokensWithoutVersionAndPreservesNewVersion() {
+        var key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(
+                "test-secret-key-must-be-at-least-32-bytes-long!!".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String legacy = io.jsonwebtoken.Jwts.builder().subject("student01").claim("role", "STUDENT")
+                .expiration(new java.util.Date(System.currentTimeMillis() + 60000)).signWith(key).compact();
+        assertThat(jwtTokenProvider.isValid(legacy)).isTrue();
+        assertThat(jwtTokenProvider.getCredentialVersion(legacy)).isZero();
+        assertThat(jwtTokenProvider.getCredentialVersion(jwtTokenProvider.generateToken("student01", "STUDENT", 3))).isEqualTo(3);
+    }
+
     @Nested
     class getUsername_메서드는 {
 

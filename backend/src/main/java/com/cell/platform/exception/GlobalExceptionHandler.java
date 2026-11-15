@@ -57,6 +57,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(message, ErrorCode.G000.name()));
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(Exception e) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of(
+                "요청 형식 또는 선택한 값이 올바르지 않습니다.", ErrorCode.G000.name()));
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

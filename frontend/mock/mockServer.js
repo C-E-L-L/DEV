@@ -460,6 +460,18 @@ export function mockServerPlugin() {
             });
           });
 
+          // Smears already on the server: copied into the new coursework with their labels.
+          for (const sourceId of [...new Set((multipart.fields.sourceTaskIds || []).map(Number))]) {
+            const source = tasks.find(task => task.id === sourceId && task.originalFilename);
+            if (!source) { json(res, { message: '도말 이미지가 있는 분류 실습 자료만 가져올 수 있습니다.' }, 400); return; }
+            const task = { ...source, id: Math.max(...tasks.map(item => item.id), 0) + 1, assignmentId, title, status: 'DRAFT', kind: 'PRACTICE', revision: 0, requireLabels: false, publishedAt: null, deadlineAt, createdAt: new Date().toISOString() };
+            tasks.push(task);
+            const crops = (cropStats.get(sourceId) || []).map((crop, index) => ({ ...structuredClone(crop), taskId: task.id, cropId: task.id * 1000 + index + 1, totalAnswers: 0, voteDistribution: {}, votersByLabel: {} }));
+            cropStats.set(task.id, crops);
+            createdTasks.push({ taskId: task.id, originalImage: task.originalFilename, speciesId: task.speciesId, speciesCode: task.speciesCode, speciesName: task.speciesName, totalDetected: crops.length, crops: crops.map(crop => cropDto(crop)) });
+          }
+          if (!createdTasks.length) { json(res, { message: '도말 이미지를 최소 1장 선택해 주세요.' }, 400); return; }
+
           json(res, {
             assignmentId,
             title,

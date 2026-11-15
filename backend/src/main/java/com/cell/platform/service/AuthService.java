@@ -54,7 +54,7 @@ public class AuthService {
         User user = findUserByUsername(request.username());
         validatePassword(request.password(), user.getPassword());
         validateLoginStatus(user);
-        String token = jwtTokenProvider.generateToken(user.getUsername(), user.getRole().name());
+        String token = jwtTokenProvider.generateToken(user.getUsername(), user.getRole().name(), user.getCredentialVersion());
         return LoginResponse.of(token, user.getRole().name(), user.getUsername(), user.getName());
     }
 

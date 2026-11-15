@@ -1,3 +1,4 @@
+import { useConsoleBase } from '../../components/console/ConsoleContext';
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { taskApi } from '../../api';
@@ -44,6 +45,7 @@ function DeadlineEditor({ group, deadline, onSaved, onError }) {
 
 /** Coursework list for one phase (sidebar: 임시 저장 / 진행중 / 완료). */
 export default function AssignmentsPage({ phase }) {
+  const basePath = useConsoleBase();
   const navigate = useNavigate();
   const { groups, loading, progress, progressByTask, reload } = useProfessorData();
   const [error, setError] = useState('');
@@ -67,7 +69,7 @@ export default function AssignmentsPage({ phase }) {
   };
 
   return <div className="professor-workspace prof-embedded">
-    <div className="pw-section-heading"><div><h2>{page.title}</h2><p>{page.text}</p></div><button className="pw-primary" onClick={() => navigate('/expert/assignments/new')}>+ 과제 만들기</button></div>
+    <div className="pw-section-heading"><div><h2>{page.title}</h2><p>{page.text}</p></div><button className="pw-primary" onClick={() => navigate(`${basePath}/assignments/new`)}>+ 과제 만들기</button></div>
     {error && <div role="alert" className="pw-error">{error}</div>}
     {loading ? <p role="status">과제를 불러오는 중…</p> : !shown.length ? <div className="pw-empty">{page.empty}</div> : <div className="pw-cards">{shown.map(group => {
       const deadline = courseworkDeadline(group);
@@ -80,11 +82,11 @@ export default function AssignmentsPage({ phase }) {
         <p>{[...new Set(group.tasks.map(t => t.speciesName))].join(', ')} · {isDiagnostic(group) ? '' : `도말 ${group.tasks.length}장 · `}{group.cropCount}문항</p>
         <p>정답 확정 {group.labeledCount}/{group.cropCount} · 출제 제외 {group.excludedCount}</p>
         <p>{deadline ? `마감 ${new Date(deadline).toLocaleString('ko-KR')}` : '마감일 없음'}</p>
-        {phase !== 'DRAFT' && <p>{summary.total ? <>제출 {summary.submitted}/{summary.total}명{summary.missing.length > 0 && <> · <Link className="prof-inline-link" to={`/expert/students/progress?item=${group.id}`}>미제출 {summary.missing.length}명 보기</Link></>}</> : '등록된 학생 없음'}</p>}
+        {phase !== 'DRAFT' && <p>{summary.total ? <>제출 {summary.submitted}/{summary.total}명{summary.missing.length > 0 && <> · <Link className="prof-inline-link" to={`${basePath}/students/progress?item=${group.id}`}>미제출 {summary.missing.length}명 보기</Link></>}</> : '등록된 학생 없음'}</p>}
         <div className="pw-actions">
           {phase === 'DRAFT'
-            ? <button className="pw-primary" disabled={busy} onClick={() => navigate(`/expert/assignments/${group.id}/edit`)}>이어서 준비하기</button>
-            : <button disabled={busy} onClick={() => navigate(`/expert/assignments/${group.id}/results`)}>응답·채점 결과</button>}
+            ? <button className="pw-primary" disabled={busy} onClick={() => navigate(`${basePath}/assignments/${group.id}/edit`)}>이어서 준비하기</button>
+            : <button disabled={busy} onClick={() => navigate(`${basePath}/assignments/${group.id}/results`)}>응답·채점 결과</button>}
           {phase === 'ACTIVE' && <DeadlineEditor group={group} deadline={deadline} onSaved={() => reload({ silent: true })} onError={setError} />}
           <button className="prof-danger" disabled={busy} onClick={() => remove(group)}>{busy ? '삭제 중…' : '삭제'}</button>
         </div>

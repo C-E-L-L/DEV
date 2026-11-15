@@ -1,9 +1,11 @@
+import Announcements from '../../components/Announcements';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import Icon from '../../components/login/icons';
 import { professorApi } from '../../api/professor';
 import { isDiagnostic } from '../../utils/coursework';
+import { pageNumbers, paginate } from '../../utils/smearData';
 import {
   classAccuracy, courseworkDeadline, courseworkPhase, courseworkTitle, deadlineInfo,
   pendingLabelCount, studentLabel, submissionSummary,
@@ -12,6 +14,8 @@ import ActivityList from './ActivityList';
 import { useProfessorData } from './ProfessorData';
 
 const FILTERS = [['ALL', '전체'], ['ACTIVE', '진행중'], ['GRADING', '채점 대기']];
+// Keeps the card short; the rest is reached with the page buttons under the table.
+const PAGE_SIZE = 6;
 
 function SubmissionCell({ group }) {
   const { progress, progressByTask } = useProfessorData();
@@ -36,6 +40,7 @@ function SubmissionCell({ group }) {
 function CourseworkTable() {
   const { groups, loading } = useProfessorData();
   const [filter, setFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
   const now = new Date();
   // What needs attention: open coursework, plus closed coursework that still waits for answers to be confirmed.
   const rows = groups.map(group => ({ group, phase: courseworkPhase(group, now), pending: pendingLabelCount(group), deadline: courseworkDeadline(group) }))
@@ -43,7 +48,9 @@ function CourseworkTable() {
     .sort((a, b) => (a.phase === b.phase ? 0 : a.phase === 'ACTIVE' ? -1 : 1)
       || (a.deadline || '9999').localeCompare(b.deadline || '9999') || b.group.id - a.group.id);
   const matches = { ALL: () => true, ACTIVE: row => row.phase === 'ACTIVE', GRADING: row => row.pending > 0 };
-  const shown = rows.filter(matches[filter]);
+  const filtered = rows.filter(matches[filter]);
+  const paged = paginate(filtered, page, PAGE_SIZE);
+  const shown = paged.items;
 
   return (
     <section className="prof-card" aria-labelledby="dash-coursework">
@@ -51,14 +58,14 @@ function CourseworkTable() {
         <h2 id="dash-coursework"><Icon name="clock" size={17} />진행중인 과제 현황</h2>
         <div className="prof-tabs" role="group" aria-label="과제 필터">
           {FILTERS.map(([key, label]) => (
-            <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}>
+            <button key={key} type="button" aria-pressed={filter === key} onClick={() => { setFilter(key); setPage(1); }}>
               {label} <span className="prof-mono">({rows.filter(matches[key]).length})</span>
             </button>
           ))}
         </div>
       </header>
 
-      {loading ? <p role="status" className="prof-empty">과제를 불러오는 중…</p> : !shown.length ? (
+      {loading ? <p role="status" className="prof-empty">과제를 불러오는 중…</p> : !filtered.length ? (
         <div className="prof-empty">
           <p>{rows.length ? '해당하는 과제가 없습니다.' : '진행중인 과제가 없습니다.'}</p>
           {!rows.length && <Link to="/expert/assignments/new" className="prof-btn prof-btn--primary"><Icon name="plusCircle" size={15} />과제 만들기</Link>}
@@ -96,6 +103,19 @@ function CourseworkTable() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {paged.pages > 1 && (
+        <nav className="prof-pager prof-pager--inline" aria-label="진행중인 과제 페이지">
+          <span className="prof-muted">총 <strong className="prof-mono">{paged.total}</strong>개 중 <strong className="prof-mono">{paged.from}–{paged.to}</strong> 표시</span>
+          <div className="prof-pager__pages">
+            <button type="button" disabled={paged.page === 1} onClick={() => setPage(paged.page - 1)} aria-label="이전 페이지"><Icon name="chevronLeft" size={16} /></button>
+            {pageNumbers(paged.page, paged.pages).map((item, index) => (item === '…'
+              ? <span key={`gap-${index}`} className="prof-mono">…</span>
+              : <button key={item} type="button" className="prof-mono" aria-current={item === paged.page ? 'page' : undefined} onClick={() => setPage(item)}>{item}</button>))}
+            <button type="button" disabled={paged.page === paged.pages} onClick={() => setPage(paged.page + 1)} aria-label="다음 페이지"><Icon name="chevronRight" size={16} /></button>
+          </div>
+        </nav>
       )}
 
       <footer className="prof-card__foot">
@@ -224,6 +244,7 @@ export default function DashboardPage() {
   const { activity, activityLoaded } = useProfessorData();
   return (
     <>
+      <div style={{ marginBottom: 20 }}><Announcements /></div>
       <div className="prof-page-head">
         <div>
           <span className="prof-eyebrow prof-mono">교수 콘솔</span>

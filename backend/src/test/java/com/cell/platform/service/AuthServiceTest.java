@@ -68,7 +68,7 @@ class AuthServiceTest {
                     .id(1L).username("user").password("$hashed$").role(Role.STUDENT).build();
             given(userRepository.findByUsername("user")).willReturn(Optional.of(user));
             given(passwordEncoder.matches("pass", "$hashed$")).willReturn(true);
-            given(jwtTokenProvider.generateToken("user", "STUDENT")).willReturn("jwt-token");
+            given(jwtTokenProvider.generateToken("user", "STUDENT", 0L)).willReturn("jwt-token");
 
             LoginResponse response = authService.login(new LoginRequest("user", "pass"));
 

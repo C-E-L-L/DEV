@@ -1,3 +1,4 @@
+import { useConsoleBase } from '../../components/console/ConsoleContext';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Icon from '../../components/login/icons';
@@ -23,6 +24,7 @@ function StudentChips({ students, tone, empty }) {
 
 /** Per coursework: how many students have finally submitted, and who has not. */
 export default function StudentProgressPage() {
+  const basePath = useConsoleBase();
   const { groups, loading, progress, progressByTask } = useProfessorData();
   const [params, setParams] = useSearchParams();
   const [section, setSection] = useState('');
@@ -60,12 +62,12 @@ export default function StudentProgressPage() {
         {loading ? <p role="status" className="prof-empty">진행 상황을 불러오는 중…</p> : !published.length ? (
           <div className="prof-empty">
             <p>게시된 과제가 없습니다.</p>
-            <Link to="/expert/assignments/new" className="prof-btn prof-btn--primary"><Icon name="plusCircle" size={15} />과제 만들기</Link>
+            <Link to={`${basePath}/assignments/new`} className="prof-btn prof-btn--primary"><Icon name="plusCircle" size={15} />과제 만들기</Link>
           </div>
         ) : !progress.students.length ? (
           <div className="prof-empty">
             <p>등록된 학생이 없습니다.</p>
-            <Link to="/expert/students/register" className="prof-btn prof-btn--primary"><Icon name="userPlus" size={15} />학생 등록</Link>
+            <Link to={`${basePath}/students/register`} className="prof-btn prof-btn--primary"><Icon name="userPlus" size={15} />학생 등록</Link>
           </div>
         ) : (
           <ul className="prof-progress">
@@ -96,7 +98,7 @@ export default function StudentProgressPage() {
                       <StudentChips students={summary.missing} tone="amber" empty="모든 학생이 제출했습니다." />
                       <h3 className="prof-subhead">제출 <span className="prof-mono">{summary.done.length}</span>명</h3>
                       <StudentChips students={summary.done} tone="slate" empty="아직 제출한 학생이 없습니다." />
-                      <Link to={`/expert/assignments/${group.id}/results`} className="prof-link">응답·채점 결과 보기 <Icon name="arrowRight" size={14} /></Link>
+                      <Link to={`${basePath}/assignments/${group.id}/results`} className="prof-link">응답·채점 결과 보기 <Icon name="arrowRight" size={14} /></Link>
                     </div>
                   )}
                 </li>

@@ -19,6 +19,7 @@ import com.cell.platform.infra.assignment.AssignmentJpaRepository;
 import com.cell.platform.infra.matrix.ConfusionMatrixJpaRepository;
 import com.cell.platform.infra.report.CropIssueReportJpaRepository;
 import com.cell.platform.infra.submission.SubmissionJpaRepository;
+import com.cell.platform.util.Mapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,9 @@ public class TaskService {
     private final CropRepository cropRepository;
     private final AnimalSpeciesService animalSpeciesService;
     private final CellClassService cellClassService;
+    private final CourseworkService courseworkService;
+
+    private static final int MAX_ASSIGNMENT_SMEARS = 50;
 
     public List<TaskResponse> getAllTasks() {
         return getAllTasks(false);
@@ -130,9 +134,25 @@ public class TaskService {
     public AssignmentResponse createAssignment(String title, String expertUsername,
                                                List<MultipartFile> files, LocalDateTime deadlineAt,
                                                List<Long> speciesIds) {
+        return createAssignment(title, expertUsername, files, deadlineAt, speciesIds, null);
+    }
+
+    /**
+     * A practice coursework from newly uploaded smears, smears already on the server
+     * ({@code sourceTaskIds}, copied with their labels), or both. Uploaded smears come first in the response.
+     */
+    @Transactional
+    public AssignmentResponse createAssignment(String title, String expertUsername,
+                                               List<MultipartFile> files, LocalDateTime deadlineAt,
+                                               List<Long> speciesIds, List<Long> sourceTaskIds) {
         validateFutureDeadline(deadlineAt);
-        if (files == null || files.isEmpty()) {
+        if (files == null) files = List.of();
+        List<Long> sources = sourceTaskIds == null ? List.of() : sourceTaskIds.stream().distinct().toList();
+        if (files.isEmpty() && sources.isEmpty()) {
             throw new BadRequestException("도말 이미지를 최소 1장 선택해 주세요.", ErrorCode.G000);
+        }
+        if (files.size() + sources.size() > MAX_ASSIGNMENT_SMEARS) {
+            throw new BadRequestException("한 과제에는 도말을 " + MAX_ASSIGNMENT_SMEARS + "장까지 넣을 수 있습니다.", ErrorCode.G000);
         }
         if (speciesIds != null && !speciesIds.isEmpty() && speciesIds.size() != files.size()) {
             throw new BadRequestException("각 도말 이미지마다 동물 종을 선택해 주세요.", ErrorCode.G000);
@@ -168,6 +188,13 @@ public class TaskService {
             List<CropResponse> cropResponses = savedTask.getCrops().stream()
                     .map(CropResponse::from).toList();
             taskResponses.add(TaskUploadResponse.of(savedTask, filename, cropResponses));
+        }
+
+        for (Long sourceId : sources) {
+            Task reused = Mapper.convertToTask(courseworkService.reuseSmear(sourceId, assignment.getId(), title));
+            totalCrops += reused.getCrops().size();
+            taskResponses.add(TaskUploadResponse.of(reused, reused.getOriginalFilename(),
+                    reused.getCrops().stream().map(CropResponse::from).toList()));
         }
 
         return new AssignmentResponse(assignment.getId(), title, expertUsername,

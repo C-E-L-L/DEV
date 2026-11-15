@@ -10,6 +10,10 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, Long> {
 
     Optional<UserEntity> findByUsername(String username);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select u from UserEntity u where u.id = :id")
+    Optional<UserEntity> findForPasswordChange(@org.springframework.data.repository.query.Param("id") Long id);
+
     List<UserEntity> findAllByRole(Role role);
 
     boolean existsByUsername(String username);

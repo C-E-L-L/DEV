@@ -47,6 +47,7 @@ public class AdminService {
     private final UserJpaRepository userJpaRepository;
     private final StudentRosterJpaRepository studentRosterJpaRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LocalPasswordPolicy localPasswordPolicy;
 
     public List<AdminSmearResponse> getSmears() {
         List<TaskEntity> tasks = taskJpaRepository.findAllUploadedSmearsOrderByIdDesc();
@@ -103,7 +104,7 @@ public class AdminService {
     public List<UserResponse> getUsers() {
         return userRepository.findAll().stream()
                 .filter(u -> u.getRole() != Role.ADMIN)
-                .map(u -> new UserResponse(u.getId(), u.getUsername(), u.getName(), u.getRole().name(), u.getStatus().name(), u.getCreatedAt()))
+                .map(u -> new UserResponse(u.getId(), u.getUsername(), u.getName(), u.getRole().name(), u.getStatus().name(), u.getCreatedAt(), localPasswordPolicy.managed(u.getUsername())))
                 .toList();
     }
 
@@ -177,7 +178,7 @@ public class AdminService {
         }
         UserStatus status = parseStatus(request.status());
         user.changeStatus(status);
-        return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getRole().name(), user.getStatus().name(), user.getCreatedAt());
+        return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getRole().name(), user.getStatus().name(), user.getCreatedAt(), localPasswordPolicy.managed(user.getUsername()));
     }
 
     private UserStatus parseStatus(String value) {
@@ -209,6 +210,17 @@ public class AdminService {
             throw new BadRequestException("관리자 계정은 삭제할 수 없습니다.", ErrorCode.U003);
         }
         userRepository.deleteByUsername(username);
+    }
+
+    @Transactional
+    public void changePassword(Long id, String newPassword) {
+        UserEntity user = userJpaRepository.findForPasswordChange(id)
+                .orElseThrow(() -> new BadRequestException("존재하지 않는 사용자입니다.", ErrorCode.U001));
+        if (user.getRole() == Role.ADMIN) throw new BadRequestException("관리자 계정은 변경 대상이 아닙니다.", ErrorCode.U003);
+        if (localPasswordPolicy.managed(user.getUsername())) throw new BadRequestException("기본 로컬 계정은 settings.json에서 비밀번호를 변경하세요.", ErrorCode.U003);
+        if (newPassword.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72)
+            throw new BadRequestException("비밀번호는 UTF-8 기준 72바이트 이하여야 합니다.", ErrorCode.U003);
+        user.changePassword(passwordEncoder.encode(newPassword));
     }
 
     private Map<Long, Long> toCountMap(List<Object[]> rows) {

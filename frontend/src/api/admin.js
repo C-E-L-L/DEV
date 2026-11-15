@@ -1,6 +1,8 @@
 import api from './client';
 
 export const adminApi = {
+  dashboard: () => api.get('/admin/dashboard'),
+  changePassword: (userId, newPassword) => api.put(`/admin/users/${userId}/password`, { newPassword }),
   getSmears: () => api.get('/admin/smears'),
   getCrops: () => api.get('/admin/crops'),
   getUsers: () => api.get('/admin/users'),

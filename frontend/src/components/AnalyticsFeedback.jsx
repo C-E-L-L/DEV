@@ -187,8 +187,8 @@ function isDiagnosticTask(task) {
   return !task?.originalFilename || (task?.uploadedFilename || '').startsWith('diagnostic-');
 }
 
-export default function AnalyticsFeedback({ initialTaskId = null, courseworkOnly = false }) {
-  const [analyticsSubTab, setAnalyticsSubTab] = useState('tasks');
+export default function AnalyticsFeedback({ initialTaskId = null, courseworkOnly = false, initialTab = 'tasks', hideTabs = false }) {
+  const [analyticsSubTab, setAnalyticsSubTab] = useState(initialTab);
   const [tasks, setTasks] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(null);
@@ -499,7 +499,7 @@ export default function AnalyticsFeedback({ initialTaskId = null, courseworkOnly
   return (
         <div style={boxStyle}>
           {/* 서브탭 */}
-          {!courseworkOnly && <div style={subTabBar}>
+          {!courseworkOnly && !hideTabs && <div style={subTabBar}>
             <button onClick={() => setAnalyticsSubTab('tasks')} style={analyticsSubTab === 'tasks' ? subTabActive : subTabInactive}>📋 Tasks</button>
             <button onClick={() => setAnalyticsSubTab('cells')} style={analyticsSubTab === 'cells' ? subTabActive : subTabInactive}>🔬 Cells</button>
             <button onClick={() => setAnalyticsSubTab('students')} style={analyticsSubTab === 'students' ? subTabActive : subTabInactive}>🧑‍🎓 Students</button>

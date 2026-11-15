@@ -24,6 +24,16 @@ public class AdminController {
 
     private final AdminService adminService;
 
+    public record PasswordRequest(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(min=8,max=72) String newPassword) {
+        @Override public String toString() { return "PasswordRequest[newPassword=REDACTED]"; }
+    }
+
+    @PutMapping("/users/{userId}/password")
+    public ResponseEntity<Void> password(@PathVariable Long userId, @Valid @RequestBody PasswordRequest request) {
+        adminService.changePassword(userId, request.newPassword());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/smears")
     public ResponseEntity<List<AdminSmearResponse>> getSmears() {
         return ResponseEntity.ok(adminService.getSmears());
