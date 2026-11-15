@@ -1,0 +1,99 @@
+@startuml
+hide empty members
+skinparam packageStyle rectangle
+skinparam linetype ortho
+title 영속성·도메인 저장소 포트\n기준 juhun@94aeb1a / 정적 선언·의존
+package "com.cell.platform.domain.crop" {
+interface "CropRepository\nC-023" as C_023
+}
+package "com.cell.platform.domain.matrix" {
+interface "ConfusionMatrixRepository\nC-024" as C_024
+}
+package "com.cell.platform.domain.submission" {
+interface "SubmissionRepository\nC-026" as C_026
+}
+package "com.cell.platform.domain.task" {
+interface "TaskRepository\nC-028" as C_028
+}
+package "com.cell.platform.domain.user" {
+interface "UserRepository\nC-032" as C_032
+}
+package "com.cell.platform.entity" {
+class "AnimalSpeciesEntity\nC-084" as C_084
+class "AssignmentEntity\nC-085" as C_085
+class "CropEntity\nC-086" as C_086
+class "CropIssueReportEntity\nC-087" as C_087
+class "GameRecordEntity\nC-088" as C_088
+class "StudentConfusionMatrixEntity\nC-089" as C_089
+class "StudentRosterEntity\nC-090" as C_090
+class "SubmissionEntity\nC-091" as C_091
+class "TaskEntity\nC-092" as C_092
+class "UserEntity\nC-093" as C_093
+}
+package "com.cell.platform.infra.assignment" {
+interface "AssignmentJpaRepository\nC-106" as C_106
+}
+package "com.cell.platform.infra.crop" {
+class "CropCoreRepository\nC-107" as C_107
+interface "CropJpaRepository\nC-108" as C_108
+}
+package "com.cell.platform.infra.game" {
+interface "GameRecordJpaRepository\nC-109" as C_109
+}
+package "com.cell.platform.infra.matrix" {
+class "ConfusionMatrixCoreRepository\nC-110" as C_110
+interface "ConfusionMatrixJpaRepository\nC-111" as C_111
+}
+package "com.cell.platform.infra.report" {
+interface "CropIssueReportJpaRepository\nC-112" as C_112
+}
+package "com.cell.platform.infra.species" {
+interface "AnimalSpeciesJpaRepository\nC-113" as C_113
+}
+package "com.cell.platform.infra.submission" {
+class "SubmissionCoreRepository\nC-114" as C_114
+interface "SubmissionJpaRepository\nC-115" as C_115
+}
+package "com.cell.platform.infra.task" {
+class "TaskCoreRepository\nC-116" as C_116
+interface "TaskJpaRepository\nC-117" as C_117
+}
+package "com.cell.platform.infra.user" {
+interface "StudentRosterJpaRepository\nC-118" as C_118
+class "UserCoreRepository\nC-119" as C_119
+interface "UserJpaRepository\nC-120" as C_120
+}
+package "com.cell.platform.util" {
+class "Mapper\nC-139" as C_139
+}
+class "JpaRepository" as EXT_JpaRepository <<외부 또는 별도 명세>>
+C_086 --> C_092 : task
+C_091 --> C_086 : crop
+C_092 --> C_084 : animalSpecies
+C_092 --> C_086 : crops
+C_106 --|> EXT_JpaRepository
+C_107 --> C_108 : cropJpaRepository
+C_107 --> C_117 : taskJpaRepository
+C_107 ..|> C_023
+C_108 --|> EXT_JpaRepository
+C_109 --|> EXT_JpaRepository
+C_110 --> C_111 : jpaRepository
+C_110 ..|> C_024
+C_111 --|> EXT_JpaRepository
+C_112 --|> EXT_JpaRepository
+C_113 --|> EXT_JpaRepository
+C_114 --> C_115 : submissionJpaRepository
+C_114 --> C_108 : cropJpaRepository
+C_114 ..|> C_026
+C_115 --|> EXT_JpaRepository
+C_116 --> C_117 : taskJpaRepository
+C_116 --> C_113 : animalSpeciesJpaRepository
+C_116 ..|> C_028
+C_117 --|> EXT_JpaRepository
+C_118 --|> EXT_JpaRepository
+C_119 --> C_120 : userJpaRepository
+C_119 ..|> C_032
+C_120 --|> EXT_JpaRepository
+note "실선 참조는 명시 필드 타입, 상속/구현은 header 기준.\nLombok·프레임워크 생성 타입은 제외.\n멤버/콜백·전체 method 호출은 상세목록 참조.\n비정적 실행순서나 DB FK를 이 그림에서 추정하지 않는다." as N
+@enduml
+

@@ -1,0 +1,36 @@
+flowchart LR
+  subgraph FE["frontend (정적 React 빌드)"]
+    P["pages / App role routes"] --> Shared["components<br/>AnalyticsFeedback·StudentManagement·Review"]
+    P --> AP["api / createApiClient"]
+    Shared --> AP
+    AP --> Session["context / utils authSession"]
+    P --> Util["utils 계산 · hooks · constants"]
+    Mock["mock Vite plugin<br/>mode=mock만"] -.-> AP
+  end
+  subgraph BE["backend Spring 실행 프로세스"]
+    Sec["config JWT / Security / WebConfig"] --> Ctrl["controller + request/response DTO"]
+    Ctrl --> Svc["service 업무 조율"]
+    Svc --> Dom["domain 모델 / Repository interface"]
+    Dom --> Core["infra *CoreRepository (adapter)"]
+    Core --> JPA["infra *JpaRepository / entity / Mapper"]
+    Svc --> JPA
+    Svc --> Err["exception / GlobalExceptionHandler"]
+    Ctrl --> Err
+  end
+  subgraph AI["ai-server FastAPI"]
+    R["routers / models"] --> Pipe["PipelineService"]
+    Pipe --> Det["DetectorService"]
+    Pipe --> Cla["ClassifierService"]
+    Det --> ML["ModelLoader"]
+    Cla --> ML
+    Tools["tools 진단 GT 준비/검토<br/>오프라인·학습 아님"]
+    Retrain["retrain_router 부분 구현<br/>trainer 없음"]
+  end
+  AP -->|"/api HTTP"| Sec
+  Svc -->|"AiClientService HTTP"| R
+  JPA --> DB[("MySQL")]
+  Svc --> FS[("공유 data")]
+  Det --> FS
+  Tools -.-> FS
+  DICOM["독립 컬러화<br/>app.py · dicom_processing · persistence<br/>static app/roi_geometry"] --> DDB[("자체 SQLite/파일")]
+

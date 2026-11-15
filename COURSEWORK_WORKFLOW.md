@@ -73,6 +73,71 @@
 
 마이그레이션은 기존 과제를 게시 상태로 유지하고, 기존 클래스 구성을 저장하며, 이미 전체 응답·채점이 완료된 과제의 최종 제출 이력을 보정합니다. 새 업로드는 임시저장 상태로 시작합니다. 새 빈 DB는 JPA 스키마 생성 설정을 사용할 수 있습니다. MySQL에서의 실제 마이그레이션 실행 검증은 별도 환경에서 필요합니다.
 
+## 운영 서버 반영 순서와 롤백
+
+운영 컨테이너는 서버 PC의 `juhun` 폴더에서 `-p dev`로 빌드됩니다. 코드를 받는 것만으로는 운영에 반영되지 않고, 아래 순서대로 진행해야 반영됩니다.
+
+**SQL 적용 후 새 버전에서 데이터가 생기면 이전 백엔드는 그 DB를 읽지 못합니다.** 이전 백엔드는 마이그레이션된 스키마에서도 기동은 됩니다. 하지만 임시저장 과제가 1건만 생겨도 과제 목록 API가 500 오류(`No enum constant TaskStatus.DRAFT`)를 냅니다. `모르겠어요` 응답이나 새 세포 클래스도 같은 위험이 있습니다. 따라서 롤백은 코드만이 아니라 **DB 덤프 복원과 함께** 해야 합니다.
+
+2026-11-11에 운영 DB 덤프를 임시 MySQL 컨테이너에 복원해 아래 절차를 검증했습니다. SQL 2개 적용, 새 백엔드 `validate` 기동과 기존 과제 조회, 롤백 복원(행 수 일치), 이전 이미지 기동까지 확인했습니다.
+
+2026-11-11 운영 DB를 확인한 결과, **두 SQL 모두 아직 적용되지 않았습니다**(`crop_issue_replies`·`cell_classes`·`task_attempts` 테이블 없음, `tasks.status` 값 2개). `20261015_report_replies.sql` → `20261110_coursework_workflow.sql` 순서로 둘 다 적용합니다.
+
+### 미리 만들어 둔 되돌림 지점 (2026-11-11, 서버 PC)
+
+| 대상 | 이름 |
+| --- | --- |
+| 이전 코드 | Git 태그 `backup/juhun-before-coursework-20261111` (커밋 `3d126f7`) |
+| 이전 실행 이미지 | `dev-backend:pre-coursework-20261111`, `dev-frontend:pre-coursework-20261111` |
+| DB 기준점 | `C:\Users\isw31\CELL-Backups\2026-11-11_pre-coursework\celldb.sql` |
+
+DB 기준점에는 그 이후에 생긴 데이터가 없습니다. **SQL 적용 직전에 아래 2단계로 덤프를 새로 만드세요.** 되돌림 이미지가 지워지지 않도록 롤백 필요성이 없어질 때까지 `docker image prune -a`와 `docker system prune -a`를 실행하지 마세요.
+
+### 반영 (PowerShell, `juhun` 폴더, 학생 사용이 없는 시간)
+
+```powershell
+# 1. 백엔드 중지 (SQL 적용 중 쓰기 방지)
+docker compose -p dev -f docker-compose.yml -f ..\_migration\compose.restore.yml stop backend
+
+# 2. 직전 백업 + 완료 확인
+$dir = "C:\Users\isw31\CELL-Backups\$(Get-Date -Format 'yyyyMMdd-HHmm')-before-migration"
+New-Item -ItemType Directory -Path $dir -ErrorAction Stop
+docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysqldump --user=root --single-transaction --quick --routines --events --triggers --hex-blob --no-tablespaces --set-gtid-purged=OFF --default-character-set=utf8mb4 --databases celldb --result-file=/tmp/celldb.sql'
+docker cp dev-mysql-1:/tmp/celldb.sql "$dir\celldb.sql"
+Select-String -Path "$dir\celldb.sql" -Pattern 'Dump completed' -SimpleMatch   # 한 줄이 나와야 함
+
+# 3. SQL 적용 (순서 유지)
+docker cp backend\sql\20261015_report_replies.sql dev-mysql-1:/tmp/m1.sql
+docker cp backend\sql\20261110_coursework_workflow.sql dev-mysql-1:/tmp/m2.sql
+docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql --user=root --default-character-set=utf8mb4 celldb < /tmp/m1.sql'
+docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql --user=root --default-character-set=utf8mb4 celldb < /tmp/m2.sql'
+
+# 4. 새 버전 빌드·기동 후 로그 확인 (Started 확인, Schema-validation 오류 없음)
+docker compose -p dev -f docker-compose.yml -f ..\_migration\compose.restore.yml up -d --build backend frontend
+docker logs dev-backend-1 --tail 50
+```
+
+MySQL의 `ALTER TABLE`은 자동 커밋됩니다. 3단계 중간에 오류가 나면 일부만 적용된 상태가 남습니다. **같은 SQL을 다시 실행하지 말고** 아래 롤백으로 DB를 먼저 복원하세요.
+
+### 롤백 (이전 버전으로 되돌리기)
+
+```powershell
+# 1. 새 버전에서 생긴 데이터도 보관하려면 먼저 위 '2. 직전 백업'을 다른 폴더로 한 번 더 실행
+docker compose -p dev -f docker-compose.yml -f ..\_migration\compose.restore.yml stop backend
+
+# 2. DB 복원 ($dir = 반영 2단계에서 만든 폴더)
+docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysqladmin --user=root --force drop celldb'
+docker cp "$dir\celldb.sql" dev-mysql-1:/tmp/restore.sql
+docker exec dev-mysql-1 sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql --user=root --default-character-set=utf8mb4 < /tmp/restore.sql'
+
+# 3. 이전 이미지로 재기동 (빌드 없음)
+docker tag dev-backend:pre-coursework-20261111 dev-backend:latest
+docker tag dev-frontend:pre-coursework-20261111 dev-frontend:latest
+docker compose -p dev -f docker-compose.yml -f ..\_migration\compose.restore.yml up -d --no-build backend frontend
+```
+
+이후 `juhun` 폴더에서 다시 빌드하면 새 코드가 올라갑니다. 소스까지 되돌려야 하면 `git revert`로 이번 커밋들을 되돌리는 커밋을 만드세요. 강제 push는 하지 않습니다.
+
 ## 검증
 
 - 백엔드: `cd backend` → `./gradlew test` (Windows: `.\gradlew.bat test`) — **120개 통과**.

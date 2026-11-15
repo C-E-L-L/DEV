@@ -55,6 +55,13 @@ public class TaskService {
                 .toList();
     }
 
+    public List<TaskResponse> getTasksByAssignmentId(Long assignmentId, boolean studentView) {
+        return taskRepository.findByAssignmentId(assignmentId).stream()
+                .filter(task -> !studentView || task.isPublished())
+                .map(TaskResponse::from)
+                .toList();
+    }
+
     public Task getTaskById(Long id) {
         return taskRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(

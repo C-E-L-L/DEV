@@ -1,6 +1,7 @@
 package com.cell.platform.service;
 
 import com.cell.platform.domain.task.Task;
+import com.cell.platform.domain.task.TaskKind;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.dto.response.AiAnalysisResponse;
 import com.cell.platform.dto.response.TaskResponse;
@@ -51,6 +52,35 @@ class TaskServiceTest {
             List<TaskResponse> result = taskService.getAllTasks();
 
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    class getTasksByAssignmentId_메서드는 {
+
+        private List<Task> publishedAndDraft() {
+            Task published = TaskFixture.createDomain();
+            Task draft = TaskFixture.createDomain();
+            draft.prepareDraft(TaskKind.PRACTICE, "draft");
+            return List.of(published, draft);
+        }
+
+        @Test
+        void 교수_조회는_임시저장_Task도_포함한다() {
+            given(taskRepository.findByAssignmentId(1L)).willReturn(publishedAndDraft());
+
+            List<TaskResponse> result = taskService.getTasksByAssignmentId(1L, false);
+
+            assertThat(result).hasSize(2);
+        }
+
+        @Test
+        void 학생_조회는_게시된_Task만_반환한다() {
+            given(taskRepository.findByAssignmentId(1L)).willReturn(publishedAndDraft());
+
+            List<TaskResponse> result = taskService.getTasksByAssignmentId(1L, true);
+
+            assertThat(result).hasSize(1);
         }
     }
 

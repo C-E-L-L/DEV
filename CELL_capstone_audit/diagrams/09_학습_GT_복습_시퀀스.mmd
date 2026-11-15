@@ -1,0 +1,27 @@
+sequenceDiagram
+  actor S as 학생
+  actor E as 전문가/관리자
+  participant UI as StudentPage / AnalyticsFeedback
+  participant B as Spring Services
+  participant M as MySQL
+  S->>UI: 과제 선택
+  UI->>B: GET tasks/crops + 기존 제출
+  B-->>UI: 학생용crop(정답·AI 숨김) + 내 답안
+  S->>UI: 6개 클래스 중 선택
+  UI->>B: POST /api/submit(cropId,studentLabel), JWT
+  B->>B: principal 학생ID + 마감/완료잠금 검사
+  B->>M: 답안 upsert; 정답 있으면 행렬 갱신
+  B-->>UI: 200
+  UI-->>S: 진행률·다음 미응답 이동
+  E->>UI: GT Confirm 또는 수정/저장
+  UI->>B: PUT /api/crops/id/confirm
+  B->>M: finalLabel 변경 + 기존 제출 혼동행렬 차감/가산
+  B-->>UI: 200
+  UI->>B: 도말 통계 + 전체통계 재조회
+  Note over UI,B: 교수 Confirm은 같은crop 유지; ◀▶ 별도
+  S->>UI: 결과/학습 결과
+  UI->>B: GET my-results / student/reviews
+  B->>B: 일반: 전답변+전GT 또는 마감 / 진단: 전답변
+  B-->>UI: 내 답·GT·정오답·채점대기·복습
+  Note over B,M: VIA import는 별도 경로로 GT/final 갱신, 저장행렬 backfill 미호출
+

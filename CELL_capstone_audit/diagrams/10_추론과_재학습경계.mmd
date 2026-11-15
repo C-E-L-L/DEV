@@ -1,0 +1,14 @@
+flowchart TB
+  I["업로드 이미지"] --> Save["AI 원본 저장"] --> Y["YOLO weights 로드 모델"]
+  Y --> Box["box.xyxy 정수화"] --> Crop["OpenCV crop → UUID JPG"]
+  Crop --> Prep["BGR→RGB · Resize256x256 · ToTensor<br/>ImageNet mean/std"]
+  Prep --> Dense["DenseNet201 Linear6 · eval/no_grad"] --> Soft["softmax argmax · confidence4자리"]
+  Soft --> JSON["total_detected/cells 응답"] --> DB["Spring: pseudoLabel + aiClassificationConfidence"]
+  E["전문가 GT"] --> Final["finalLabel"] --> List["GET /api/training-data"]
+  List -.-> Router["/api/retrain 골격<br/>localhost/JWT 연동 문제"]
+  Router --> Ready["최소10건·파일확인·분포 → READY"]
+  Ready -.-> Missing["TODO: 학습 실행 → 평가 → 가중치 승격 → 서빙 갱신<br/>연결/구현 없음"]
+  Pseudo["PseudoLabelService<br/>행 정규화만"] -.-> Missing
+  Tools["오프라인 tools<br/>6클래스 GT crop/manifest 준비"] --> Manifest["진단평가 manifest"]
+  Note["점선은 미완성/계획 관계, 실선 추론 기능과 구분"] --- Missing
+
