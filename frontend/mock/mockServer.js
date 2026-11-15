@@ -383,6 +383,26 @@ function serveImage(pathname, res) {
 const professor = createProfessorMock({tasks,cropStats,species:()=>animalSpecies,users:()=>mockUsers,roster:()=>mockRoster,students:analyticsStudents,answersFor,finalized:(...args)=>coursework.finalized(...args),labels:CELL_LABELS,json,readJson,reports:()=>mockReports});
 const coursework = createCourseworkMock({ classLabelsFor:professor.activeLabels, tasks, cropStats, species: () => animalSpecies, labels: CELL_LABELS, makeCrop, cropDto, answersFor, json, readJson, reviewFor });
 
+const MOCK_ACCOUNT_NAMES = { ADMIN: '로컬 관리자', STUDENT: '로컬 테스트 학생', EXPERT: '로컬 테스트 교수' };
+
+/**
+ * Mock login. Like the real backend, an ID that is not an account fails. It used to fall back to
+ * the professor account, so a typo such as "professorstudent" silently opened the professor console.
+ * Accounts: the mock users, plus the sample students who answered coursework.
+ * Passwords are not checked: every mock account uses "local".
+ * Returns the session with its token, or null.
+ */
+export function mockLogin(rawUsername) {
+  const username = String(rawUsername ?? '').toLowerCase();
+  const knownUser = mockUsers.find(user => user.username === username);
+  const role = knownUser?.role || (analyticsStudents().some(user => user.studentId === username) ? 'STUDENT' : null);
+  if (!role) return null;
+  const accessToken = ['student', 'professor', 'admin'].includes(username) ? `local-mock-${role.toLowerCase()}-token` : `local-mock-${role.toLowerCase()}-${encodeURIComponent(username)}-token`;
+  const session = { username, name: knownUser?.name || MOCK_ACCOUNT_NAMES[role], role };
+  mockSessions.set(accessToken, session);
+  return { ...session, accessToken };
+}
+
 export function mockServerPlugin() {
   return {
     name: 'cell-local-mock-server',
@@ -404,14 +424,12 @@ export function mockServerPlugin() {
 
         if (req.method === 'POST' && pathname === '/api/auth/login') {
           const body = await readJson(req);
-          const username = String(body.username || 'professor').toLowerCase();
-          const knownUser = mockUsers.find(user => user.username === username);
-          const role = knownUser?.role || (analyticsStudents().some(user => user.studentId === username) ? 'STUDENT' : 'EXPERT');
-          const names = { ADMIN: '로컬 관리자', STUDENT: '로컬 테스트 학생', EXPERT: '로컬 테스트 교수' };
-          const accessToken = ['student', 'professor', 'admin'].includes(username) ? `local-mock-${role.toLowerCase()}-token` : `local-mock-${role.toLowerCase()}-${encodeURIComponent(username)}-token`;
-          const session = { username, name: knownUser?.name || names[role], role };
-          mockSessions.set(accessToken, session);
-          json(res, { ...session, accessToken });
+          const login = mockLogin(body.username);
+          if (!login) {
+            json(res, { message: '아이디 또는 비밀번호가 일치하지 않습니다. (mock 계정: student, professor, admin)', code: 'U001' }, 400);
+            return;
+          }
+          json(res, login);
           return;
         }
         if (await professor.handle(req,res,url,currentUser)) return;
