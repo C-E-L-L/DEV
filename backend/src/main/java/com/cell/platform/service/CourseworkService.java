@@ -68,10 +68,30 @@ public class CourseworkService {
     @Transactional
     public CourseworkResponse copy(Long id) {
         TaskEntity source = required(id);
+        TaskEntity target = duplicate(source, null, source.getTitle() + " (복사)", source.isRequireLabels());
+        return response(List.of(target));
+    }
+
+    /**
+     * Adds a smear that is already on the server to a new practice coursework. The image, cells and
+     * labels are copied into a new draft; the source task and its student history stay as they are.
+     */
+    @Transactional
+    public TaskEntity reuseSmear(Long sourceId, Long assignmentId, String title) {
+        TaskEntity source = required(sourceId);
+        boolean uploadedSmear = source.getKind() == TaskKind.PRACTICE && source.getOriginalFilename() != null
+                && !source.getOriginalFilename().isBlank()
+                && (source.getUploadedFilename() == null || !source.getUploadedFilename().startsWith("diagnostic-"));
+        if (!uploadedSmear) throw bad("도말 이미지가 있는 분류 실습 자료만 가져올 수 있습니다.");
+        return duplicate(source, assignmentId, title, false);
+    }
+
+    private TaskEntity duplicate(TaskEntity source, Long assignmentId, String title, boolean requireLabels) {
         TaskEntity target = TaskEntity.builder()
-                .status(TaskStatus.DRAFT).classLabels(source.getClassLabels()).kind(source.getKind()).title(source.getTitle() + " (복사)")
+                .status(TaskStatus.DRAFT).classLabels(source.getClassLabels()).kind(source.getKind()).title(title)
+                .assignmentId(assignmentId)
                 .originalFilename(source.getOriginalFilename()).uploadedFilename(source.getUploadedFilename())
-                .animalSpecies(source.getAnimalSpecies()).requireLabels(source.isRequireLabels()).build();
+                .animalSpecies(source.getAnimalSpecies()).requireLabels(requireLabels).build();
         for (CropEntity cell : source.getCrops()) {
             CropEntity copy = Mapper.convertToCropEntity(Mapper.convertToCrop(cell));
             // Build a new identity; source files are immutable and may be shared.
@@ -80,8 +100,7 @@ public class CourseworkService {
                     .aiBboxConfidence(copy.getAiBboxConfidence()).aiClassificationConfidence(copy.getAiClassificationConfidence())
                     .excluded(copy.isExcluded()).exclusionReason(copy.getExclusionReason()).build());
         }
-        tasks.saveAndFlush(target);
-        return response(List.of(target));
+        return tasks.saveAndFlush(target);
     }
 
     private void apply(List<TaskEntity> group, CourseworkSaveRequest request) {

@@ -93,3 +93,37 @@ export function deletionPlan(selected, all) {
   }
   return plan;
 }
+
+/**
+ * Smears on the server as one entry per image, for picking into a new practice coursework.
+ * A copy shares its image with the original, so tasks are grouped by the stored image file.
+ * `task` is the one whose labels are reused: the most confirmed answers, then the newest.
+ * `usedCount`: how many published practice courseworks used this image (drafts do not count).
+ */
+export function smearLibrary(tasks) {
+  const byImage = new Map();
+  for (const task of tasks) {
+    if (!task.originalFilename) continue;
+    const entry = byImage.get(task.originalFilename) || { key: task.originalFilename, tasks: [] };
+    entry.tasks.push(task);
+    byImage.set(task.originalFilename, entry);
+  }
+  return [...byImage.values()].map(({ key, tasks: group }) => {
+    const task = [...group].sort((a, b) => (b.labeledCount || 0) - (a.labeledCount || 0) || b.id - a.id)[0];
+    const used = group.filter(item => item.status !== 'DRAFT').sort((a, b) => b.id - a.id);
+    return {
+      key, task, name: smearName(task), speciesId: task.speciesId, speciesName: task.speciesName || task.speciesCode || '',
+      cropCount: task.cropCount || 0, labeledCount: task.labeledCount || 0,
+      usedCount: used.length, usedTitles: [...new Set(used.map(item => item.title).filter(Boolean))],
+      newestId: Math.max(...group.map(item => item.id)),
+    };
+  }).sort((a, b) => b.newestId - a.newestId);
+}
+
+/** `usage`: ALL, USED (in a published practice) or UNUSED. `query` matches the file name or a coursework title. */
+export function filterLibrary(items, { query = '', speciesId = '', usage = 'ALL' } = {}) {
+  const text = query.trim().toLowerCase();
+  return items.filter(item => (usage === 'ALL' || (usage === 'USED') === item.usedCount > 0)
+    && (!speciesId || String(item.speciesId) === String(speciesId))
+    && (!text || `${item.name} ${item.usedTitles.join(' ')}`.toLowerCase().includes(text)));
+}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  deletionPlan, filterSmears, labelState, labelStateCounts, pageNumbers, paginate, sortSmears, speciesOptions,
+  deletionPlan, filterLibrary, filterSmears, labelState, labelStateCounts, pageNumbers, paginate, smearLibrary, sortSmears, speciesOptions,
 } from './smearData.js';
 
 const tasks = [
@@ -48,4 +48,26 @@ test('species options list what is in the data', () => {
 test('deleting every smear of an assignment deletes the assignment', () => {
   assert.deepEqual(deletionPlan([tasks[0], tasks[2]], tasks), [{ type: 'task', id: 3 }, { type: 'task', id: 1 }]);
   assert.deepEqual(deletionPlan([tasks[0], tasks[1]], tasks), [{ type: 'assignment', id: 7 }]);
+});
+
+test('the smear library has one entry per image, with how often a published practice used it', () => {
+  const smears = [
+    { id: 1, originalFilename: 'a.png', uploadedFilename: 'dog-a.jpg', title: '1주차 실습', status: 'IN_PROGRESS', speciesId: 1, speciesName: '개', cropCount: 10, labeledCount: 10 },
+    { id: 2, originalFilename: 'a.png', uploadedFilename: 'dog-a.jpg', title: '1주차 실습 (복사)', status: 'DRAFT', speciesId: 1, speciesName: '개', cropCount: 10, labeledCount: 4 },
+    { id: 3, originalFilename: 'a.png', uploadedFilename: 'dog-a.jpg', title: '2주차 실습', status: 'ARCHIVED', speciesId: 1, speciesName: '개', cropCount: 10, labeledCount: 10 },
+    { id: 4, originalFilename: 'b.png', uploadedFilename: 'cat-b.jpg', title: '준비 중', status: 'DRAFT', speciesId: 2, speciesName: '고양이', cropCount: 6, labeledCount: 0 },
+    { id: 5, originalFilename: '', title: '진단평가', status: 'IN_PROGRESS' },
+  ];
+  const library = smearLibrary(smears);
+  assert.deepEqual(library.map(item => item.key), ['b.png', 'a.png']); // newest image first
+  const used = library[1];
+  assert.equal(used.task.id, 3); // most confirmed answers, then the newest
+  assert.deepEqual([used.usedCount, used.usedTitles, used.labeledCount, used.name], [2, ['2주차 실습', '1주차 실습'], 10, 'dog-a.jpg']);
+  assert.deepEqual([library[0].usedCount, library[0].usedTitles], [0, []]);
+
+  assert.deepEqual(filterLibrary(library, { usage: 'USED' }).map(item => item.key), ['a.png']);
+  assert.deepEqual(filterLibrary(library, { usage: 'UNUSED' }).map(item => item.key), ['b.png']);
+  assert.deepEqual(filterLibrary(library, { speciesId: '2' }).map(item => item.key), ['b.png']);
+  assert.deepEqual(filterLibrary(library, { query: '2주차' }).map(item => item.key), ['a.png']);
+  assert.deepEqual(filterLibrary(library, { query: 'cat', usage: 'USED' }), []);
 });

@@ -28,13 +28,14 @@ public class AssignmentController {
     @PreAuthorize("hasAnyRole('EXPERT','ADMIN')")
     public ResponseEntity<AssignmentResponse> createAssignment(
             @RequestParam("title") String title,
-            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "files", required = false) List<MultipartFile> files,
             @RequestParam(value = "deadlineAt", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime deadlineAt,
             @RequestParam(value = "speciesIds", required = false) List<Long> speciesIds,
+            @RequestParam(value = "sourceTaskIds", required = false) List<Long> sourceTaskIds,
             @AuthenticationPrincipal String username) {
         return ResponseEntity.ok(
-                taskService.createAssignment(title, username, files, deadlineAt, speciesIds)
+                taskService.createAssignment(title, username, files, deadlineAt, speciesIds, sourceTaskIds)
         );
     }
 

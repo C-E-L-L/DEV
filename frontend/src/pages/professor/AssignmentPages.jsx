@@ -23,14 +23,13 @@ export function AssignmentCreatePage() {
   const [params] = useSearchParams();
   // "도말 업로드" on the data page opens this form with the smear practice already chosen.
   const initialKind = params.get('kind') === 'practice' ? 'PRACTICE' : 'DIAGNOSTIC';
-  return <div className="professor-workspace prof-embedded">
-    {loading ? <p role="status">동물 종 정보를 불러오는 중…</p> : <CourseworkCreator key={initialKind}
-      species={species.filter(item => item.active !== false)}
-      initialKind={initialKind}
-      onCancel={goBack}
-      onCreated={id => { reload({ silent: true }); navigate(`${basePath}/assignments/${id}/edit`, { replace: true }); }}
-    />}
-  </div>;
+  if (loading) return <p role="status" className="prof-empty">동물 종 정보를 불러오는 중…</p>;
+  return <CourseworkCreator key={initialKind}
+    species={species.filter(item => item.active !== false)}
+    initialKind={initialKind}
+    onCancel={goBack}
+    onCreated={id => { reload({ silent: true }); navigate(`${basePath}/assignments/${id}/edit`, { replace: true }); }}
+  />;
 }
 
 export function AssignmentEditPage() {
