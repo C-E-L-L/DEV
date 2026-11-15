@@ -1,3 +1,4 @@
+import Announcements from '../../components/Announcements';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -224,6 +225,7 @@ export default function DashboardPage() {
   const { activity, activityLoaded } = useProfessorData();
   return (
     <>
+      <div style={{ marginBottom: 20 }}><Announcements /></div>
       <div className="prof-page-head">
         <div>
           <span className="prof-eyebrow prof-mono">교수 콘솔</span>

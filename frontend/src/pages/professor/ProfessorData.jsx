@@ -25,6 +25,7 @@ export function ProfessorDataProvider({ children }) {
   const [error, setError] = useState('');
   const [activity, setActivity] = useState({ events: [], unansweredReports: 0 });
   const [activityLoaded, setActivityLoaded] = useState(false);
+  const [activityError, setActivityError] = useState('');
   const request = useRef(0);
   const loadedAt = useRef(0);
 
@@ -50,8 +51,9 @@ export function ProfessorDataProvider({ children }) {
       const { data } = await professorApi.activity(30);
       setActivity(data);
       setActivityLoaded(true);
-    } catch {
-      // The feed is secondary: keep the last result and try again on the next poll.
+      setActivityError('');
+    } catch (error) {
+      if (!axios.isCancel(error)) setActivityError(errorMessage(error));
     }
   }, []);
 
@@ -75,9 +77,9 @@ export function ProfessorDataProvider({ children }) {
       species, tasks, groups, progress, loading, error, reload,
       progressByTask: indexProgress(progress),
       counts: courseworkCounts(groups),
-      activity, activityLoaded, reloadActivity,
+      activity, activityLoaded, activityError, reloadActivity,
     };
-  }, [species, tasks, progress, loading, error, reload, activity, activityLoaded, reloadActivity]);
+  }, [species, tasks, progress, loading, error, reload, activity, activityLoaded, activityError, reloadActivity]);
 
   return <ProfessorDataContext.Provider value={value}>{children}</ProfessorDataContext.Provider>;
 }

@@ -8,5 +8,10 @@ public record UserResponse(
         String name,
         String role,
         String status,
-        LocalDateTime createdAt
-) {}
+        LocalDateTime createdAt,
+        boolean passwordManagedBySettings
+) {
+    public UserResponse(Long id, String username, String name, String role, String status, LocalDateTime createdAt) {
+        this(id, username, name, role, status, createdAt, false);
+    }
+}

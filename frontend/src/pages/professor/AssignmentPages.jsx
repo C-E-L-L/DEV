@@ -1,3 +1,4 @@
+import { useConsoleBase } from '../../components/console/ConsoleContext';
 import { useCallback, useEffect, useRef } from 'react';
 import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AnalyticsFeedback from '../../components/AnalyticsFeedback';
@@ -15,26 +16,28 @@ function useGoBack(fallback) {
 }
 
 export function AssignmentCreatePage() {
+  const basePath = useConsoleBase();
   const navigate = useNavigate();
-  const goBack = useGoBack('/expert/assignments/drafts');
+  const goBack = useGoBack(`${basePath}/assignments/drafts`);
   const { species, loading, reload } = useProfessorData();
   const [params] = useSearchParams();
   // "도말 업로드" on the data page opens this form with the smear practice already chosen.
   const initialKind = params.get('kind') === 'practice' ? 'PRACTICE' : 'DIAGNOSTIC';
   return <div className="professor-workspace prof-embedded">
-    {loading ? <p role="status">동물 종 정보를 불러오는 중…</p> : <CourseworkCreator
+    {loading ? <p role="status">동물 종 정보를 불러오는 중…</p> : <CourseworkCreator key={initialKind}
       species={species.filter(item => item.active !== false)}
       initialKind={initialKind}
       onCancel={goBack}
-      onCreated={id => { reload({ silent: true }); navigate(`/expert/assignments/${id}/edit`, { replace: true }); }}
+      onCreated={id => { reload({ silent: true }); navigate(`${basePath}/assignments/${id}/edit`, { replace: true }); }}
     />}
   </div>;
 }
 
 export function AssignmentEditPage() {
+  const basePath = useConsoleBase();
   const { id } = useParams();
   const navigate = useNavigate();
-  const goBack = useGoBack('/expert/assignments/drafts');
+  const goBack = useGoBack(`${basePath}/assignments/drafts`);
   const { reload } = useProfessorData();
   const dirty = useRef(false);
 
@@ -53,14 +56,15 @@ export function AssignmentEditPage() {
     <CourseworkEditor key={id} id={Number(id)}
       onDirty={value => { dirty.current = value; }}
       onBack={() => { reload({ silent: true }); goBack(); }}
-      onPublished={() => { dirty.current = false; reload({ silent: true }); navigate('/expert/assignments/active', { replace: true }); }}
+      onPublished={() => { dirty.current = false; reload({ silent: true }); navigate(`${basePath}/assignments/active`, { replace: true }); }}
     />
   </div>;
 }
 
 export function AssignmentResultsPage() {
+  const basePath = useConsoleBase();
   const { id } = useParams();
-  const goBack = useGoBack('/expert/assignments/active');
+  const goBack = useGoBack(`${basePath}/assignments/active`);
   return <div className="professor-workspace prof-embedded">
     <button onClick={goBack}>← 과제 목록</button>
     <AnalyticsFeedback key={id} initialTaskId={Number(id)} courseworkOnly />

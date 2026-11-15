@@ -13,16 +13,18 @@ public class User {
     private String username;
     private String name;
     private String password;
+    private long credentialVersion;
     private Role role;
     private UserStatus status;
     private LocalDateTime createdAt;
 
     @Builder
-    public User(Long id, String username, String name, String password, Role role, UserStatus status, LocalDateTime createdAt) {
+    public User(Long id, String username, String name, String password, Role role, UserStatus status, LocalDateTime createdAt, long credentialVersion) {
         this.id = id;
         this.username = username;
         this.name = name;
         this.password = password;
+        this.credentialVersion = credentialVersion;
         this.role = role;
         this.status = status == null ? UserStatus.ACTIVE : status;
         this.createdAt = createdAt;

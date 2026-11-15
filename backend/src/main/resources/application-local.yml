@@ -1,4 +1,9 @@
 # Local-only persistent database. Never reads the production DB_* credentials.
+logging:
+  level:
+    org.springframework.web: INFO
+    org.hibernate.SQL: INFO
+    org.springframework.jdbc.core: INFO
 app:
   cors:
     allowed-origins: http://127.0.0.1:15173,http://localhost:15173

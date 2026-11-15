@@ -1,3 +1,4 @@
+import { useConsoleBase } from '../../components/console/ConsoleContext';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -29,7 +30,7 @@ function download(blob, filename) {
 const today = () => new Date().toISOString().slice(0, 10).replaceAll('-', '');
 const isDraft = task => task.status === 'DRAFT';
 // A draft opens in the labeling editor. Published coursework is fixed, so its answers are confirmed on the results screen.
-const labelPath = task => `/expert/assignments/${task.id}/${isDraft(task) ? 'edit' : 'results'}`;
+const labelPath = (task, basePath) => `${basePath}/assignments/${task.id}/${isDraft(task) ? 'edit' : 'results'}`;
 
 function LabelStatus({ task }) {
   const state = labelState(task);
@@ -85,6 +86,7 @@ function Thumb({ task }) {
 }
 
 export default function DataPage() {
+  const basePath = useConsoleBase();
   const navigate = useNavigate();
   const { reload } = useProfessorData();
   const [data, setData] = useState([]);
@@ -135,7 +137,7 @@ export default function DataPage() {
   const copy = task => act(`copy-${task.id}`, async () => {
     const { data: copied } = await courseworkApi.copy(task.id);
     reload({ silent: true });
-    navigate(`/expert/assignments/${copied.id}/edit`);
+    navigate(`${basePath}/assignments/${copied.id}/edit`);
   });
   const exportOne = task => act(`export-${task.id}`, async () => {
     const { data: blob } = await labelingApi.exportTask(task.id);
@@ -175,7 +177,7 @@ export default function DataPage() {
   const actions = task => (
     <>
       <button type="button" className="prof-link-btn" disabled={working} onClick={() => copy(task)}><Icon name="copy" size={14} />새 과제로 사용</button>
-      <Link to={labelPath(task)} className="prof-link">{isDraft(task) ? '라벨링 열기' : '정답·응답 보기'} <Icon name="arrowRight" size={14} /></Link>
+      <Link to={labelPath(task, basePath)} className="prof-link">{isDraft(task) ? '라벨링 열기' : '정답·응답 보기'} <Icon name="arrowRight" size={14} /></Link>
     </>
   );
 
@@ -191,7 +193,7 @@ export default function DataPage() {
             <Icon name="download" size={16} />{busy === 'confirmed' ? '준비 중…' : '확정 라벨 내보내기'}
           </button>
           {/* A smear is always part of a coursework, so uploading starts a practice coursework draft. */}
-          <Link to="/expert/assignments/new?kind=practice" className="prof-btn prof-btn--primary"><Icon name="upload" size={16} />도말 업로드</Link>
+          <Link to={`${basePath}/assignments/new?kind=practice`} className="prof-btn prof-btn--primary"><Icon name="upload" size={16} />도말 업로드</Link>
         </div>
       </div>
 
@@ -239,7 +241,7 @@ export default function DataPage() {
         </label>
         <div className="prof-actions">
           <button type="button" className="prof-btn prof-btn--sm prof-btn--primary" disabled={working || chosen.length !== 1}
-            title={chosen.length === 1 ? undefined : '도말 1개를 선택하면 열 수 있습니다.'} onClick={() => navigate(labelPath(chosen[0]))}>
+            title={chosen.length === 1 ? undefined : '도말 1개를 선택하면 열 수 있습니다.'} onClick={() => navigate(labelPath(chosen[0], basePath))}>
             <Icon name="edit" size={14} />라벨 확인 / 수정
           </button>
           <button type="button" className="prof-btn prof-btn--sm" disabled={working || !chosen.length} onClick={exportSelected}>
@@ -258,7 +260,7 @@ export default function DataPage() {
       {loading && !data.length ? <p role="status" className="prof-empty">도말 자료를 불러오는 중…</p> : !paged.total ? (
         <div className="prof-card prof-empty">
           <p>{data.length ? '조건에 맞는 도말이 없습니다.' : '업로드한 도말이 없습니다.'}</p>
-          {!data.length && <Link to="/expert/assignments/new?kind=practice" className="prof-btn prof-btn--primary"><Icon name="upload" size={15} />도말 업로드</Link>}
+          {!data.length && <Link to={`${basePath}/assignments/new?kind=practice`} className="prof-btn prof-btn--primary"><Icon name="upload" size={15} />도말 업로드</Link>}
         </div>
       ) : view === 'grid' ? (
         <ul className="prof-data__grid">

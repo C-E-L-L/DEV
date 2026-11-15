@@ -26,6 +26,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final org.springframework.beans.factory.ObjectProvider<com.cell.platform.domain.user.UserRepository> users;
 
     @Value("${app.cors.allowed-origins:http://localhost:5173,https://cell.cbnu.ac.kr}")
     private List<String> allowedOrigins;
@@ -81,7 +82,7 @@ public class SecurityConfig {
 
     @Bean
     public JwtAuthFilter jwtAuthFilter() {
-        return new JwtAuthFilter(jwtTokenProvider);
+        return new JwtAuthFilter(jwtTokenProvider, users);
     }
 
     @Bean

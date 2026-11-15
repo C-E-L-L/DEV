@@ -1,3 +1,4 @@
+import Announcements from '../components/Announcements';
 import { cellChoices, answerLabel } from '../utils/cellClasses';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -420,6 +421,7 @@ export default function StudentPage() {
   if (!selectedTask) {
     return (
       <div style={containerStyle}>
+        <div style={{ marginBottom: 20 }}><Announcements /></div>
         <div style={{ borderBottom: '2px solid #dee2e6', paddingBottom: '15px', marginBottom: '20px' }}>
           <h2 style={{ margin: 0 }}>내 과제</h2>
           <span style={{ color: '#6c757d' }}>

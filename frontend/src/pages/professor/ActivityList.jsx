@@ -1,3 +1,4 @@
+import { useConsoleBase } from '../../components/console/ConsoleContext';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/login/icons';
 import { relativeTime } from '../../utils/professorDashboard';
@@ -5,14 +6,14 @@ import { relativeTime } from '../../utils/professorDashboard';
 const who = event => (event.studentName ? `${event.studentName}(${event.studentId})` : event.studentId);
 const title = event => event.title || `과제 #${event.taskId}`;
 
-function describe(event) {
-  const results = `/expert/assignments/${event.taskId}/results`;
+function describe(event, basePath) {
+  const results = `${basePath}/assignments/${event.taskId}/results`;
   if (event.type === 'SUBMITTED') {
     return { icon: 'send', tone: 'indigo', to: results, text: <><strong>{who(event)}</strong> 학생이 <em>{title(event)}</em> 과제를 제출했습니다.</> };
   }
   if (event.type === 'QUESTION') {
     return {
-      icon: 'help', tone: event.answered ? 'slate' : 'amber', to: '/expert/reports', detail: event.detail,
+      icon: 'help', tone: event.answered ? 'slate' : 'amber', to: `${basePath}/reports`, detail: event.detail,
       text: <><strong>{who(event)}</strong> 학생이 질문·신고를 등록했습니다.{event.answered ? ' (답변 완료)' : ''}</>,
     };
   }
@@ -24,13 +25,14 @@ function describe(event) {
 
 /** Recent activity rows, shared by the dashboard card and the notification bell. */
 export default function ActivityList({ events, limit, unreadSince = null, onNavigate, empty = '최근 활동이 없습니다.' }) {
+  const basePath = useConsoleBase();
   const items = limit ? events.slice(0, limit) : events;
   if (!items.length) return <p className="prof-empty prof-empty--compact">{empty}</p>;
   const now = new Date();
   return (
     <ul className="prof-activity">
       {items.map(event => {
-        const meta = describe(event);
+        const meta = describe(event, basePath);
         const unread = unreadSince !== null && new Date(event.at).getTime() > unreadSince;
         return (
           <li key={event.id}>

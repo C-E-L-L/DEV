@@ -18,7 +18,7 @@ function writeSeen(key, value) {
 export default function NotificationBell() {
   const { user } = useAuth();
   const { activity } = useProfessorData();
-  const key = `cell-prof-notifications-seen:${user.username}`;
+  const key = `cell-${user.role === 'ADMIN' ? 'admin' : 'prof'}-notifications-seen:${user.username}`;
   const [seenAt, setSeenAt] = useState(() => readSeen(key));
   const [open, setOpen] = useState(false);
   const [unreadSince, setUnreadSince] = useState(0);

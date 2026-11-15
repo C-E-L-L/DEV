@@ -24,6 +24,9 @@ public class UserEntity {
     @Column(nullable = false)
     private String password;
 
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long credentialVersion;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
@@ -43,11 +46,12 @@ public class UserEntity {
     }
 
     @Builder
-    private UserEntity(Long id, String username, String name, String password, Role role, UserStatus status, LocalDateTime createdAt) {
+    private UserEntity(Long id, String username, String name, String password, Role role, UserStatus status, LocalDateTime createdAt, long credentialVersion) {
         this.id = id;
         this.username = username;
         this.name = name;
         this.password = password;
+        this.credentialVersion = credentialVersion;
         this.role = role;
         this.status = status == null ? UserStatus.ACTIVE : status;
         this.createdAt = createdAt;
@@ -55,5 +59,10 @@ public class UserEntity {
 
     public void changeStatus(UserStatus status) {
         this.status = status;
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+        this.credentialVersion++;
     }
 }

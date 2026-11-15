@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate, Routes, Route, RouterProvider } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { NavBar } from './components/common';
 import { useAuth } from './context/AuthContext';
@@ -6,9 +7,10 @@ import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import StudentPage from './pages/StudentPage';
 import StudentMyPage from './pages/StudentMyPage';
-import ProfessorApp from './pages/professor/ProfessorApp';
-import AdminPage from './pages/AdminPage';
 import BombGamePage from './pages/BombGamePage';
+
+const ProfessorApp = lazy(() => import('./pages/professor/ProfessorApp'));
+const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
 
 // A data router (instead of <BrowserRouter>) so screens can ask before leaving unsaved work (useBlocker).
 const router = createBrowserRouter([{ path: '*', element: <Root /> }]);
@@ -20,6 +22,7 @@ export default function App() {
 function Root() {
   return (
     <AuthProvider>
+      <Suspense fallback={<p role="status" style={{padding:32}}>화면을 불러오는 중…</p>}>
       <Routes>
         <Route
           path="/game"
@@ -30,8 +33,10 @@ function Root() {
           path="/expert/*"
           element={<ProtectedRoute allowedRole="EXPERT"><ProfessorApp /></ProtectedRoute>}
         />
+        <Route path="/admin/*" element={<ProtectedRoute allowedRole="ADMIN"><AdminApp /></ProtectedRoute>} />
         <Route path="*" element={<MainLayout />} />
       </Routes>
+      </Suspense>
     </AuthProvider>
   );
 }
@@ -51,10 +56,6 @@ function MainLayout() {
           <Route
             path="/student/my-page"
             element={<ProtectedRoute allowedRole="STUDENT"><StudentMyPage /></ProtectedRoute>}
-          />
-          <Route
-            path="/admin"
-            element={<ProtectedRoute allowedRole="ADMIN"><AdminPage /></ProtectedRoute>}
           />
           <Route path="*" element={<RoleRedirect />} />
         </Routes>

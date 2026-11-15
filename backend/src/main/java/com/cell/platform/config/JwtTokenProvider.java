@@ -24,9 +24,14 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(String username, String role) {
+        return generateToken(username, role, 0);
+    }
+
+    public String generateToken(String username, String role, long credentialVersion) {
         return Jwts.builder()
                 .subject(username)
                 .claim("role", role)
+                .claim("cv", credentialVersion)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(key)
@@ -39,6 +44,11 @@ public class JwtTokenProvider {
 
     public String getRole(String token) {
         return parseClaims(token).get("role", String.class);
+    }
+
+    public long getCredentialVersion(String token) {
+        Number value = parseClaims(token).get("cv", Number.class);
+        return value == null ? 0 : value.longValue();
     }
 
     public boolean isValid(String token) {
