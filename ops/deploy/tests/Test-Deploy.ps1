@@ -44,6 +44,21 @@ $manifest.images.backend = 'ghcr.io/c-e-l-l/dev-backend:latest'
 Assert-Throws { Assert-Manifest $manifest $release $state } 'Unexpected image'
 $manifest.images.backend = 'ghcr.io/c-e-l-l/dev-backend@sha256:' + ('a' * 64)
 
+# Docker Desktop changes backslashes to forward slashes after a Compose deployment.
+# Accept that representation while continuing to reject a different data directory.
+$script:MountPathForTest = $script:DeployHome.Replace('\','/') + '/data'
+function Invoke-Docker([string[]]$DockerArgs) {
+    switch ($DockerArgs[1]) {
+        'dev-backend-1' { ConvertTo-Json -Depth 5 @(@{Mounts=@(@{Destination='/data';Source=$script:MountPathForTest})}) }
+        'dev-mysql-1' { ConvertTo-Json -Depth 5 @(@{Mounts=@(@{Destination='/var/lib/mysql';Name='dev_mysql-data'});State=@{Health=@{Status='healthy'}}}) }
+        'dev-colorizer-1' { ConvertTo-Json -Depth 5 @(@{Mounts=@(@{Destination='/data';Name='dev_colorizer-data'})}) }
+        default { throw 'Unexpected inspection in mount test' }
+    }
+}
+Assert-ProductionMounts
+$script:MountPathForTest += '-different-database'
+Assert-Throws { Assert-ProductionMounts } 'data mount does not match'
+
 # Simulate native Docker failures: no production Docker daemon is used by these tests.
 $script:Commands = [Collections.Generic.List[string]]::new()
 $script:FailPull = $false

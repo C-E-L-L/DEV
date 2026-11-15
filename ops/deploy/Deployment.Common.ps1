@@ -112,7 +112,8 @@ function Assert-ProductionMounts {
     $backend = (Invoke-Docker @('inspect', 'dev-backend-1') | ConvertFrom-Json)[0]
     $actual = @($backend.Mounts | Where-Object { $_.Destination -eq '/data' })
     $expected = [IO.Path]::GetFullPath((Join-Path $script:Config.server_root 'data')).TrimEnd('\', '/')
-    if ($actual.Count -ne 1 -or $actual[0].Source.TrimEnd('\', '/') -ine $expected) {
+    $actualPath = if ($actual.Count -eq 1) { [IO.Path]::GetFullPath($actual[0].Source).TrimEnd('\', '/') } else { $null }
+    if ($actual.Count -ne 1 -or $actualPath -ine $expected) {
         throw 'The running backend data mount does not match the configured production root.'
     }
     $db = (Invoke-Docker @('inspect', 'dev-mysql-1') | ConvertFrom-Json)[0]
