@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../../components/login/icons';
 import AuthImage from '../../components/AuthImage';
+import Announcements from '../../components/Announcements';
 import { useAuth } from '../../context/AuthContext';
 import { submissionApi } from '../../api';
 import { imageUrl } from '../../constants';
@@ -131,6 +132,8 @@ export function AssignmentsPage() {
           <p>과제를 선택해 세포 분류를 진행하세요. 답안은 자동 저장되어 언제든 이어서 할 수 있습니다.</p>
         </div>
       </div>
+
+      <Announcements />
 
       {loading ? <p role="status" className="prof-empty">과제를 불러오는 중…</p> : (
         <>
@@ -392,6 +395,8 @@ export function DashboardPage() {
         </div>
         {ready && <ContinueButton rows={rows} />}
       </section>
+
+      <Announcements />
 
       <div className="prof-dash stu-dash">
         <div className="prof-dash__main">
