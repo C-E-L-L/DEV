@@ -1,8 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { cropApi, submissionApi, taskApi } from '../../api';
+import { announcementApi } from '../../api/announcements';
 import { reportApi } from '../../api/reports';
 import { isDiagnostic, isPublished } from '../../utils/coursework';
+
+const POLL_MS = 60000;
 
 const StudentDataContext = createContext(null);
 
@@ -100,6 +103,7 @@ export function StudentDataProvider({ children }) {
   const [progress, setProgress] = useState({});
   // The student's questions: the dashboard feed and the sidebar badge both use them.
   const [reports, setReports] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -116,6 +120,29 @@ export function StudentDataProvider({ children }) {
     .catch(() => setReports([])), []);
   useEffect(() => { if (username) reloadReports(); }, [username, reloadReports]);
 
+  const reloadAnnouncements = useCallback(() => announcementApi.list()
+    .then(({ data }) => setAnnouncements(data || []))
+    .catch(() => { /* the bell keeps the last list */ }), []);
+  useEffect(() => { if (username) reloadAnnouncements(); }, [username, reloadAnnouncements]);
+
+  // Notifications (replies, new coursework, notices) refresh every minute while the page is visible.
+  // The coursework list only changes state when something actually changed, so progress is not refetched.
+  useEffect(() => {
+    if (!username) return undefined;
+    const poll = () => {
+      if (document.visibilityState !== 'visible') return;
+      reloadReports(); reloadAnnouncements();
+      taskApi.getAll()
+        .then(({ data }) => {
+          const next = data.filter(isPublished);
+          setTasks(current => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
+        })
+        .catch(() => { /* keep the current list */ });
+    };
+    const timer = window.setInterval(poll, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [username, reloadReports, reloadAnnouncements]);
+
   const items = useMemo(() => buildCoursework(tasks), [tasks]);
 
   const refresh = useCallback(item => loadProgress(item, username)
@@ -129,8 +156,8 @@ export function StudentDataProvider({ children }) {
     if (username) items.forEach(item => { refresh(item); });
   }, [items, username, refresh]);
 
-  const value = useMemo(() => ({ username, items, progress, loading, error, reload, refresh, reports, reloadReports }),
-    [username, items, progress, loading, error, reload, refresh, reports, reloadReports]);
+  const value = useMemo(() => ({ username, items, progress, loading, error, reload, refresh, reports, reloadReports, announcements }),
+    [username, items, progress, loading, error, reload, refresh, reports, reloadReports, announcements]);
   return <StudentDataContext.Provider value={value}>{children}</StudentDataContext.Provider>;
 }
 

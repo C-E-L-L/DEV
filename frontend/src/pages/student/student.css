@@ -118,6 +118,7 @@
 
 .stu-work__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-shrink: 0; min-height: var(--p-topbar); padding: 0 20px 0 12px; border-bottom: 1px solid var(--p-line); background: var(--p-surface); }
 .stu-work__head-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.stu-work__head-side { display: flex; align-items: center; gap: 12px; min-width: 0; margin-left: auto; }
 .stu-work__head-main h1 { min-width: 0; overflow: hidden; color: var(--p-ink); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
 .stu-work__head-main .prof-eyebrow { flex-shrink: 0; }
 .stu-work__saved { color: var(--p-subtle); white-space: nowrap; }

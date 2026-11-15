@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import Icon from '../../components/login/icons';
 import logoUrl from '../../assets/login/cell-logo.svg';
 import { useProfessorData } from './ProfessorData';
@@ -43,7 +42,6 @@ function Badge({ value, alert, strong }) {
 
 export default function ProfessorSidebar({ rail, id }) {
   const { pathname } = useLocation();
-  const { user, logout } = useAuth();
   const { counts, activity } = useProfessorData();
   const badges = { ...counts, reports: activity.unansweredReports };
   const [open, setOpen] = useState(() => ({ assignments: true, students: true, ...readGroups() }));
@@ -57,7 +55,6 @@ export default function ProfessorSidebar({ rail, id }) {
     try { window.localStorage.setItem(GROUPS_KEY, JSON.stringify(open)); } catch { /* not persisted */ }
   }, [open]);
 
-  const displayName = user.name || user.username;
 
   return (
     <aside className="prof-sidebar" id={id} aria-label="교수 메뉴">
@@ -120,18 +117,6 @@ export default function ProfessorSidebar({ rail, id }) {
           <Icon name="bot" size={16} />
           {!rail && <><span className="prof-ai__label">AI 어시스턴트</span><span className="prof-wip">개발중</span></>}
           {rail && <span className="prof-sr">AI 어시스턴트 (개발중)</span>}
-        </div>
-        <div className="prof-profile">
-          {!rail && <span className="prof-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span>}
-          {!rail && (
-            <span className="prof-profile__text">
-              <strong>{displayName}</strong>
-              <small>교수 · {user.username}</small>
-            </span>
-          )}
-          <button type="button" className="prof-icon-btn" onClick={logout} title="로그아웃" aria-label="로그아웃">
-            <Icon name="logout" size={16} />
-          </button>
         </div>
       </div>
     </aside>

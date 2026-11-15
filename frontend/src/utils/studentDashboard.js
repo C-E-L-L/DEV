@@ -109,3 +109,20 @@ export function activityFeed({ rows = [], reports = [], now = Date.now(), limit 
   return events.filter(event => Number.isFinite(time(event.at)))
     .sort((a, b) => time(b.at) - time(a.at)).slice(0, limit);
 }
+
+/**
+ * The student's notification bell: what others did for the student (professor replies, new
+ * coursework, notices) and deadlines that came close. The student's own questions are left out.
+ * Notices open on the dashboard, where the notice board is.
+ */
+export function notificationFeed({ rows = [], reports = [], announcements = [], now = Date.now(), limit = 20 }) {
+  const events = activityFeed({ rows, reports, now, limit: Infinity }).filter(event => event.type !== 'question');
+  for (const notice of announcements || []) {
+    events.push({ key: `n-${notice.id}`, type: 'notice', at: notice.createdAt, title: notice.title, urgent: Boolean(notice.urgent), to: `/student?notice=${notice.id}` });
+  }
+  return events.filter(event => Number.isFinite(time(event.at)) && time(event.at) <= now)
+    .sort((a, b) => time(b.at) - time(a.at)).slice(0, limit);
+}
+
+/** How many notifications arrived after `seenAt` (ms; 0 = never opened in this browser). */
+export const unreadCount = (events, seenAt) => events.filter(event => time(event.at) > seenAt).length;

@@ -6,10 +6,11 @@ import Announcements from '../../components/Announcements';
 import { useAuth } from '../../context/AuthContext';
 import { submissionApi } from '../../api';
 import { imageUrl } from '../../constants';
-import { deadlineInfo, relativeTime } from '../../utils/professorDashboard';
+import { deadlineInfo } from '../../utils/professorDashboard';
 import {
   accuracyTrend, activityFeed, confusionPairs, displayLabel, matchesPair, todoSummary, wrongCells,
 } from '../../utils/studentDashboard';
+import StudentActivityList from './StudentActivity';
 import { courseworkState, useStudentData } from './StudentData';
 
 /* ---------- Shared pieces ---------- */
@@ -330,13 +331,6 @@ function WrongNotes({ reviews, titleOf }) {
   );
 }
 
-const ACTIVITY = {
-  reply: { icon: 'mail', title: event => `${event.author || '교수'} 교수 답변 등록`, text: event => event.text },
-  question: { icon: 'help', title: () => '내 질문 접수', text: event => event.text },
-  published: { icon: 'clipboard', title: () => '새 과제 게시', text: event => `${event.title} 과제가 등록되었습니다.` },
-  due: { icon: 'alarm', title: () => '마감 임박', text: event => (event.days > 0 ? `${event.title} 마감까지 ${event.days}일 남았습니다.` : `${event.title} 오늘 마감입니다.`) },
-};
-
 function ActivityCard({ rows }) {
   const { reports } = useStudentData();
   const feed = activityFeed({ rows, reports });
@@ -347,25 +341,7 @@ function ActivityCard({ rows }) {
         <Link to="/student/questions" className="prof-link">내 질문 관리 <Icon name="arrowRight" size={14} /></Link>
       </header>
       {!feed.length ? <p className="prof-empty prof-empty--compact">아직 활동이 없습니다.</p> : (
-        <ul className="prof-activity">
-          {feed.map(event => {
-            const kind = ACTIVITY[event.type];
-            const tone = event.type === 'reply' ? ' is-indigo' : event.type === 'due' ? ' stu-activity--due' : '';
-            return (
-              <li key={event.key}>
-                <Link to={event.to} className="prof-activity__item">
-                  <span className={`prof-activity__icon${tone}`}><Icon name={kind.icon} size={14} /></span>
-                  <span className="prof-activity__body">
-                    <span className={`prof-activity__text stu-activity__title${tone}`}><strong>{kind.title(event)}</strong></span>
-                    <span className="prof-activity__detail stu-activity__detail">{kind.text(event)}</span>
-                    <span className="prof-activity__time">{relativeTime(event.at)}</span>
-                  </span>
-                  {event.fresh && <span className="prof-activity__dot" title="최근 7일 이내 답변" />}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <StudentActivityList events={feed} />
       )}
     </section>
   );

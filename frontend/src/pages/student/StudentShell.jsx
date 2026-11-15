@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import AccountBar from '../../components/console/AccountBar';
+import StudentNotificationBell from './StudentNotificationBell';
 import Icon from '../../components/login/icons';
 import logoUrl from '../../assets/login/cell-logo.svg';
 import { newReplyCount } from '../../utils/studentDashboard';
@@ -60,7 +61,6 @@ const inside = (item, pathname) => item.base?.some(base => pathname.startsWith(b
 
 function StudentSidebar({ rail, id }) {
   const { pathname } = useLocation();
-  const { user, logout } = useAuth();
   const { items, progress, reports } = useStudentData();
   const badges = {
     todo: items.filter(item => progress[item.key] && courseworkState(item, progress[item.key]).todo).length,
@@ -76,8 +76,6 @@ function StudentSidebar({ rail, id }) {
   useEffect(() => {
     try { window.localStorage.setItem(GROUPS_KEY, JSON.stringify(open)); } catch { /* not persisted */ }
   }, [open]);
-
-  const displayName = user.name || user.username;
 
   return (
     <aside className="prof-sidebar" id={id} aria-label="학생 메뉴">
@@ -139,20 +137,6 @@ function StudentSidebar({ rail, id }) {
         </div>
       </nav>
 
-      <div className="prof-side-footer">
-        <div className="prof-profile">
-          {!rail && <span className="prof-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span>}
-          {!rail && (
-            <span className="prof-profile__text">
-              <strong>{displayName}</strong>
-              <small>학생 · {user.username}</small>
-            </span>
-          )}
-          <button type="button" className="prof-icon-btn" onClick={logout} title="로그아웃" aria-label="로그아웃">
-            <Icon name="logout" size={16} />
-          </button>
-        </div>
-      </div>
     </aside>
   );
 }
@@ -216,6 +200,7 @@ export default function StudentShell({ children }) {
             <header className="prof-topbar">
               <SidebarToggle />
               <span className="stu-topbar__title">{title}</span>
+              <div className="prof-topbar__right"><AccountBar showId /><StudentNotificationBell /></div>
             </header>
             <main className="prof-content">
               {error && (

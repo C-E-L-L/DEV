@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  accuracyTrend, activityFeed, confusionPairs, daysUntil, isDueSoon, matchesPair, newReplyCount, todoSummary, wrongCells,
+  accuracyTrend, activityFeed, confusionPairs, daysUntil, isDueSoon, matchesPair, newReplyCount, notificationFeed, todoSummary, unreadCount, wrongCells,
 } from './studentDashboard.js';
 
 const NOW = new Date('2026-11-16T12:00:00').getTime();
@@ -65,4 +65,20 @@ test('activity feed mixes replies, questions, new coursework and close deadlines
   assert.equal(feed[1].days, 2);
   assert.equal(feed.find(event => event.key === 'r-8').fresh, false);
   assert.equal(activityFeed({ rows, reports, now: NOW }).length, 5);
+});
+
+test('notifications leave out the student questions and add notices', () => {
+  const announcements = [
+    { id: 3, title: '실습실 공지', urgent: true, createdAt: '2026-11-16T09:00:00' },
+    { id: 4, title: '예약 공지', urgent: false, createdAt: '2026-11-17T09:00:00' }, // not yet: ignored
+  ];
+  const feed = notificationFeed({ rows, reports, announcements, now: NOW });
+  assert.deepEqual(feed.map(event => event.key), ['r-9', 'n-3', 'd-due', 'p-ready', 'p-due', 'p-done', 'r-8']);
+  assert.deepEqual([feed[1].urgent, feed[1].to], [true, '/student?notice=3']);
+  assert.equal(notificationFeed({ rows, reports, now: NOW, limit: 2 }).length, 2);
+  assert.deepEqual(notificationFeed({}), []);
+
+  assert.equal(unreadCount(feed, 0), feed.length);
+  assert.equal(unreadCount(feed, new Date('2026-11-16T10:00:00').getTime()), 1); // only the reply at 11:50
+  assert.equal(unreadCount(feed, NOW), 0);
 });

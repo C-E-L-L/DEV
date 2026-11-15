@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { announcementApi } from '../api/announcements';
 import { Dialog, RemoteState, dateText, errorMessage, useRemote } from './console/ConsoleUI';
 import Icon from './login/icons';
@@ -22,6 +23,15 @@ export default function Announcements({ manage = false, compact = true }) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const notices = request.data || [];
+  // ?notice=<id> (from the notification bell) opens that notice once the list is loaded.
+  const [params, setParams] = useSearchParams();
+  const noticeId = manage ? null : params.get('notice');
+  useEffect(() => {
+    if (!noticeId || !request.data) return;
+    const found = request.data.find(notice => String(notice.id) === noticeId);
+    if (found) { setAll(false); setReading(found); }
+    setParams(current => { const next = new URLSearchParams(current); next.delete('notice'); return next; }, { replace: true });
+  }, [noticeId, request.data, setParams]);
   const closeEdit = () => {
     if (busy) return;
     if (editing && (editing.title || editing.body) && !window.confirm('작성 중인 공지를 닫을까요? 저장하지 않은 내용은 사라집니다.')) return;

@@ -8,6 +8,8 @@ import { REPORT_REASONS, imageUrl } from '../../constants';
 import { answerLabel, cellChoices } from '../../utils/cellClasses';
 import { deadlineInfo } from '../../utils/professorDashboard';
 import { useStudentData } from './StudentData';
+import AccountBar from '../../components/console/AccountBar';
+import StudentNotificationBell from './StudentNotificationBell';
 import { SidebarToggle } from './StudentShell';
 import SmearViewer, { revealInside } from './SmearViewer';
 
@@ -29,7 +31,7 @@ function ResultView({ item, result }) {
   const stats = [['정답', result.correct, 'good'], ['오답', result.wrong, 'low'], ['채점된 문항', result.total, 'none']];
   return (
     <div className="prof-main">
-      <header className="prof-topbar"><SidebarToggle /><span className="stu-topbar__title">채점 결과</span></header>
+      <header className="prof-topbar"><SidebarToggle /><span className="stu-topbar__title">채점 결과</span><div className="prof-topbar__right"><AccountBar showId /><StudentNotificationBell /></div></header>
       <main className="prof-content stu-result">
         <div className="prof-page-head">
           <div>
@@ -338,9 +340,13 @@ export default function WorkspacePage() {
             </span>
           )}
         </div>
-        <span className="stu-work__saved prof-mono" role="status">
-          {attempt.locked ? '제출 잠김' : busy ? '저장 중…' : savedAt ? `자동 저장됨 ${savedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : '자동 저장'}
-        </span>
+        <div className="stu-work__head-side">
+          <span className="stu-work__saved prof-mono" role="status">
+            {attempt.locked ? '제출 잠김' : busy ? '저장 중…' : savedAt ? `자동 저장됨 ${savedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : '자동 저장'}
+          </span>
+          <AccountBar showId />
+          <StudentNotificationBell />
+        </div>
       </header>
 
       {status === 'loading' && <p role="status" className="prof-empty stu-work__state">과제를 불러오는 중…</p>}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import AccountBar from '../../components/console/AccountBar';
 import Icon from '../../components/login/icons';
 import NotificationBell from './NotificationBell';
 import ProfessorSidebar from './ProfessorSidebar';
@@ -79,6 +80,7 @@ export default function ProfessorShell({ children }) {
           </div>
 
           <div className="prof-topbar__right">
+            <AccountBar />
             <NotificationBell />
           </div>
         </header>
