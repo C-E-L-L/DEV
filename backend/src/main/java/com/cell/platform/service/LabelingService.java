@@ -37,6 +37,8 @@ public class LabelingService {
     private static final List<String> CELL_TYPE_ORDER =
             List.of("Segment", "Band", "Eosinophil", "NucleatedRBC", "Lymphocyte", "Monocyte");
 
+    private static final int MAX_EXPORT_TASKS = 50;
+
     private final TaskJpaRepository taskJpaRepository;
     private final CropJpaRepository cropJpaRepository;
     private final FileStorageService fileStorageService;
@@ -46,10 +48,29 @@ public class LabelingService {
     // ── Export ──────────────────────────────────────────────────
 
     public byte[] exportTask(Long taskId) {
+        return exportTasks(List.of(taskId));
+    }
+
+    /** One archive with a folder per smear (original image, cell crops, annotations.json). */
+    public byte[] exportTasks(List<Long> taskIds) {
+        List<Long> ids = taskIds == null ? List.of() : taskIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty() || ids.size() > MAX_EXPORT_TASKS) {
+            throw new BadRequestException("내보낼 도말을 1~" + MAX_EXPORT_TASKS + "개 선택해주세요.", ErrorCode.G000);
+        }
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream();
+             ZipOutputStream zip = new ZipOutputStream(output)) {
+            for (Long taskId : ids) writeTask(zip, taskId);
+            zip.finish();
+            return output.toByteArray();
+        } catch (IOException e) {
+            throw new InfraStructureException("라벨링 내보내기 파일을 생성할 수 없습니다.", ErrorCode.G001);
+        }
+    }
+
+    private void writeTask(ZipOutputStream zip, Long taskId) throws IOException {
         TaskEntity task = findUploadedSmearTask(taskId);
         List<CropEntity> crops = cropJpaRepository.findAllByTask_Id(taskId);
-        String speciesCode = speciesCode(task);
-        String folder = "task_" + taskId + "_" + speciesCode.toLowerCase() + "/";
+        String folder = "task_" + taskId + "_" + speciesCode(task).toLowerCase() + "/";
         String smearExportName = buildSmearExportName(task);
         Path smearPath = fileStorageService.getUploadDir().resolve(task.getOriginalFilename());
 
@@ -60,20 +81,13 @@ public class LabelingService {
 
         Map<String, Object> viaJson = buildViaJson(task, crops, smearExportName, fileSize);
 
-        try (ByteArrayOutputStream output = new ByteArrayOutputStream();
-             ZipOutputStream zip = new ZipOutputStream(output)) {
-            addFile(zip, smearPath, folder + smearExportName);
-            for (CropEntity crop : crops) {
-                addFile(zip, fileStorageService.getCropDir().resolve(crop.getCropFilename()),
-                        folder + "crops/" + buildCropExportName(task, crop));
-            }
-            addContent(zip, folder + "annotations.json",
-                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(viaJson));
-            zip.finish();
-            return output.toByteArray();
-        } catch (IOException e) {
-            throw new InfraStructureException("라벨링 내보내기 파일을 생성할 수 없습니다.", ErrorCode.G001);
+        addFile(zip, smearPath, folder + smearExportName);
+        for (CropEntity crop : crops) {
+            addFile(zip, fileStorageService.getCropDir().resolve(crop.getCropFilename()),
+                    folder + "crops/" + buildCropExportName(task, crop));
         }
+        addContent(zip, folder + "annotations.json",
+                objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(viaJson));
     }
 
     private Map<String, Object> buildViaJson(TaskEntity task, List<CropEntity> crops,

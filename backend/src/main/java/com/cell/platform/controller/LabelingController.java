@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -28,6 +29,18 @@ public class LabelingController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + labelingService.buildArchiveFilename(taskId) + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(zip);
+    }
+
+    public record ExportRequest(List<Long> taskIds) {}
+
+    /** Several smears in one archive (data page: export selected). */
+    @PostMapping("/export")
+    public ResponseEntity<byte[]> exportTasks(@RequestBody ExportRequest request) {
+        byte[] zip = labelingService.exportTasks(request.taskIds());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"cell_labeling_export.zip\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(zip);
     }

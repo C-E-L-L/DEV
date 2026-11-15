@@ -5,8 +5,8 @@ import { distributeQuestions } from '../utils/coursework';
 const errorMessage = error => error?.response?.data?.message || error.message || '요청을 처리하지 못했습니다. 다시 시도해주세요.';
 
 /** New coursework form: a diagnostic from the answer pool, or a practice from uploaded smears. Creates a draft. */
-export default function CourseworkCreator({ species, onCancel, onCreated }) {
-  const [kind, setKind] = useState('DIAGNOSTIC');
+export default function CourseworkCreator({ species, onCancel, onCreated, initialKind = 'DIAGNOSTIC' }) {
+  const [kind, setKind] = useState(initialKind);
   const [title, setTitle] = useState('');
   const [speciesId, setSpeciesId] = useState(species.find(s => s.code === 'DOG')?.id || species[0]?.id || '');
   const [pool, setPool] = useState(null);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useBlocker, useNavigate, useParams } from 'react-router-dom';
+import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AnalyticsFeedback from '../../components/AnalyticsFeedback';
 import CourseworkCreator from '../../components/CourseworkCreator';
 import CourseworkEditor from '../../components/CourseworkEditor';
@@ -18,9 +18,13 @@ export function AssignmentCreatePage() {
   const navigate = useNavigate();
   const goBack = useGoBack('/expert/assignments/drafts');
   const { species, loading, reload } = useProfessorData();
+  const [params] = useSearchParams();
+  // "도말 업로드" on the data page opens this form with the smear practice already chosen.
+  const initialKind = params.get('kind') === 'practice' ? 'PRACTICE' : 'DIAGNOSTIC';
   return <div className="professor-workspace prof-embedded">
     {loading ? <p role="status">동물 종 정보를 불러오는 중…</p> : <CourseworkCreator
       species={species.filter(item => item.active !== false)}
+      initialKind={initialKind}
       onCancel={goBack}
       onCreated={id => { reload({ silent: true }); navigate(`/expert/assignments/${id}/edit`, { replace: true }); }}
     />}

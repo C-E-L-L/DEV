@@ -55,6 +55,10 @@ const PATHS = {
   alarm: <><circle cx="12" cy="13" r="7" /><path d="M12 9.5V13l2.5 1.5M5 4L2.5 6.5M19 4l2.5 2.5" /></>,
   bot: <><rect x="5" y="8" width="14" height="11" rx="3" /><path d="M12 8V4.5M9.5 13v1.5M14.5 13v1.5" /><circle cx="12" cy="3.5" r="1" /></>,
   edit: <><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" /><path d="M14 8l3 3" /></>,
+  more: <><circle cx="12" cy="5" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="12" cy="19" r="1.2" /></>,
+  trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />,
+  copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
+  chevronLeft: <path d="M15 6l-6 6 6 6" />,
 };
 
 export default function Icon({ name, size = 16, className }) {
