@@ -80,9 +80,7 @@ export default function ReviewAnalysis({ entries, view, onChange, onOpen }) {
             <span><small>정답</small><strong>{pair.correct}</strong></span><span className="prof-nav__badge prof-mono">{pair.count}회</span>
           </button>
         ))}</div> : <p className="prof-muted">채점된 응답에서 다른 분류명으로 답한 오답 조합이 없습니다.</p>}
-        <div className="stu-review__unknown"><span>채점된 오답 중 <strong>모르겠어요 {analysis.summary.gradedUnknown}개</strong></span>
-          <button type="button" className="prof-btn stu-review__small-btn" disabled={!analysis.summary.gradedUnknown}
-            onClick={() => focus({ kind: 'unknown' }, '모르겠어요로 응답한 오답')}>따로 복습하기</button></div>
+        <div className="stu-review__unknown"><span>채점된 오답 중 <strong>모르겠어요 {analysis.summary.gradedUnknown}개</strong></span></div>
       </div>
     </section>
 
