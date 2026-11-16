@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+import AnnouncementsPage from '../../components/AnnouncementsPage';
 import { AssignmentsPage, DashboardPage } from './CourseworkPages';
 import { HistoryPage, QuestionsPage, ResultsPage } from './EmbeddedPages';
 import { StudentDataProvider } from './StudentData';
@@ -25,6 +26,7 @@ export default function StudentApp() {
           <Route path="work/:kind/:id" element={<WorkspacePage />} />
           <Route path="results" element={<ResultsPage />} />
           <Route path="questions" element={<QuestionsPage />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
           {/* The old My Page address. */}
           <Route path="my-page" element={<Navigate to="/student/results" replace />} />
           <Route path="*" element={<Navigate to="/student" replace />} />

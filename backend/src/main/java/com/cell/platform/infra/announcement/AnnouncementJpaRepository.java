@@ -6,4 +6,5 @@ import java.util.List;
 public interface AnnouncementJpaRepository extends JpaRepository<AnnouncementEntity, Long> {
     List<AnnouncementEntity> findAllByOrderByUrgentDescCreatedAtDescIdDesc();
     List<AnnouncementEntity> findAllByAudienceInOrderByUrgentDescCreatedAtDescIdDesc(List<Audience> audiences);
+    List<AnnouncementEntity> findAllByAudienceInOrAuthorOrderByUrgentDescCreatedAtDescIdDesc(List<Audience> audiences, String author);
 }

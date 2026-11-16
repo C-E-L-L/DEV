@@ -6,3 +6,10 @@ export const announcementApi = {
   update: (id, data) => api.put(`/admin/announcements/${id}`, data),
   delete: id => api.delete(`/admin/announcements/${id}`),
 };
+
+export const professorAnnouncementApi = {
+  manage: () => api.get('/professor/announcements'),
+  create: data => api.post('/professor/announcements', data),
+  update: (id, data) => api.put(`/professor/announcements/${id}`, data),
+  delete: id => api.delete(`/professor/announcements/${id}`),
+};

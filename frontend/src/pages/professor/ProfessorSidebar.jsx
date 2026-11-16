@@ -27,6 +27,7 @@ const NAV = [
     ],
   },
   { key: 'reports', label: '질문·신고', icon: 'help', to: '/expert/reports', count: 'reports', alert: true },
+  { key: 'announcements', label: '공지사항', icon: 'bell', to: '/expert/announcements' },
   { key: 'data', label: '데이터', icon: 'database', to: '/expert/data' },
   { key: 'settings', label: '설정', icon: 'settings', to: '/expert/settings' },
 ];

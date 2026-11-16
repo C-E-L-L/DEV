@@ -266,7 +266,7 @@ export default function DashboardPage() {
   const { activity, activityLoaded } = useProfessorData();
   return (
     <>
-      <div style={{ marginBottom: 20 }}><Announcements /></div>
+      <div style={{ marginBottom: 20 }}><Announcements manage /></div>
       <div className="prof-page-head">
         <div>
           <span className="prof-eyebrow prof-mono">교수 콘솔</span>

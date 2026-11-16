@@ -22,6 +22,7 @@ const NAV = [
       { label: '내 질문 관리', icon: 'help', to: '/student/questions', count: 'replies' },
     ],
   },
+  { key: 'announcements', label: '공지사항', icon: 'bell', to: '/student/announcements' },
 ];
 
 const TITLES = [
@@ -29,6 +30,7 @@ const TITLES = [
   ['/student/assignments', '과제'],
   ['/student/results', '내 결과 분석/확인'],
   ['/student/questions', '내 질문 관리'],
+  ['/student/announcements', '공지사항'],
   ['/student', '대시보드'],
 ];
 

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+import AnnouncementsPage from '../../components/AnnouncementsPage';
 import { AssignmentCreatePage, AssignmentEditPage, AssignmentResultsPage } from './AssignmentPages';
 import AssignmentsPage from './AssignmentsPage';
 import DashboardPage from './DashboardPage';
@@ -34,6 +35,7 @@ export default function ProfessorApp() {
           <Route path="students/achievement" element={<StudentAchievementPage />} />
           <Route path="students/progress" element={<StudentProgressPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="announcements" element={<AnnouncementsPage manage />} />
           <Route path="data" element={<DataPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/expert" replace />} />
