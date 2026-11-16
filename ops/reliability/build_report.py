@@ -37,6 +37,10 @@ admin = read_json(OUT / 'admin-settings.json')
 admin_applied = bool(admin and admin.get('administrator') and all(a.get('success') for a in admin.get('actions',[])))
 watchdog = read_json(OUT / 'watchdog-status.json', {})
 ai = read_json(OUT / 'ai-benchmark.json')
+tls = read_json(OUT / 'tls-check.json', {})
+renewal = read_json(OUT / 'certificate-status.json', {})
+renewal_dryrun = read_json(OUT / 'certificate-dryrun.json', {})
+deployment = read_json(OUT / 'final-service-status.json', {})
 with (OUT / 'host-samples.csv').open(encoding='utf-8-sig', newline='') as stream:
     host = list(csv.DictReader(stream))
 availability = sum(row['production_http']=='200' for row in host) / len(host) if host else 0
@@ -101,6 +105,9 @@ setting_rows=[
     ['Windows Update',f"유지: 활성 시간 {env['update_active_hours']['ActiveHoursStart']:02d}:00–{env['update_active_hours']['ActiveHoursEnd']:02d}:00, 재부팅 대기={env['reboot_pending']}"],
     ['관리자 전원/네트워크 설정',('적용 완료' if admin_applied else '관리자 실행 결과 일부 항목 확인 필요') if admin else 'UAC 승인 취소로 미적용; 관리자 실행 스크립트 제공'],
     ['정전 후 복구 / UPS','운영체제 설정만으로 보장 불가; BIOS 전원 복구 옵션과 UPS 별도 확인 필요'],
+    ['TLS 사전 확인',f"검증={tls.get('verified')}, 만료일={tls.get('certificate_expires')}"],
+    ['인증서 자동 갱신',f"webroot 검증={renewal_dryrun.get('success','미측정')}, 갱신 점검={renewal.get('success','미측정')}, 새 만료일={renewal.get('certificate',{}).get('expires_utc','미측정')}"],
+    ['시험 종료 후 운영 상태',f"자동 배포 pause={deployment.get('deployment_paused','미측정')}, API={deployment.get('api_status','미측정')}, 현재 버전={deployment.get('production_sha','미측정')}"],
 ]
 if admin:
     setting_rows += [[a['action'], '성공' if a.get('success') else '미적용/지원 여부 확인'] for a in admin['actions']]
@@ -176,6 +183,7 @@ report=f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>CEL
 <li><a href="https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setthreadexecutionstate">Microsoft: SetThreadExecutionState</a></li>
 <li><a href="https://learn.microsoft.com/en-us/windows/deployment/update/waas-restart">Microsoft: Manage device restarts after updates</a></li>
 <li><a href="https://docs.docker.com/desktop/settings-and-maintenance/settings/">Docker Desktop startup settings</a></li>
+<li><a href="https://eff-certbot.readthedocs.io/en/stable/using.html#webroot">Certbot: Webroot and automated renewals</a></li>
 </ul></body></html>'''
 (OUT / 'report.html').write_text(report,encoding='utf-8')
 conclusion={'performance_passed':passed,'windows_admin_settings_applied':admin_applied,'production_availability':availability,
