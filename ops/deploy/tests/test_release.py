@@ -53,6 +53,19 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(data).hexdigest(), manifest["compose_sha256"])
         self.assertNotEqual(hashlib.sha256(data + b" ").hexdigest(), manifest["compose_sha256"])
 
+    def test_acme_bind_is_only_available_read_only_in_frontend(self):
+        mount = {"type": "bind", "source": "./acme-webroot", "target": "/var/www/certbot", "read_only": True}
+        self.source["services"]["frontend"]["volumes"] = [mount]
+        _, data = self.build()
+        self.assertEqual(json.loads(data)["services"]["frontend"]["volumes"][0]["source"], "${CELL_SERVER_ROOT}/acme-webroot")
+        mount["read_only"] = False
+        with self.assertRaises(ValueError):
+            self.build()
+        mount["read_only"] = True
+        self.source["services"]["backend"]["volumes"] = [mount]
+        with self.assertRaises(ValueError):
+            self.build()
+
 
 if __name__ == "__main__":
     unittest.main()

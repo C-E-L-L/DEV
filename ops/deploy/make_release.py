@@ -29,8 +29,10 @@ def make_bundle(source, images, repository, sha, run_number, run_attempt, migrat
         for volume in service.get("volumes", []):
             if volume["type"] == "bind":
                 path = volume["source"].replace("\\", "/").removeprefix("./")
-                if path not in ("data", "ssl", "ai-server/weights"):
+                if path not in ("data", "ssl", "ai-server/weights", "acme-webroot"):
                     raise ValueError("Review new production bind mount: " + path)
+                if path == "acme-webroot" and (name != "frontend" or not volume.get("read_only")):
+                    raise ValueError("ACME webroot must be read-only in the frontend")
                 volume["source"] = "${CELL_SERVER_ROOT}/" + path
     source["volumes"] = {
         "mysql-data": {"name": "dev_mysql-data", "external": True},

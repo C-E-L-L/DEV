@@ -53,6 +53,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\reliability\Apply-Admi
 
 정전 대비 UPS, BIOS의 AC 전원 복구 옵션, 실제 재부팅 후 로그인 없는 운영은 별도 작업입니다. 완전한 무인 운영이 필요하면 Docker Engine이 system service로 실행되는 Linux 서버/VM 구성이 적합합니다.
 
+## HTTPS 인증서 자동 갱신
+
+ACME webroot를 포함한 frontend 배포 후 설치합니다. 기존 `dev_letsencrypt` 인증서 저장소와 계정을 그대로 사용합니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\reliability\Install-CertificateRenewal.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\CELL\reliability\service\Renew-ServerCertificate.ps1 -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\CELL\reliability\service\Renew-ServerCertificate.ps1
+```
+
+`CELL-CertificateRenewal`은 현재 로그인 계정으로 매일 09:15/21:15에 갱신 필요 여부를 확인합니다. 배포 잠금과 유지보수 pause를 존중하며 HTTP-01 webroot로 검증하므로 frontend를 중지하지 않습니다. 도메인·키 일치·유효기간을 확인한 뒤 SSL 파일을 백업/교체하고 `nginx -t` 및 reload, HTTPS API를 검증합니다. 실패하면 기존 SSL 파일로 복구합니다. `certificate-status.json`, `certificate-dryrun.json`, `certificate.log`에 결과가 남습니다. SSL 백업 폴더에는 private key가 있으므로 보고서에 포함하지 않습니다.
+
+기존 `C:\CELL\server\ops\Renew-CELL.ps1`은 frontend를 중지하는 구버전이므로 예약에 사용하지 않습니다. 근거: [Certbot webroot 및 자동 갱신](https://eff-certbot.readthedocs.io/en/stable/using.html#webroot).
+
 ## 검사 코드 검증
 
 ```powershell
