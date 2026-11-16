@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../../../components/login/icons';
 import { submissionApi } from '../../../api';
-import { matchesCellFilter, resolveReviewLink, reviewEntries, reviewKey } from '../../../utils/studentReview';
+import { matchesCellFilter, resolveReviewLink, reviewEntries, reviewKey, reviewSmears } from '../../../utils/studentReview';
 import { useStudentData } from '../StudentData';
 import ReviewAnalysis from './ReviewAnalysis';
 import ReviewDetail from './ReviewDetail';
+import { SmearThumb } from './ReviewParts';
 import './studentReview.css';
 
 export default function StudentResults({ initialReview, initialCropId, initialFocus, initialView }) {
@@ -86,16 +87,19 @@ export default function StudentResults({ initialReview, initialCropId, initialFo
                 {!filtered.length ? <p className="prof-empty">{reviews.length ? '조건에 맞는 결과가 없습니다.' : '아직 공개된 학습 결과가 없습니다.'}</p> : (
                   <div className="prof-table-wrap"><table className="prof-table prof-table--stack stu-review__table">
                     <thead><tr><th scope="col">과제명</th><th scope="col">유형</th><th scope="col">정답 / 오답</th><th scope="col">채점 상태</th><th scope="col">정답률</th><th scope="col"><span className="prof-sr">결과 확인</span></th></tr></thead>
-                    <tbody>{filtered.map(review => <tr key={reviewKey(review)}>
-                      <td data-label="과제명" className="prof-table__title"><button type="button" className="stu-review__title-link" onClick={() => openReview(review)}>{review.title}</button>
-                        <small className="stu-review__sample-note">응답 {review.answeredCells} / {review.totalCells}문항</small></td>
+                    <tbody>{filtered.map(review => { const smears = review.scopeType === 'DIAGNOSTIC' ? [] : reviewSmears(review); return <tr key={reviewKey(review)}>
+                      <td data-label="과제명" className="prof-table__title"><div className="stu-review__course">
+                        <SmearThumb filename={smears[0]} className="is-course" />
+                        <div><button type="button" className="stu-review__title-link" onClick={() => openReview(review)}>{review.title}</button>
+                          <small className="stu-review__sample-note">응답 {review.answeredCells} / {review.totalCells}문항{smears.length > 1 ? ` · 도말 ${smears.length}장` : ''}</small></div>
+                      </div></td>
                       <td data-label="유형"><span className="prof-badge">{review.scopeType === 'DIAGNOSTIC' ? '진단평가' : '과제'}</span></td>
                       <td data-label="정답 / 오답" className="prof-mono"><span className="stu-correct">{review.correct}</span> / <span className="stu-wrong">{review.wrong}</span></td>
                       <td data-label="채점 상태"><span className={`prof-badge ${review.pendingAnswers ? 'is-amber' : 'is-emerald'}`}>{review.pendingAnswers ? `채점 대기 ${review.pendingAnswers}` : '채점 완료'}</span></td>
                       <td data-label="정답률" className="prof-mono"><strong>{review.accuracy == null ? '—' : `${review.accuracy}%`}</strong></td>
                       <td><div className="stu-review__row-actions"><button type="button" className="prof-btn stu-review__small-btn" onClick={() => openReview(review)}>결과 보기</button>
                         {review.wrong > 0 && <button type="button" className="prof-btn stu-review__small-btn" onClick={() => openReview(review, 'wrong')}>오답 보기</button>}</div></td>
-                    </tr>)}</tbody>
+                    </tr>; })}</tbody>
                   </table></div>
                 )}
                 <footer className="prof-card__foot"><span className="prof-muted">공개된 결과만 표시합니다. 오답 보기는 해당 과제의 오답만 모아서 엽니다.</span></footer>

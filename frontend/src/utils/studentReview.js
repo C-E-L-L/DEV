@@ -12,6 +12,11 @@ export function reviewEntries(reviews = []) {
   })));
 }
 
+/** The smears of a result in the order their cells appear (diagnostic cells have none). */
+export function reviewSmears(review) {
+  return [...new Set((review?.cells || []).map(cell => cell.originalSmearFilename).filter(Boolean))];
+}
+
 export function cellStatus(cell) {
   return cell.isCorrect === true ? 'correct' : cell.isCorrect === false ? 'wrong' : 'pending';
 }

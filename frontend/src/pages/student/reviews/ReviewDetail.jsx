@@ -6,7 +6,7 @@ import { imageUrl } from '../../../constants';
 import { answerLabel } from '../../../utils/cellClasses';
 import { cellStatus, matchesCellFilter, reviewEntries, reviewKey, summarizeReviewCells } from '../../../utils/studentReview';
 import SmearViewer from '../SmearViewer';
-import { CellBadge, ReviewImageControls, SpeciesTag } from './ReviewParts';
+import { CellBadge, ReviewImageControls, SmearThumb, SpeciesTag } from './ReviewParts';
 
 export default function ReviewDetail({ review, selectedIndex, filter, onFilter, onSelect, onBack, backLabel }) {
   const entries = useMemo(() => reviewEntries([review]), [review]);
@@ -56,6 +56,7 @@ export default function ReviewDetail({ review, selectedIndex, filter, onFilter, 
             const active = group.some(entry => entry.index === selected?.index);
             return <li key={group[0].cell.originalSmearFilename || group[0].cell.taskId}>
               <button type="button" aria-pressed={active} disabled={!filtered.length} onClick={() => onSelect(filtered[0].index)}>
+                <SmearThumb filename={group[0].cell.originalSmearFilename} />
                 <strong>도말 {groupIndex + 1}</strong><span className="prof-mono">{filtered.length} / {group.length}개</span>
               </button>
             </li>;

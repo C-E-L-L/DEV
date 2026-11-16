@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   analyzeReviewCells, classKey, confusionKey, matchesAnalysisFocus, matchesCellFilter,
-  resolveReviewLink, reviewEntries, reviewKey, reviewSpecies, summarizeReviewCells,
+  resolveReviewLink, reviewEntries, reviewKey, reviewSmears, reviewSpecies, summarizeReviewCells,
 } from './studentReview.js';
 
 const cell = (cropId, correctLabel, studentLabel, isCorrect, speciesCode = 'DOG') => ({
@@ -98,4 +98,11 @@ test('dashboard deep links select the requested coursework, original cell and fi
   const wrongOnly = [{ ...reviews[0], cells: [dog[0], dog[2]] }];
   assert.deepEqual(resolveReviewLink(wrongOnly, { review: 'ASSIGNMENT-1' }), { key: 'ASSIGNMENT-1', index: 0, filter: 'wrong' });
   assert.equal(resolveReviewLink(reviews, { review: 'TASK-999' }), null);
+});
+
+test('result thumbnails use each smear once, in cell order, and diagnostics have none', () => {
+  const smear = name => ({ cropId: name, originalSmearFilename: name });
+  assert.deepEqual(reviewSmears({ cells: [smear('b.jpg'), smear('a.jpg'), smear('b.jpg'), { cropId: 9, originalSmearFilename: null }] }), ['b.jpg', 'a.jpg']);
+  assert.deepEqual(reviewSmears({ cells: [{ cropId: 1 }] }), []);
+  assert.deepEqual(reviewSmears(null), []);
 });

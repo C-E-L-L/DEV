@@ -11,6 +11,12 @@ const STATUS = {
   pending: { label: '채점 대기', tone: 'is-amber' },
 };
 
+/** A smear thumbnail, as on the coursework cards. Without a smear (diagnostics) it shows a microscope. */
+export function SmearThumb({ filename, className = '' }) {
+  if (!filename) return <span className={`stu-review__smear-thumb is-empty ${className}`} aria-hidden="true"><Icon name="microscope" size={16} /></span>;
+  return <AuthImage src={imageUrl.thumbnail(filename)} fallbackSrc={imageUrl.original(filename)} alt="" className={`stu-review__smear-thumb ${className}`} />;
+}
+
 export function CellBadge({ cell }) {
   const status = STATUS[cellStatus(cell)];
   return <span className={`prof-badge ${status.tone}`}>{status.label}</span>;
