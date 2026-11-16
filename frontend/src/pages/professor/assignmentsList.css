@@ -1,0 +1,61 @@
+/* Phase lists follow the student's result-table spacing and controls. */
+.prof-assignment-list { min-width: 0; }
+.prof-assignment-list .prof-table-wrap { position: relative; max-width: 100%; }
+.prof-assignment-list__filters { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--p-line-soft); }
+.prof-assignment-list__search { flex: 0 1 360px; min-width: 180px; max-width: 100%; }
+.prof-assignment-list__search input { box-sizing: border-box; width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid var(--p-line); border-radius: 8px; background: var(--p-surface); color: var(--p-text); font: inherit; font-size: 12px; }
+.prof-assignment-list__search input:focus-visible, .prof-assignment-list__deadline-form input:focus-visible { outline: 2px solid var(--p-primary); outline-offset: 2px; }
+.prof-assignment-list__table { min-width: 960px; }
+.prof-assignment-list__table td { font-size: 12px; }
+.prof-assignment-list__table .prof-table__title { width: 32%; min-width: 260px; }
+.prof-assignment-list__name { display: flex; align-items: center; gap: 12px; }
+.prof-assignment-list__name > div { min-width: 0; }
+.prof-assignment-list__name a { font-size: 13px; line-height: 1.6; }
+.prof-assignment-list__name small { display: block; margin-top: 3px; color: var(--p-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.prof-assignment-list__thumb { position: relative; display: block; flex-shrink: 0; width: 48px; height: 42px; overflow: hidden; border: 1px solid var(--p-line); border-radius: 6px; background: var(--p-bg); }
+.prof-assignment-list__thumb > img, .prof-assignment-list__thumb > div { width: 100%; height: 100%; object-fit: cover; }
+.prof-assignment-list__thumb > div { display: grid; place-items: center; color: var(--p-muted); font-size: 9px; text-align: center; }
+.prof-assignment-list__thumb.is-icon { display: grid; place-items: center; background: var(--p-primary-50); color: var(--p-primary); }
+.prof-assignment-list__more { position: absolute; right: 2px; bottom: 2px; padding: 0 3px; border-radius: 3px; background: rgba(15, 23, 42, .7); color: #fff; font-size: 9px; line-height: 14px; }
+.prof-assignment-list__labels, .prof-assignment-list__submission, .prof-assignment-list__deadline { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.prof-assignment-list__labels { min-width: 135px; }
+.prof-assignment-list__labels small, .prof-assignment-list__deadline small { color: var(--p-muted); font-size: 11px; white-space: nowrap; }
+.prof-assignment-list__submission { min-width: 115px; }
+.prof-assignment-list__submission strong { color: var(--p-ink); font-weight: 600; white-space: nowrap; }
+.prof-assignment-list__submission strong > span { margin-left: 5px; color: var(--p-muted); font-size: 11px; font-weight: 400; }
+.prof-shell .prof-assignment-list__submission a { color: var(--p-amber); font-size: 11px; text-decoration: underline; text-underline-offset: 3px; }
+.prof-assignment-list__submission .is-complete { color: var(--p-emerald); font-size: 11px; }
+.prof-assignment-list__deadline time { color: var(--p-text-2); font-size: 12px; white-space: nowrap; }
+.prof-assignment-list__actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.prof-assignment-list__actions .prof-btn { padding: 0 9px; font-weight: 500; }
+.prof-assignment-list__actions .prof-assignment-list__delete { padding: 0 7px; color: var(--p-muted); }
+.prof-assignment-list__actions .prof-assignment-list__delete:hover { border-color: #fecdd3; background: #fff1f2; color: var(--p-rose); }
+.prof-assignment-list a[aria-disabled='true'] { opacity: .55; cursor: not-allowed; }
+.prof-assignment-list__table .prof-assignment-list__editor-row > td { padding: 0; }
+.prof-assignment-list__deadline-form { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 16px 20px; background: var(--p-bg); border-top: 1px solid var(--p-line-soft); }
+.prof-assignment-list__deadline-form label { color: var(--p-text-2); font-size: 12px; font-weight: 600; }
+.prof-assignment-list__deadline-form p { margin-top: 3px; color: var(--p-muted); font-size: 11px; }
+.prof-assignment-list__deadline-form input { min-height: 34px; min-width: 0; max-width: 100%; padding: 6px 10px; border: 1px solid var(--p-line); border-radius: 7px; color: var(--p-text); background: var(--p-surface); font: inherit; font-size: 12px; }
+.prof-assignment-list__deadline-form .prof-assignment-list__field-error { flex-basis: 100%; margin: 0; color: var(--p-rose); }
+.prof-assignment-list > .prof-card__foot > .prof-muted { flex: 1 1 360px; font-size: 11px; line-height: 1.7; }
+.prof-assignment-list__pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.prof-assignment-list__pagination > span { padding: 0 6px; color: var(--p-muted); font-size: 11px; }
+.prof-assignment-list__pagination .prof-btn { min-width: 28px; padding: 0 7px; }
+.prof-assignment-list__pagination [aria-current='page'] { border-color: var(--p-primary-200); background: var(--p-primary-50); color: var(--p-primary-hover); }
+@media (max-width: 640px) {
+  .prof-assignment-list__filters { padding: 14px 16px; }
+  .prof-assignment-list__search { flex-basis: 100%; }
+  .prof-assignment-list .prof-assignment-list__table { min-width: 0; }
+  .prof-assignment-list .prof-assignment-list__table .prof-table__title { width: auto; min-width: 0; }
+  .prof-assignment-list .prof-assignment-list__table tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .prof-assignment-list .prof-assignment-list__table td[data-label]:not(:first-child)::before { content: attr(data-label); display: block; margin-bottom: 5px; color: var(--p-muted); font-size: 10px; }
+  .prof-assignment-list .prof-assignment-list__table tbody td:nth-child(2) { grid-column: auto; }
+  .prof-assignment-list .prof-assignment-list__table tbody td:last-child { grid-column: 1 / -1; }
+  .prof-assignment-list__labels, .prof-assignment-list__submission { min-width: 0; }
+  .prof-assignment-list__labels small { white-space: normal; line-height: 1.7; }
+  .prof-assignment-list__actions { flex-wrap: wrap; justify-content: flex-start; padding-top: 2px; }
+  .prof-assignment-list .prof-assignment-list__table tbody .prof-assignment-list__editor-row { display: block; padding: 0; }
+  .prof-assignment-list__deadline-form { padding: 16px; }
+  .prof-assignment-list__deadline-form > div:first-child { flex-basis: 100%; }
+  .prof-assignment-list__deadline-form input { width: 100%; }
+}
