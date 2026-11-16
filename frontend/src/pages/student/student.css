@@ -23,14 +23,41 @@
 .stu-row__title { color: var(--p-ink); font-size: 14.5px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 .stu-row__title a:hover { color: var(--p-primary); }
 .stu-row__meta { color: var(--p-subtle); font-size: 12px; }
-.stu-row__progress { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; color: var(--p-muted); font-size: 11.5px; }
-.stu-row__progress .is-left { color: var(--p-primary); font-weight: 600; }
-.stu-row__progress .is-muted { color: var(--p-subtle); }
+/* Progress: a compact column beside the title with a thin bar. Narrow lists put it under the title. */
+.stu-rows { container: stu-rows / inline-size; }
+.stu-row__progress { display: flex; flex-direction: column; justify-content: center; gap: 6px; flex: 0 1 200px; min-width: 150px; }
+.stu-row__progress-text { display: flex; justify-content: space-between; gap: 10px; color: var(--p-muted); font-size: 11.5px; white-space: nowrap; }
+.stu-row__progress-text .is-left { color: var(--p-primary); font-weight: 600; }
+.stu-row__progress-text .is-muted { color: var(--p-subtle); }
+.stu-shell .stu-row__bar { height: 4px; }
+@container stu-rows (max-width: 600px) {
+  .stu-row { flex-wrap: wrap; }
+  .stu-row__main { flex: 1 1 calc(100% - 72px); }
+  .stu-row__progress { flex: 1 1 0; margin-left: 72px; }
+}
 .stu-row__score { color: var(--p-emerald); font-weight: 600; }
-.stu-shell .stu-row__action { flex-shrink: 0; }
+/* One width for every action, so the progress column lines up from card to card. */
+.stu-shell .stu-row__action { flex-shrink: 0; min-width: 128px; }
 .stu-shell .stu-btn--amber { border-color: #b45309; background: #d97706; color: #fff; box-shadow: 0 1px 2px rgba(217, 119, 6, 0.25); }
 .stu-shell .stu-btn--amber:hover { border-color: #92400e; background: #b45309; }
 .stu-shell a.stu-btn--amber { color: #fff; }
+
+/* Coursework page: ongoing / submitted / graded tabs (one panel at a time, the bar stays under the
+   top bar for long lists), with diagnostics and classification coursework as collapsible groups. */
+.stu-assign__bar { position: sticky; top: var(--p-topbar); z-index: 5; margin: -8px 0; padding: 8px 0; background: var(--p-bg); }
+.stu-shell .stu-assign__tabs { flex-wrap: wrap; max-width: 100%; }
+.stu-shell .stu-assign__tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 14px; font-size: 13px; }
+.stu-shell .stu-assign__tabs button[aria-selected='true'] { background: var(--p-surface); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); color: var(--p-primary-hover); font-weight: 600; }
+.stu-assign__tabs .prof-mono { color: var(--p-subtle); font-size: 11px; font-weight: 600; }
+.stu-assign__tabs button[aria-selected='true'] .prof-mono { color: var(--p-primary); }
+.stu-assign__section .prof-card__head h2 .prof-nav__badge { margin-left: 2px; }
+.stu-assign__group + .stu-assign__group { border-top: 1px solid var(--p-line-soft); }
+.stu-assign__group-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 20px; border: 0; background: rgba(248, 250, 252, 0.7); color: var(--p-text-2); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.stu-assign__group-head:hover { background: var(--p-line-soft); color: var(--p-ink); }
+.stu-assign__group-head[aria-expanded='true'] { border-bottom: 1px solid var(--p-line-soft); }
+.stu-assign__chevron { margin-left: auto; color: var(--p-subtle); transition: transform 0.15s ease; transform: rotate(-90deg); }
+.stu-assign__chevron.is-open { transform: none; }
+.stu-assign__empty { padding: 16px 20px; color: var(--p-subtle); font-size: 12.5px; }
 
 /* Recent results */
 .stu-trend { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 20px; border-bottom: 1px solid var(--p-line-soft); }
@@ -278,6 +305,9 @@ div.stu-cropstage__image { display: grid; place-items: center; color: var(--p-mu
 .stu-foot__progress .prof-bar { flex: 0 1 180px; height: 8px; }
 
 .stu-shell.is-mobile .stu-rows { padding: 12px 16px 16px; }
+.stu-shell.is-mobile .stu-assign__tabs { display: flex; }
+.stu-shell.is-mobile .stu-assign__tabs button { flex: 1; padding: 6px 8px; }
+.stu-shell.is-mobile .stu-assign__group-head, .stu-shell.is-mobile .stu-assign__empty { padding-left: 16px; padding-right: 16px; }
 .stu-shell.is-mobile .stu-row { flex-wrap: wrap; align-items: flex-start; padding: 14px; }
 .stu-shell.is-mobile .stu-row__main { flex-basis: calc(100% - 72px); }
 .stu-shell.is-mobile .stu-row__action { width: 100%; }

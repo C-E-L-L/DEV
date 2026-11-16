@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  accuracyTrend, activityFeed, confusionPairs, courseworkCounts, daysUntil, isDueSoon, matchesCourseworkStatus, matchesPair, newReplyCount, notificationFeed, todoSummary, unreadCount, wrongCells,
+  accuracyTrend, activityFeed, byNewestPublished, confusionPairs, COURSEWORK_STAGES, courseworkCounts, courseworkStage, daysUntil, isDueSoon, matchesCourseworkStatus, matchesPair, newReplyCount, notificationFeed, todoSummary, unreadCount, wrongCells,
 } from './studentDashboard.js';
 
 const NOW = new Date('2026-11-16T12:00:00').getTime();
@@ -65,12 +65,41 @@ test('coursework counts and filters distinguish saved answers, final submission,
     { id: 'graded', state: state({ todo: false, completed: true, submitted: true, openReview: true }) },
     { id: 'missed-deadline', state: state({ todo: false, expired: true }) },
   ];
-  assert.deepEqual(courseworkCounts(cases), { all: 5, ongoing: 2, completed: 2 });
+  assert.deepEqual(courseworkCounts(cases), { all: 5, ongoing: 2, submitted: 1, graded: 2, completed: 2 });
   const selected = status => cases.filter(row => matchesCourseworkStatus(row.state, status)).map(row => row.id);
   assert.deepEqual(selected('ongoing'), ['not-started', 'ready-to-submit']);
   assert.deepEqual(selected('completed'), ['waiting-for-results', 'graded']);
   assert.equal(selected('all').length, 5);
-  assert.deepEqual(courseworkCounts([]), { all: 0, ongoing: 0, completed: 0 });
+  assert.deepEqual(courseworkCounts([]), { all: 0, ongoing: 0, submitted: 0, graded: 0, completed: 0 });
+});
+
+test('the coursework page puts every coursework in exactly one section: ongoing, submitted or graded', () => {
+  const stages = {
+    ongoing: [state(), state({ completed: true })],
+    submitted: [state({ todo: false, completed: true, submitted: true, openReview: false })],
+    graded: [
+      state({ todo: false, completed: true, submitted: true, openReview: true }),
+      // Past the deadline the results open, submitted or not (courseworkState sets openReview).
+      state({ todo: false, expired: true, openReview: true }),
+      state({ todo: false, expired: true, submitted: true, openReview: true }),
+      state({ todo: false, expired: true }),
+    ],
+  };
+  assert.deepEqual(COURSEWORK_STAGES, ['ongoing', 'submitted', 'graded']);
+  for (const [stage, states] of Object.entries(stages)) {
+    for (const value of states) assert.equal(courseworkStage(value), stage, JSON.stringify(value));
+  }
+});
+
+test('coursework is listed newest published first, unpublished times last', () => {
+  const list = [
+    { id: 1, publishedAt: '2026-11-10T09:00:00' },
+    { id: 2, publishedAt: null },
+    { id: 3, publishedAt: '2026-11-15T09:00:00' },
+    { id: 4, publishedAt: '2026-11-10T09:00:00' },
+    { id: 5 },
+  ];
+  assert.deepEqual([...list].sort(byNewestPublished).map(entry => entry.id), [3, 4, 1, 5, 2]);
 });
 
 test('activity feed mixes replies, questions, new coursework and close deadlines, newest first', () => {

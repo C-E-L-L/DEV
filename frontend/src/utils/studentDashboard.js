@@ -18,12 +18,32 @@ export function matchesCourseworkStatus(state, status) {
   return true;
 }
 
+/**
+ * The sections of the coursework page, in page order. Every coursework is in exactly one:
+ * ongoing (open, not finally submitted), submitted (finally submitted, results not open yet) and
+ * graded (results open: graded after the final submission, or past the deadline).
+ */
+export const COURSEWORK_STAGES = ['ongoing', 'submitted', 'graded'];
+
+export function courseworkStage(state) {
+  if (state.openReview) return 'graded';
+  if (state.submitted) return 'submitted';
+  return state.todo ? 'ongoing' : 'graded'; // not open and not submitted: past the deadline
+}
+
 export function courseworkCounts(rows) {
-  return {
-    all: rows.length,
-    ongoing: rows.filter(({ state }) => matchesCourseworkStatus(state, 'ongoing')).length,
-    completed: rows.filter(({ state }) => matchesCourseworkStatus(state, 'completed')).length,
-  };
+  const counts = { all: rows.length, ongoing: 0, submitted: 0, graded: 0, completed: 0 };
+  for (const { state } of rows) {
+    counts[courseworkStage(state)] += 1;
+    if (matchesCourseworkStatus(state, 'completed')) counts.completed += 1;
+  }
+  return counts;
+}
+
+/** Most recently published first. Coursework without a publish time goes last; ties go to the newer id. */
+export function byNewestPublished(a, b) {
+  const at = item => (Number.isFinite(time(item.publishedAt)) ? time(item.publishedAt) : -Infinity);
+  return (at(b) - at(a)) || (b.id || 0) - (a.id || 0);
 }
 
 /** Calendar days until a deadline: 0 on the day itself. */

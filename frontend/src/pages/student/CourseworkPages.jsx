@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Icon from '../../components/login/icons';
 import AuthImage from '../../components/AuthImage';
@@ -7,7 +7,8 @@ import { submissionApi } from '../../api';
 import { imageUrl } from '../../constants';
 import { deadlineInfo } from '../../utils/professorDashboard';
 import {
-  accuracyTrend, activityFeed, confusionPairs, displayLabel, matchesCourseworkStatus, matchesPair, wrongCells,
+  accuracyTrend, activityFeed, byNewestPublished, confusionPairs, COURSEWORK_STAGES, courseworkStage, displayLabel,
+  matchesCourseworkStatus, matchesPair, wrongCells,
 } from '../../utils/studentDashboard';
 import StudentActivityList from './StudentActivity';
 import { courseworkState, useStudentData } from './StudentData';
@@ -91,13 +92,16 @@ function CourseworkRow({ item, featured = false }) {
           {loaded ? metaOf(item, state) : '불러오는 중…'}
           {due.dateText && <span className="prof-mono"> · {due.dateText} 마감</span>}
         </p>
-        <div className="stu-row__progress prof-mono">
+      </div>
+      {/* Progress sits beside the title, before the action, as a compact column. */}
+      <div className="stu-row__progress">
+        <div className="stu-row__progress-text prof-mono">
           <span>{state.completed ? `${state.solved} / ${state.total} 완료` : `응답 ${state.solved} / ${state.total}`}</span>
           {state.completed
             ? (accuracy != null ? <span className="stu-row__score">정답률 {accuracy}%</span> : <span className="is-muted">남은 세포 0</span>)
             : <span className={left > 0 && state.solved > 0 ? 'is-left' : 'is-muted'}>남은 세포 {left}</span>}
         </div>
-        <span className="prof-bar" role="progressbar" aria-label="응답 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={state.percent}>
+        <span className="prof-bar stu-row__bar" role="progressbar" aria-label="응답 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={state.percent}>
           <span className={state.completed ? 'is-done' : ''} style={{ width: `${state.percent}%` }} />
         </span>
       </div>
@@ -117,46 +121,111 @@ const byDeadline = (a, b) => (a.deadlineAt || '9999').localeCompare(b.deadlineAt
 
 /* ---------- Coursework list ---------- */
 
+const STAGES = {
+  ongoing: { tab: '진행 중', title: '진행 중 과제', icon: 'clock', empty: '진행 중인', note: '마감 전이며 아직 최종 제출하지 않은 과제입니다. 최근에 게시된 순으로 표시합니다.' },
+  submitted: { tab: '제출 완료', title: '제출 완료 과제', icon: 'send', empty: '제출 완료한', note: '최종 제출했고 채점 결과를 기다리는 과제입니다. 제출한 답안을 확인할 수 있습니다.' },
+  graded: { tab: '채점 완료', title: '채점 완료 과제', icon: 'checkCircle', empty: '채점 완료된', note: '결과가 공개된 과제입니다. 마감된 과제도 여기에 표시됩니다.' },
+};
+const GROUPS = [
+  { key: 'diagnostic', label: '진단평가', icon: 'crosshair', match: item => item.diagnostic },
+  { key: 'practice', label: '분류 과제', icon: 'clipboard', match: item => !item.diagnostic },
+];
+const GROUPS_KEY = 'cell-student-assignment-groups';
+// Links made before the page was merged (?status=) still open the matching tab.
+const LEGACY_STATUS = { ongoing: 'ongoing', completed: 'submitted' };
+const tabId = stage => `stu-assign-tab-${stage}`;
+
+function readGroups() {
+  try { return JSON.parse(window.localStorage.getItem(GROUPS_KEY)) || {}; } catch { return {}; }
+}
+
+function StageGroup({ stage, group, items, open, onToggle }) {
+  const panel = `stu-assign-${stage}-${group.key}`;
+  return (
+    <div className="stu-assign__group">
+      <button type="button" className="stu-assign__group-head" aria-expanded={open} aria-controls={panel} onClick={onToggle}>
+        <Icon name={group.icon} size={15} />
+        <span className="stu-assign__group-label">{group.label}</span>
+        <span className="prof-nav__badge prof-mono">{items.length}</span>
+        <Icon name="chevronDown" size={14} className={`stu-assign__chevron${open ? ' is-open' : ''}`} />
+      </button>
+      {open && (
+        <div id={panel}>
+          {items.length ? <RowList items={items} /> : <p className="stu-assign__empty">{STAGES[stage].empty} {group.label}가 없습니다.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AssignmentsPage() {
-  const { rows, loading, ready } = useStudentData();
-  const [params] = useSearchParams();
-  const status = ['ongoing', 'completed'].includes(params.get('status')) ? params.get('status') : 'all';
-  const items = rows.filter(row => matchesCourseworkStatus(row.state, status)).map(row => row.item);
-  const diagnostics = items.filter(item => item.diagnostic);
-  const practice = items.filter(item => !item.diagnostic).sort(byDeadline);
-  const title = { all: '전체 과제', ongoing: '진행 중 과제', completed: '완료된 과제' }[status];
-  const emptyPrefix = { all: '게시된', ongoing: '진행 중인', completed: '완료된' }[status];
-  const description = status === 'completed' ? '최종 제출한 과제입니다. 결과가 공개되면 채점 결과를 확인할 수 있습니다.'
-    : '과제를 선택해 세포 분류를 진행하세요. 답안은 자동 저장되어 언제든 이어서 할 수 있습니다.';
+  const { rows, ready } = useStudentData();
+  const [params, setParams] = useSearchParams();
+  const tabs = useRef({});
+  const [openGroups, setOpenGroups] = useState(readGroups);
+  // The selected tab lives in the address (?tab=), so dashboard links and reloads open the same tab.
+  const active = COURSEWORK_STAGES.includes(params.get('tab')) ? params.get('tab') : LEGACY_STATUS[params.get('status')] || 'ongoing';
+  const select = stage => setParams({ tab: stage }, { replace: true });
+
+  useEffect(() => {
+    try { window.localStorage.setItem(GROUPS_KEY, JSON.stringify(openGroups)); } catch { /* not persisted */ }
+  }, [openGroups]);
+
+  // Arrow keys, Home and End move between the tabs, as in a standard tab list.
+  const onTabKey = event => {
+    const index = COURSEWORK_STAGES.indexOf(active);
+    const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: COURSEWORK_STAGES.length - 1 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const stage = COURSEWORK_STAGES[(next + COURSEWORK_STAGES.length) % COURSEWORK_STAGES.length];
+    select(stage);
+    tabs.current[stage]?.focus();
+  };
+
+  const byStage = Object.fromEntries(COURSEWORK_STAGES.map(stage => [stage,
+    rows.filter(row => courseworkStage(row.state) === stage).map(row => row.item).sort(byNewestPublished)]));
 
   return (
     <>
       <div className="prof-page-head">
         <div>
           <span className="prof-eyebrow prof-mono">과제</span>
-          <h1>{title}</h1>
-          <p>{description}</p>
+          <h1>과제</h1>
+          <p>진행 중, 제출 완료, 채점 완료 탭으로 과제를 확인하세요. 답안은 자동 저장되어 언제든 이어서 할 수 있습니다.</p>
         </div>
       </div>
 
       <Announcements />
 
-      {loading || (status !== 'all' && !ready) ? <p role="status" className="prof-empty">과제를 불러오는 중…</p> : (
+      {!ready ? <p role="status" className="prof-empty">과제를 불러오는 중…</p> : (
         <>
-          <section className="prof-card" aria-labelledby="stu-diagnostics">
-            <header className="prof-card__head">
-              <h2 id="stu-diagnostics"><Icon name="crosshair" size={17} />진단평가</h2>
-              <span className="prof-muted">{status === 'completed' ? '제출한 진단평가의 답안과 공개된 결과를 확인하세요.' : '학생 수준을 확인하는 과제입니다. 먼저 진행해주세요.'}</span>
-            </header>
-            <RowList items={diagnostics} empty={`${emptyPrefix} 진단평가가 없습니다.`} />
-          </section>
+          <div className="stu-assign__bar">
+            <div className="prof-tabs stu-assign__tabs" role="tablist" aria-label="과제 상태" onKeyDown={onTabKey}>
+              {COURSEWORK_STAGES.map(stage => (
+                <button key={stage} type="button" role="tab" id={tabId(stage)} ref={node => { tabs.current[stage] = node; }}
+                  aria-selected={active === stage} aria-controls="stu-assign-panel" tabIndex={active === stage ? 0 : -1} onClick={() => select(stage)}>
+                  {STAGES[stage].tab}<span className="prof-mono">{byStage[stage].length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-          <section className="prof-card" aria-labelledby="stu-practice">
+          <section id="stu-assign-panel" role="tabpanel" className="prof-card stu-assign__section" aria-labelledby={tabId(active)}>
             <header className="prof-card__head">
-              <h2 id="stu-practice"><Icon name="clipboard" size={17} />과제</h2>
-              <span className="prof-muted">{status === 'completed' ? '결과 공개 전에는 제출한 답안을 확인할 수 있습니다.' : '마감되거나 결과가 공개된 과제는 결과 화면으로 이동합니다.'}</span>
+              <h2>
+                <Icon name={STAGES[active].icon} size={17} />{STAGES[active].title}
+                <span className="prof-nav__badge prof-mono is-strong">{byStage[active].length}</span>
+              </h2>
+              <span className="prof-muted">{STAGES[active].note}</span>
             </header>
-            <RowList items={practice} empty={`${emptyPrefix} 과제가 없습니다.`} />
+            {GROUPS.map(group => {
+              const key = `${active}-${group.key}`;
+              return (
+                <StageGroup key={key} stage={active} group={group} items={byStage[active].filter(group.match)}
+                  open={openGroups[key] !== false}
+                  onToggle={() => setOpenGroups(current => ({ ...current, [key]: current[key] === false }))} />
+              );
+            })}
           </section>
         </>
       )}
@@ -319,11 +388,13 @@ function ActivityCard({ rows }) {
 }
 
 export function DashboardPage() {
-  const { items, rows, ready } = useStudentData();
+  const { items, rows, counts, ready } = useStudentData();
   const reviews = useLoad(() => submissionApi.getMyReviews());
   const todo = rows.filter(row => matchesCourseworkStatus(row.state, 'ongoing')).map(row => row.item).sort(byDeadline);
   const completed = rows.filter(row => matchesCourseworkStatus(row.state, 'completed')).map(row => row.item)
     .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || '') || b.id - a.id);
+  // Completed work is split into two tabs on the coursework page; open the one that has something.
+  const completedLink = `/student/assignments?tab=${counts.submitted ? 'submitted' : 'graded'}`;
   const titleOf = review => {
     const match = items.find(item => scopeOf(item) === reviewKey(review));
     return match?.title || review.title;
@@ -339,27 +410,27 @@ export function DashboardPage() {
           <section className="prof-card stu-card--todo" aria-labelledby="stu-todo">
             <header className="prof-card__head">
               <h2 id="stu-todo"><Icon name="clock" size={17} />진행 중 과제 {ready && <span className="prof-nav__badge prof-mono is-strong">{todo.length}</span>}</h2>
-              <Link to="/student/assignments?status=ongoing" className="prof-link">전체 보기 <Icon name="arrowRight" size={14} /></Link>
+              <Link to="/student/assignments?tab=ongoing" className="prof-link">전체 보기 <Icon name="arrowRight" size={14} /></Link>
             </header>
             {!ready ? <p role="status" className="prof-empty">과제를 불러오는 중…</p>
               : <RowList items={todo.slice(0, 3)} featureFirst empty={items.length ? '진행할 과제를 모두 제출했어요.' : '게시된 과제가 없습니다.'} />}
             {ready && todo.length > 3 && (
               <footer className="prof-card__foot">
                 <span className="prof-muted">마감이 가까운 순으로 3개만 보여줍니다.</span>
-                <Link to="/student/assignments?status=ongoing" className="prof-link">나머지 {todo.length - 3}개 보기 <Icon name="arrowRight" size={14} /></Link>
+                <Link to="/student/assignments?tab=ongoing" className="prof-link">나머지 {todo.length - 3}개 보기 <Icon name="arrowRight" size={14} /></Link>
               </footer>
             )}
           </section>
           <section className="prof-card stu-card--completed" aria-labelledby="stu-completed">
             <header className="prof-card__head">
               <h2 id="stu-completed"><Icon name="checkCircle" size={17} />완료된 과제 {ready && <span className="prof-nav__badge prof-mono is-strong">{completed.length}</span>}</h2>
-              <Link to="/student/assignments?status=completed" className="prof-link">전체 보기 <Icon name="arrowRight" size={14} /></Link>
+              <Link to={completedLink} className="prof-link">전체 보기 <Icon name="arrowRight" size={14} /></Link>
             </header>
             {!ready ? <p role="status" className="prof-empty">과제를 불러오는 중…</p>
               : <RowList items={completed.slice(0, 3)} empty="아직 최종 제출한 과제가 없습니다." />}
             <footer className="prof-card__foot">
               <span className="prof-muted">최종 제출한 과제입니다. 공개된 결과 또는 제출한 답안을 확인하세요.</span>
-              {ready && completed.length > 3 && <Link to="/student/assignments?status=completed" className="prof-link">나머지 {completed.length - 3}개 보기 <Icon name="arrowRight" size={14} /></Link>}
+              {ready && completed.length > 3 && <Link to={completedLink} className="prof-link">나머지 {completed.length - 3}개 보기 <Icon name="arrowRight" size={14} /></Link>}
             </footer>
           </section>
           <ResultsCard reviews={reviews} titleOf={titleOf} />

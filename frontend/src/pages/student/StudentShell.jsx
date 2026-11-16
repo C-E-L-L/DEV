@@ -13,14 +13,8 @@ const MOBILE_QUERY = '(max-width: 900px)';
 
 const NAV = [
   { key: 'dashboard', label: '대시보드', icon: 'grid', to: '/student', end: true },
-  {
-    key: 'assignments', label: '과제', icon: 'clipboard', base: ['/student/assignments', '/student/work'], to: '/student/assignments',
-    children: [
-      { label: '전체 과제', icon: 'clipboard', to: '/student/assignments', status: 'all' },
-      { label: '진행 중 과제', icon: 'clock', to: '/student/assignments?status=ongoing', status: 'ongoing' },
-      { label: '완료된 과제', icon: 'checkCircle', to: '/student/assignments?status=completed', status: 'completed' },
-    ],
-  },
+  // One page with ongoing, submitted and graded tabs; the badge counts the ongoing coursework.
+  { key: 'assignments', label: '과제', icon: 'clipboard', base: ['/student/assignments', '/student/work'], to: '/student/assignments', count: 'ongoing' },
   {
     key: 'mypage', label: '마이페이지', icon: 'user', base: ['/student/results', '/student/questions'], to: '/student/results',
     children: [
@@ -32,7 +26,7 @@ const NAV = [
 
 const TITLES = [
   ['/student/assignments/history', '수행한 과제 목록'],
-  ['/student/assignments', '전체 과제 관리'],
+  ['/student/assignments', '과제'],
   ['/student/results', '내 결과 분석/확인'],
   ['/student/questions', '내 질문 관리'],
   ['/student', '대시보드'],
@@ -61,13 +55,10 @@ function readStored(key, fallback) {
 const inside = (item, pathname) => item.base?.some(base => pathname.startsWith(base));
 
 function StudentSidebar({ rail, id }) {
-  const { pathname, search } = useLocation();
+  const { pathname } = useLocation();
   const { counts, ready, reports } = useStudentData();
-  const badges = { replies: newReplyCount(reports) };
-  const badgeTitle = { replies: '최근 7일 동안 받은 교수 답변' };
-  const requestedStatus = new URLSearchParams(search).get('status');
-  const activeStatus = ['ongoing', 'completed'].includes(requestedStatus) ? requestedStatus : 'all';
-  const statusTitle = { all: '게시된 전체 과제·진단평가', ongoing: '마감 전이며 아직 최종 제출하지 않은 과제', completed: '최종 제출을 완료한 과제' };
+  const badges = { replies: newReplyCount(reports), ongoing: ready ? counts.ongoing : 0 };
+  const badgeTitle = { replies: '최근 7일 동안 받은 교수 답변', ongoing: '마감 전이며 아직 최종 제출하지 않은 과제' };
   const [open, setOpen] = useState(() => ({ assignments: true, mypage: true, ...readStored(GROUPS_KEY, {}) }));
 
   useEffect(() => {
@@ -95,9 +86,10 @@ function StudentSidebar({ rail, id }) {
           if (rail || !item.children) {
             return (
               <NavLink key={item.key} to={item.to} end={item.end} title={rail ? item.label : undefined}
-                className={({ isActive }) => `prof-nav__link${isActive || (rail && inside(item, pathname)) ? ' is-active' : ''}`}>
+                className={({ isActive }) => `prof-nav__link${isActive || inside(item, pathname) ? ' is-active' : ''}`}>
                 <Icon name={item.icon} size={17} />
                 {!rail && <span className="prof-nav__label">{item.label}</span>}
+                {!rail && badges[item.count] > 0 && <span className="prof-nav__badge prof-mono is-strong" title={badgeTitle[item.count]}>{badges[item.count]}</span>}
                 {rail && <span className="prof-sr">{item.label}</span>}
               </NavLink>
             );
@@ -117,16 +109,9 @@ function StudentSidebar({ rail, id }) {
                   {item.children.map(child => (
                     <li key={child.to}>
                       <NavLink to={child.to} end={child.end}
-                        className={({ isActive }) => {
-                          const selected = child.status
-                            ? (pathname === '/student/assignments' && activeStatus === child.status)
-                              || (child.status === 'all' && pathname.startsWith('/student/work'))
-                            : isActive;
-                          return `prof-nav__link prof-nav__link--sub${selected ? ' is-active' : ''}`;
-                        }}>
+                        className={({ isActive }) => `prof-nav__link prof-nav__link--sub${isActive ? ' is-active' : ''}`}>
                         <Icon name={child.icon} size={15} />
                         <span className="prof-nav__label">{child.label}</span>
-                        {child.status && <span className="prof-nav__badge prof-mono is-strong" title={statusTitle[child.status]}>{ready ? counts[child.status] : '–'}</span>}
                         {badges[child.count] > 0 && <span className="prof-nav__badge prof-mono is-strong" title={badgeTitle[child.count]}>{badges[child.count]}</span>}
                       </NavLink>
                     </li>
@@ -195,9 +180,7 @@ export default function StudentShell({ children }) {
 
   const rail = collapsed && !mobile;
   const sidebarShown = mobile ? drawerOpen : !collapsed;
-  const requestedStatus = new URLSearchParams(search).get('status');
-  const assignmentTitle = { ongoing: '진행 중 과제', completed: '완료된 과제' }[requestedStatus] || '전체 과제';
-  const title = pathname === '/student/assignments' ? assignmentTitle : TITLES.find(([path]) => pathname.startsWith(path))?.[1] || '';
+  const title = TITLES.find(([path]) => pathname.startsWith(path))?.[1] || '';
 
   return (
     <ShellContext.Provider value={{ toggleSidebar, sidebarShown, mobile }}>
