@@ -1,6 +1,7 @@
 [CmdletBinding()]
-param([string]$ConfigPath=(Join-Path $PSScriptRoot 'config.json'),[switch]$DryRun)
+param([string]$ConfigPath='',[switch]$DryRun)
 $ErrorActionPreference='Stop'
+if(-not $ConfigPath){$ConfigPath=Join-Path $PSScriptRoot 'config.json'}
 $config=Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8|ConvertFrom-Json
 $script:DeployHome=$config.deploy_home
 . (Join-Path $script:DeployHome 'Deployment.Common.ps1')
