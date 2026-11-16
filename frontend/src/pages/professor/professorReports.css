@@ -1,0 +1,21 @@
+/* Reuse the student's question list, with the professor's author and reply controls. */
+.prof-questions__student { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; color: var(--p-text-2); font-size: 11px; font-weight: 500; }
+.prof-questions__student > span { color: var(--p-muted); font-weight: 400; }
+.prof-questions__reply-form { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--p-line); border-radius: 10px; background: var(--p-bg); }
+.prof-questions__reply-form > label { display: flex; align-items: center; gap: 7px; color: var(--p-text-2); font-size: 12px; font-weight: 600; }
+.prof-questions__reply-form textarea { box-sizing: border-box; width: 100%; min-height: 118px; padding: 12px 14px; border: 1px solid var(--p-line); border-radius: 8px; background: var(--p-surface); color: var(--p-text); font: inherit; font-size: 13px; line-height: 1.8; resize: vertical; }
+.prof-questions__reply-form textarea:focus-visible { outline: 2px solid var(--p-primary); outline-offset: 2px; }
+.prof-questions__reply-form textarea::placeholder { color: var(--p-subtle); }
+.prof-questions__reply-form textarea:disabled { opacity: .65; }
+.prof-questions__form-foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.prof-questions__form-foot > span { max-width: 430px; font-size: 11px; line-height: 1.7; }
+.prof-questions__form-foot .prof-actions { margin: 0; }
+.prof-questions__reply-error { margin: 0; color: var(--p-red, #b42318); font-size: 12px; }
+.prof-questions__success { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 16px; border: 1px solid #bbebd4; border-radius: 9px; background: #effaf5; color: #23734f; font-size: 12px; line-height: 1.7; }
+.prof-questions__success > svg { flex-shrink: 0; }
+.prof-questions__refreshing { margin: 0; padding: 10px 20px; color: var(--p-muted); font-size: 12px; }
+@media (max-width: 700px) {
+  .prof-questions__reply-form { padding: 14px; }
+  .prof-questions__form-foot { align-items: stretch; flex-direction: column; }
+  .prof-questions__form-foot .prof-actions { justify-content: flex-end; }
+}

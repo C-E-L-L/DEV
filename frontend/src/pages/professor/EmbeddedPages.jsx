@@ -1,14 +1,18 @@
-// Existing professor screens, shown unchanged inside the console frame.
+// Shared console pages, with a dedicated question-management layout for professors.
 import ReportsPanel from '../../components/ReportsPanel';
 import SpeciesDataSettings from '../../components/SpeciesDataSettings';
 import StudentManagement from '../../components/StudentManagement';
 import { useProfessorData } from './ProfessorData';
+import { useAuth } from '../../context/AuthContext';
+import ProfessorReportsPage from './ProfessorReportsPage';
 
 export function StudentAchievementPage() {
   return <div className="professor-workspace prof-embedded"><StudentManagement showRegistration={false} /></div>;
 }
 
 export function ReportsPage() {
+  const { user } = useAuth();
+  if (user.role === 'EXPERT') return <ProfessorReportsPage />;
   return <div className="professor-workspace prof-embedded"><ReportsPanel /></div>;
 }
 
