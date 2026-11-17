@@ -30,7 +30,9 @@ public class StudentAnalyticsService {
     public StudentLearningResponse getHistory(String studentId) {
         List<Task> tasks = taskRepository.findAllByOrderByIdDesc().stream().filter(Task::isPublished).toList();
         if (tasks.isEmpty()) return new StudentLearningResponse(studentId, List.of());
-        List<Crop> crops = cropRepository.findAllByTaskIdIn(tasks.stream().map(Task::getId).toList());
+        // Cells excluded from the questions are not part of any result.
+        List<Crop> crops = cropRepository.findAllByTaskIdIn(tasks.stream().map(Task::getId).toList())
+                .stream().filter(crop -> !crop.isExcluded()).toList();
         Map<Long, Submission> answers = getAnswers(crops, studentId);
         Map<Long, List<Crop>> cropsByTask = crops.stream().collect(Collectors.groupingBy(Crop::getTaskId));
         Map<String, List<Task>> groups = new LinkedHashMap<>();
@@ -63,7 +65,7 @@ public class StudentAnalyticsService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundException("과제를 찾을 수 없습니다. taskId=" + taskId, ErrorCode.T000));
         if (!task.isPublished()) throw new NotFoundException("게시된 과제를 찾을 수 없습니다.", ErrorCode.T000);
-        List<Crop> crops = cropRepository.findAllByTaskId(taskId);
+        List<Crop> crops = cropRepository.findAllByTaskId(taskId).stream().filter(crop -> !crop.isExcluded()).toList();
         List<CellResult> cells = buildCells(task, crops, getAnswers(crops, studentId));
         return new TaskDetail(studentId, toTaskResult(task, summarize(cells)), cells);
     }

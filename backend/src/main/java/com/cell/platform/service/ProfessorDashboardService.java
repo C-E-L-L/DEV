@@ -1,5 +1,8 @@
 package com.cell.platform.service;
 
+import com.cell.platform.domain.crop.Crop;
+import com.cell.platform.domain.submission.Submission;
+import com.cell.platform.domain.submission.SubmissionRepository;
 import com.cell.platform.domain.task.Task;
 import com.cell.platform.domain.task.TaskRepository;
 import com.cell.platform.domain.user.Role;
@@ -8,6 +11,7 @@ import com.cell.platform.domain.user.UserRepository;
 import com.cell.platform.domain.user.UserStatus;
 import com.cell.platform.dto.response.ProfessorActivityResponse;
 import com.cell.platform.dto.response.ProfessorActivityResponse.Event;
+import com.cell.platform.dto.response.ProfessorGradebookResponse;
 import com.cell.platform.dto.response.ProfessorProgressResponse;
 import com.cell.platform.dto.response.ProfessorProgressResponse.Item;
 import com.cell.platform.dto.response.ProfessorProgressResponse.Student;
@@ -44,6 +48,8 @@ public class ProfessorDashboardService {
     private final StudentRosterJpaRepository roster;
     private final CropIssueReportJpaRepository reports;
     private final CropIssueReplyJpaRepository replies;
+    private final SubmissionRepository submissions;
+    private final SubmissionService grading;
 
     public ProfessorProgressResponse getProgress() {
         List<Student> students = students();
@@ -59,6 +65,62 @@ public class ProfessorDashboardService {
                     title(first), first.getKind().name(), deadline(scope), submitted);
         }).toList();
         return new ProfessorProgressResponse(students, items);
+    }
+
+    /** Every student against every published coursework: answers, confirmed-answer score and final submission. */
+    public ProfessorGradebookResponse getGradebook() {
+        List<Student> students = students();
+        Set<String> studentIds = students.stream().map(Student::studentId).collect(Collectors.toSet());
+        List<List<Task>> scopes = publishedScopes();
+        Map<Long, List<TaskAttemptEntity>> attemptsByTask = attemptsByTask(scopes);
+        Map<Long, Crop> crops = new HashMap<>();
+        Map<Long, Long> scopeOfCrop = new HashMap<>();
+        Map<Long, Boolean> diagnosticCrop = new HashMap<>();
+        List<ProfessorGradebookResponse.Item> items = new ArrayList<>();
+        for (List<Task> scope : scopes) {
+            Task first = scope.get(0);
+            int questions = 0;
+            for (Task task : scope) {
+                for (Crop crop : task.getCrops()) {
+                    if (crop.isExcluded()) continue;
+                    questions++;
+                    crops.put(crop.getId(), crop);
+                    scopeOfCrop.put(crop.getId(), first.getId());
+                    diagnosticCrop.put(crop.getId(), task.isDiagnostic());
+                }
+            }
+            items.add(new ProfessorGradebookResponse.Item(first.getId(), scope.stream().map(Task::getId).toList(),
+                    title(first), first.getKind().name(), deadline(scope), questions));
+        }
+
+        // studentId -> itemId -> [answered, graded, correct]
+        Map<String, Map<Long, int[]>> counts = new HashMap<>();
+        List<Submission> answers = crops.isEmpty() ? List.of() : submissions.findAllByCropIdIn(List.copyOf(crops.keySet()));
+        for (Submission answer : answers) {
+            if (!studentIds.contains(answer.getStudentId())) continue;
+            Crop crop = crops.get(answer.getCropId());
+            int[] count = counts.computeIfAbsent(answer.getStudentId(), ignored -> new HashMap<>())
+                    .computeIfAbsent(scopeOfCrop.get(crop.getId()), ignored -> new int[3]);
+            count[0]++;
+            var correct = grading.resolveCorrectLabel(crop, diagnosticCrop.get(crop.getId()));
+            if (correct == null) continue;
+            count[1]++;
+            if (correct.name().equals(answer.getAnswerLabel())) count[2]++;
+        }
+
+        List<ProfessorGradebookResponse.Result> results = new ArrayList<>();
+        for (List<Task> scope : scopes) {
+            Long itemId = scope.get(0).getId();
+            Map<String, LocalDateTime> finalized = latestAttempts(scope, attemptsByTask);
+            Set<String> touched = new TreeSet<>(finalized.keySet());
+            counts.forEach((studentId, byItem) -> { if (byItem.containsKey(itemId)) touched.add(studentId); });
+            for (String studentId : touched) {
+                if (!studentIds.contains(studentId)) continue;
+                int[] count = counts.getOrDefault(studentId, Map.of()).getOrDefault(itemId, new int[3]);
+                results.add(new ProfessorGradebookResponse.Result(studentId, itemId, count[0], count[1], count[2], finalized.get(studentId)));
+            }
+        }
+        return new ProfessorGradebookResponse(students, items, results);
     }
 
     public ProfessorActivityResponse getActivity(int limit) {

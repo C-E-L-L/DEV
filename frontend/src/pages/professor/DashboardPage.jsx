@@ -169,7 +169,7 @@ function AchievementCard() {
                   <ul className="prof-students">
                     {lowest.map(student => (
                       <li key={student.studentId}>
-                        <span>{studentLabel(student)}</span>
+                        <Link to={`/expert/students/${encodeURIComponent(student.studentId)}`} className="prof-link">{studentLabel(student)}</Link>
                         <span className="prof-mono">{student.accuracy}% <small>· 응답 {student.totalSolved}개</small></span>
                       </li>
                     ))}
@@ -182,7 +182,7 @@ function AchievementCard() {
 
       <footer className="prof-card__foot">
         <span />
-        <Link to="/expert/students/achievement" className="prof-link">학생별 성취도 보기 <Icon name="arrowRight" size={14} /></Link>
+        <Link to="/expert/students" className="prof-link">학생별 성적 보기 <Icon name="arrowRight" size={14} /></Link>
       </footer>
     </section>
   );

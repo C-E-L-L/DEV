@@ -9,7 +9,9 @@ import AssignmentsPage from '../professor/AssignmentsPage';
 import DataPage from '../professor/DataPage';
 import StudentRegisterPage from '../professor/StudentRegisterPage';
 import StudentProgressPage from '../professor/StudentProgressPage';
-import { ReportsPage, SettingsPage, StudentAchievementPage } from '../professor/EmbeddedPages';
+import StudentsPage from '../professor/StudentsPage';
+import StudentDetailPage from '../professor/StudentDetailPage';
+import { ReportsPage, SettingsPage } from '../professor/EmbeddedPages';
 import { ProfessorDataProvider } from '../professor/ProfessorData';
 import { AdminDataProvider } from './AdminData';
 import AdminShell from './AdminShell';
@@ -41,7 +43,9 @@ export default function AdminApp() {
     <Route path="accounts/professors" element={<AccountsPage role="EXPERT"/>}/>
     <Route path="students/register" element={<StudentRegisterPage/>}/>
     <Route path="students/progress" element={<StudentProgressPage/>}/>
-    <Route path="statistics/students" element={<StudentAchievementPage/>}/>
+    <Route path="statistics/students" element={<Navigate to="/admin/students" replace/>}/>
+    <Route path="students" element={<StudentsPage/>}/>
+    <Route path="students/:studentId" element={<StudentDetailPage/>}/>
     <Route path="statistics/cells" element={<div className="adm-legacy"><div className="prof-page-head"><div><h1>전체 응답 통계</h1><p>세포별 응답과 오답률을 확인합니다.</p></div></div><AnalyticsFeedback initialTab="cells" hideTabs/></div>}/>
     <Route path="statistics/matrix" element={<><div className="prof-page-head"><div><h1>혼동행렬</h1><p>동물 종과 클래스 구성별로 학생의 분류 결과를 확인합니다.</p></div></div><MatrixPanel/></>}/>
     <Route path="reports" element={<ReportsPage/>}/>

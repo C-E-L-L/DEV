@@ -6,10 +6,12 @@ import AssignmentsOverviewPage from './AssignmentsOverviewPage';
 import AssignmentsPage from './AssignmentsPage';
 import DashboardPage from './DashboardPage';
 import DataPage from './DataPage';
-import { ReportsPage, SettingsPage, StudentAchievementPage } from './EmbeddedPages';
+import { ReportsPage, SettingsPage } from './EmbeddedPages';
 import { ProfessorDataProvider } from './ProfessorData';
 import ProfessorShell from './ProfessorShell';
+import StudentDetailPage from './StudentDetailPage';
 import StudentProgressPage from './StudentProgressPage';
+import StudentsPage from './StudentsPage';
 import StudentRegisterPage from './StudentRegisterPage';
 import './workspace.css';
 import './professor.css';
@@ -31,9 +33,10 @@ export default function ProfessorApp() {
           <Route path="assignments/new" element={<AssignmentCreatePage />} />
           <Route path="assignments/:id/edit" element={<AssignmentEditPage />} />
           <Route path="assignments/:id/results" element={<AssignmentResultsPage />} />
-          <Route path="students" element={<Navigate to="/expert/students/achievement" replace />} />
+          <Route path="students" element={<StudentsPage />} />
+          <Route path="students/achievement" element={<Navigate to="/expert/students" replace />} />
+          <Route path="students/:studentId" element={<StudentDetailPage />} />
           <Route path="students/register" element={<StudentRegisterPage />} />
-          <Route path="students/achievement" element={<StudentAchievementPage />} />
           <Route path="students/progress" element={<StudentProgressPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="announcements" element={<AnnouncementsPage manage />} />

@@ -144,6 +144,49 @@ class ProfessorDashboardIntegrationTest {
                 .andExpect(jsonPath("$[?(@.studentId=='2026001')].section").value("1분반"));
     }
 
+    @Test
+    void gradebookCountsAnswersConfirmedScoresAndFinalSubmissionPerStudent() throws Exception {
+        accounts.createUser(new RegisterRequest("g1", "가학생", "password123", "STUDENT"));
+        accounts.createUser(new RegisterRequest("g2", "나학생", "password123", "STUDENT"));
+        accounts.importStudentRoster(new StudentRosterImportRequest(List.of(new Row("g9", "미가입", "B반"))), "prof");
+        TaskEntity task = draft();
+        task.addCrop(CropEntity.builder().cropFilename("cell-3.png").bbox("[40,40,50,50]").build());
+        tasks.saveAndFlush(task);
+        var current = coursework.get(task.getId());
+        var revisions = new LinkedHashMap<Long, Long>();
+        current.tasks().forEach(part -> revisions.put(part.task().id(), part.task().revision()));
+        var cells = current.tasks().get(0).crops();
+        Long c1 = cells.get(0).id(), c2 = cells.get(1).id(), c3 = cells.get(2).id();
+        // c1 confirmed Band, c2 left unconfirmed, c3 excluded from the questions
+        coursework.publish(task.getId(), new CourseworkSaveRequest("성적부 과제", null, false, false, revisions, List.of(
+                new CourseworkSaveRequest.CellEdit(c1, "Band", false, null),
+                new CourseworkSaveRequest.CellEdit(c2, null, false, null),
+                new CourseworkSaveRequest.CellEdit(c3, null, true, "흐림"))));
+        submissions.submit(c1, "g1", "Band");
+        submissions.submit(c2, "g1", "Segment");
+        submissions.finalizeAttempt(task.getId(), "g1");
+        submissions.submit(c1, "g2", "Segment"); // still answering
+        em.flush(); em.clear();
+
+        var gradebook = dashboard.getGradebook();
+
+        var item = gradebook.items().stream().filter(i -> i.taskIds().contains(task.getId())).findFirst().orElseThrow();
+        assertThat(item.questions()).isEqualTo(2);
+        var mine = gradebook.results().stream().filter(r -> r.itemId().equals(item.id())).toList();
+        var g1 = mine.stream().filter(r -> r.studentId().equals("g1")).findFirst().orElseThrow();
+        assertThat(List.of(g1.answered(), g1.graded(), g1.correct())).containsExactly(2, 1, 1);
+        assertThat(g1.finalizedAt()).isNotNull();
+        var g2 = mine.stream().filter(r -> r.studentId().equals("g2")).findFirst().orElseThrow();
+        assertThat(List.of(g2.answered(), g2.graded(), g2.correct())).containsExactly(1, 1, 0);
+        assertThat(g2.finalizedAt()).isNull();
+        assertThat(mine).noneMatch(r -> r.studentId().equals("g9"));
+        assertThat(gradebook.students()).extracting(ProfessorProgressResponse.Student::studentId).contains("g1", "g2", "g9");
+
+        mvc.perform(get("/api/professor/gradebook").with(role("STUDENT"))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/professor/gradebook").with(role("EXPERT"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray());
+    }
+
     private RequestPostProcessor role(String role) {
         return authentication(new UsernamePasswordAuthenticationToken("user", null, List.of(new SimpleGrantedAuthority("ROLE_" + role))));
     }

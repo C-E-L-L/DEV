@@ -68,6 +68,20 @@ export function createProfessorMock({tasks,cropStats,species,users,roster,studen
         submitted:list.filter(s=>s.registered&&finalized(group,s.studentId)).map(s=>({studentId:s.studentId,finalizedAt:null}))}));
       json(res,{students:list,items});return true;
     }
+    if(path==='/api/professor/gradebook'){
+      const section=id=>roster().find(s=>s.studentId===id)?.section||null;
+      const list=students().map(s=>({studentId:s.studentId,name:s.studentName||null,section:section(s.studentId),registered:true}));
+      for(const entry of roster())if(!list.some(s=>s.studentId===entry.studentId))list.push({studentId:entry.studentId,name:entry.name||null,section:entry.section||null,registered:false});
+      list.sort((a,b)=>a.studentId.localeCompare(b.studentId));
+      const items=[],results=[];
+      for(const group of scopes()){
+        const cells=group.flatMap(t=>cropStats.get(t.id)||[]).filter(c=>!c.excluded);
+        items.push({id:group[0].id,taskIds:group.map(t=>t.id),title:title(group[0]),kind:isDiagnostic(group[0])?'DIAGNOSTIC':'PRACTICE',deadlineAt:deadline(group),questions:cells.length});
+        // The mock keeps no per-student answers here: a final submission counts as every cell answered.
+        for(const s of list)if(s.registered&&finalized(group,s.studentId)){const graded=cells.filter(c=>c.finalLabel).length;results.push({studentId:s.studentId,itemId:group[0].id,answered:cells.length,graded,correct:graded,finalizedAt:null});}
+      }
+      json(res,{students:list,items,results});return true;
+    }
     if(path==='/api/professor/activity'){
       const name=id=>students().find(s=>s.studentId===id)?.studentName||null,events=[];
       for(const group of scopes()){const due=deadline(group);if(!due||new Date(due)>new Date())continue;

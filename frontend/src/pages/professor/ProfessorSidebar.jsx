@@ -20,10 +20,10 @@ const NAV = [
     ],
   },
   {
-    key: 'students', label: '학생', icon: 'users', base: '/expert/students', to: '/expert/students/achievement',
+    key: 'students', label: '학생', icon: 'users', base: '/expert/students', to: '/expert/students',
     children: [
+      { label: '전체 학생', icon: 'chart', to: '/expert/students', end: true, match: /^\/expert\/students\/(?!register$|progress$)[^/]+$/ },
       { label: '학생 등록', icon: 'userPlus', to: '/expert/students/register' },
-      { label: '학생별 성취도', icon: 'chart', to: '/expert/students/achievement' },
       { label: '진행 상황', icon: 'barChart', to: '/expert/students/progress' },
     ],
   },
@@ -99,7 +99,7 @@ export default function ProfessorSidebar({ rail, id }) {
                 <ul className="prof-nav__sub" id={`prof-nav-${item.key}`}>
                   {item.children.map(child => (
                     <li key={child.to}>
-                      <NavLink to={child.to} end={child.end} className={({ isActive }) => `prof-nav__link prof-nav__link--sub${child.accent ? ' is-accent' : ''}${isActive ? ' is-active' : ''}`}>
+                      <NavLink to={child.to} end={child.end} className={({ isActive }) => `prof-nav__link prof-nav__link--sub${child.accent ? ' is-accent' : ''}${isActive || child.match?.test(pathname) ? ' is-active' : ''}`}>
                         <Icon name={child.icon} size={15} />
                         <span className="prof-nav__label">{child.label}</span>
                         <Badge value={badges[child.count]} strong={child.strong} />

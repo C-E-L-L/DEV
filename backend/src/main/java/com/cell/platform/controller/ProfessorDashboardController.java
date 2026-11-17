@@ -19,6 +19,9 @@ public class ProfessorDashboardController {
     @GetMapping("/progress")
     public ProfessorProgressResponse progress() { return service.getProgress(); }
 
+    @GetMapping("/gradebook")
+    public com.cell.platform.dto.response.ProfessorGradebookResponse gradebook() { return service.getGradebook(); }
+
     @GetMapping("/activity")
     public ProfessorActivityResponse activity(@RequestParam(defaultValue = "30") int limit) { return service.getActivity(limit); }
 }
