@@ -10,7 +10,7 @@ import { useAdminData } from './AdminData';
 const NAV = [
   { title:'메인 콘솔', items:[['대시보드','grid','/admin',true]] },
   { title:'데이터 관리', items:[['도말 데이터','database','/admin/data/smears'],['세포 데이터','microscope','/admin/data/crops'],['데이터 업로드','upload','/admin/assignments/new?kind=practice'],['라벨 검수','checkCircle','/admin/data/review']] },
-  { title:'과제 운영', items:[['임시저장 과제','edit','/admin/assignments/drafts'],['진행 중 과제','clipboard','/admin/assignments/active'],['완료된 과제','checkCircle','/admin/assignments/completed'],['과제 만들기','plusCircle','/admin/assignments/new']] },
+  { title:'과제 운영', items:[['전체 과제','layers','/admin/assignments',true],['임시저장 과제','edit','/admin/assignments/drafts'],['진행 중 과제','clipboard','/admin/assignments/active'],['완료된 과제','checkCircle','/admin/assignments/completed'],['과제 만들기','plusCircle','/admin/assignments/new']] },
   { title:'계정 관리', items:[['학생 계정','school','/admin/accounts/students'],['교수 계정','users','/admin/accounts/professors'],['학생 명단 등록','userPlus','/admin/students/register']] },
   { title:'통계 및 분석', items:[['학생별 성취도','chart','/admin/statistics/students'],['전체 응답 통계','barChart','/admin/statistics/cells'],['과제 수행률','clipboard','/admin/students/progress'],['혼동행렬','grid','/admin/statistics/matrix']] },
   { title:'운영 관리', items:[['질문·신고','help','/admin/reports'],['공지사항','bell','/admin/announcements'],['데이터 설정','settings','/admin/settings']] },

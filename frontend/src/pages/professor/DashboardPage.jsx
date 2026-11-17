@@ -2,57 +2,20 @@ import Announcements from '../../components/Announcements';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import AuthImage from '../../components/AuthImage';
 import Icon from '../../components/login/icons';
-import { imageUrl } from '../../constants';
 import { professorApi } from '../../api/professor';
-import { isDiagnostic } from '../../utils/coursework';
 import { pageNumbers, paginate } from '../../utils/smearData';
 import {
   classAccuracy, courseworkDeadline, courseworkPhase, courseworkTitle, deadlineInfo,
-  pendingLabelCount, studentLabel, submissionSummary,
+  pendingLabelCount, studentLabel,
 } from '../../utils/professorDashboard';
 import ActivityList from './ActivityList';
+import { CourseworkTitleCell, SubmissionCell } from './CourseworkCells';
 import { useProfessorData } from './ProfessorData';
 
 const FILTERS = [['ALL', '전체'], ['ACTIVE', '진행중'], ['GRADING', '채점 대기']];
 // Keeps the card short; the rest is reached with the page buttons under the table.
 const PAGE_SIZE = 6;
-
-/** First smear of the coursework (+n when it has more); a diagnostic has no smear, so it gets an icon tile. */
-function CourseworkThumb({ group }) {
-  const smears = group.tasks.filter(task => task.originalFilename);
-  if (isDiagnostic(group) || !smears.length) {
-    return <span className="prof-thumb is-icon" aria-hidden="true"><Icon name={isDiagnostic(group) ? 'layers' : 'droplet'} size={18} /></span>;
-  }
-  const file = smears[0].originalFilename;
-  return (
-    <span className="prof-thumb">
-      <AuthImage src={imageUrl.thumbnail(file)} fallbackSrc={imageUrl.original(file)} alt="" />
-      {smears.length > 1 && <span className="prof-thumb__more prof-mono" title={`도말 ${smears.length}장`}>+{smears.length - 1}</span>}
-    </span>
-  );
-}
-
-function SubmissionCell({ group }) {
-  const { progress, progressByTask } = useProfessorData();
-  const summary = submissionSummary(progressByTask.get(group.id), progress.students);
-  if (!summary.total) return <span className="prof-muted">등록된 학생 없음</span>;
-  const percent = Math.round((summary.submitted / summary.total) * 100);
-  return (
-    <div className="prof-submit">
-      <div className="prof-submit__top">
-        <span className="prof-mono"><strong>{summary.submitted}</strong>/{summary.total}명</span>
-        {summary.missing.length > 0
-          ? <Link to={`/expert/students/progress?item=${group.id}`} className="prof-submit__missing">미제출 {summary.missing.length}명</Link>
-          : <span className="prof-submit__all">전원 제출</span>}
-      </div>
-      <div className="prof-bar" role="progressbar" aria-label="제출률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
-        <span className={percent === 100 ? 'is-done' : ''} style={{ width: `${percent}%` }} />
-      </div>
-    </div>
-  );
-}
 
 function CourseworkTable() {
   const { groups, loading } = useProfessorData();
@@ -94,19 +57,10 @@ function CourseworkTable() {
             <tbody>
               {shown.map(({ group, phase, pending, deadline }) => {
                 const due = deadlineInfo(deadline, now);
-                const species = [...new Set(group.tasks.map(task => task.speciesName).filter(Boolean))].join(', ');
                 return (
                   <tr key={group.id}>
                     <td className="prof-table__title">
-                      <div className="prof-table__course">
-                        <CourseworkThumb group={group} />
-                        <div>
-                          <Link to={`/expert/assignments/${group.id}/results`}>{courseworkTitle(group)}</Link>
-                          <span className="prof-table__meta">
-                            {isDiagnostic(group) ? '진단평가' : `분류 실습 · 도말 ${group.tasks.length}장`}{species && ` · ${species}`} · {group.cropCount}문항
-                          </span>
-                        </div>
-                      </div>
+                      <CourseworkTitleCell group={group} to={`/expert/assignments/${group.id}/results`} title={courseworkTitle(group)} />
                     </td>
                     <td><SubmissionCell group={group} /></td>
                     <td className="prof-table__due">
@@ -142,7 +96,7 @@ function CourseworkTable() {
 
       <footer className="prof-card__foot">
         <span className="prof-muted">제출은 학생의 최종 제출 기준입니다.</span>
-        <Link to="/expert/assignments/active" className="prof-link">과제 전체 보기 <Icon name="arrowRight" size={14} /></Link>
+        <Link to="/expert/assignments" className="prof-link">과제 전체 보기 <Icon name="arrowRight" size={14} /></Link>
       </footer>
     </section>
   );

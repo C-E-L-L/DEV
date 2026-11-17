@@ -113,3 +113,44 @@ export function classAccuracy(calibration) {
     gradedStudents: matrices.filter(student => student.totalSolved > 0).length,
   };
 }
+
+/**
+ * Coursework that needs the professor now, most urgent first:
+ * DUE: open, deadline within two days, someone has not submitted.
+ * UNCONFIRMED: published with questions that have no confirmed answer (students wait for grading).
+ * READY: a draft whose every question has a confirmed answer, so it can be reviewed and published.
+ */
+export function attentionItems(groups, progressByTask, students = [], now = new Date()) {
+  const items = [];
+  for (const group of groups) {
+    const phase = courseworkPhase(group, now);
+    const deadline = courseworkDeadline(group);
+    if (phase === 'ACTIVE' && deadlineInfo(deadline, now).tone === 'urgent') {
+      const missing = submissionSummary(progressByTask.get(group.id), students).missing.length;
+      if (missing > 0) items.push({ type: 'DUE', group, deadline, missing, order: new Date(deadline).getTime() });
+    }
+    const pending = pendingLabelCount(group);
+    if (pending > 0) items.push({ type: 'UNCONFIRMED', group, pending, order: -pending });
+    if (phase === 'DRAFT' && group.cropCount > 0 && group.labeledCount >= group.cropCount) items.push({ type: 'READY', group, order: -group.id });
+  }
+  const rank = { DUE: 0, UNCONFIRMED: 1, READY: 2 };
+  return items.sort((a, b) => rank[a.type] - rank[b.type] || a.order - b.order);
+}
+
+/** Rows for the coursework overview. `phase`: ALL, DRAFT, ACTIVE or CLOSED. `sort`: NEWEST, DEADLINE or MISSING. */
+export function courseworkRows(groups, progressByTask, students = [], { phase = 'ALL', kind = 'ALL', query = '', sort = 'NEWEST' } = {}, now = new Date()) {
+  const text = query.trim().toLowerCase();
+  const rows = groups.map(group => ({
+    group, phase: courseworkPhase(group, now), deadline: courseworkDeadline(group),
+    missing: group.status === 'DRAFT' ? 0 : submissionSummary(progressByTask.get(group.id), students).missing.length,
+  })).filter(row => row.phase !== 'ARCHIVED'
+    && (phase === 'ALL' || row.phase === phase)
+    && (kind === 'ALL' || (kind === 'DIAGNOSTIC') === isDiagnostic(row.group))
+    && (!text || courseworkTitle(row.group).toLowerCase().includes(text)));
+  const sorters = {
+    NEWEST: (a, b) => b.group.id - a.group.id,
+    DEADLINE: (a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999') || b.group.id - a.group.id,
+    MISSING: (a, b) => b.missing - a.missing || b.group.id - a.group.id,
+  };
+  return rows.sort(sorters[sort] || sorters.NEWEST);
+}

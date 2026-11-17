@@ -4,6 +4,7 @@ import { ConsoleProvider } from '../../components/console/ConsoleContext';
 import AnalyticsFeedback from '../../components/AnalyticsFeedback';
 import Announcements from '../../components/Announcements';
 import { AssignmentCreatePage, AssignmentEditPage, AssignmentResultsPage } from '../professor/AssignmentPages';
+import AssignmentsOverviewPage from '../professor/AssignmentsOverviewPage';
 import AssignmentsPage from '../professor/AssignmentsPage';
 import DataPage from '../professor/DataPage';
 import StudentRegisterPage from '../professor/StudentRegisterPage';
@@ -28,6 +29,7 @@ export default function AdminApp() {
     <Route path="data/smears" element={<DataPage key="inventory"/>}/>
     <Route path="data/crops" element={<CropsPage/>}/>
     <Route path="data/review" element={<ReviewPage/>}/>
+    <Route path="assignments" element={<AssignmentsOverviewPage/>}/>
     <Route path="assignments/drafts" element={<AssignmentsPage key="DRAFT" phase="DRAFT"/>}/>
     <Route path="assignments/active" element={<AssignmentsPage key="ACTIVE" phase="ACTIVE"/>}/>
     <Route path="assignments/completed" element={<AssignmentsPage key="CLOSED" phase="CLOSED"/>}/>

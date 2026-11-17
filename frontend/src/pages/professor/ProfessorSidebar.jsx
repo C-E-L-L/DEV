@@ -10,8 +10,9 @@ const GROUPS_KEY = 'cell-prof-sidebar-groups';
 const NAV = [
   { key: 'dashboard', label: '대시보드', icon: 'grid', to: '/expert', end: true },
   {
-    key: 'assignments', label: '과제', icon: 'clipboard', base: '/expert/assignments', to: '/expert/assignments/active',
+    key: 'assignments', label: '과제', icon: 'clipboard', base: '/expert/assignments', to: '/expert/assignments',
     children: [
+      { label: '전체 과제', icon: 'layers', to: '/expert/assignments', end: true },
       { label: '임시 저장된 과제', icon: 'edit', to: '/expert/assignments/drafts', count: 'drafts' },
       { label: '진행중인 과제', icon: 'clock', to: '/expert/assignments/active', count: 'active', strong: true },
       { label: '완료된 과제', icon: 'checkCircle', to: '/expert/assignments/completed', count: 'completed' },
@@ -98,7 +99,7 @@ export default function ProfessorSidebar({ rail, id }) {
                 <ul className="prof-nav__sub" id={`prof-nav-${item.key}`}>
                   {item.children.map(child => (
                     <li key={child.to}>
-                      <NavLink to={child.to} className={({ isActive }) => `prof-nav__link prof-nav__link--sub${child.accent ? ' is-accent' : ''}${isActive ? ' is-active' : ''}`}>
+                      <NavLink to={child.to} end={child.end} className={({ isActive }) => `prof-nav__link prof-nav__link--sub${child.accent ? ' is-accent' : ''}${isActive ? ' is-active' : ''}`}>
                         <Icon name={child.icon} size={15} />
                         <span className="prof-nav__label">{child.label}</span>
                         <Badge value={badges[child.count]} strong={child.strong} />

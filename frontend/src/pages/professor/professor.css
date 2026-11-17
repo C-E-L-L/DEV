@@ -441,6 +441,43 @@
 .prof-pager__pages button:disabled { color: var(--p-subtle); cursor: not-allowed; }
 .prof-pager__pages span { padding: 0 4px; color: var(--p-subtle); }
 
+/* ---------- Coursework overview ---------- */
+
+.prof-stats { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; }
+.prof-stat { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; border: 1px solid var(--p-line); border-radius: 12px; background: var(--p-surface); color: var(--p-muted); transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+.prof-stat:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06); }
+.prof-stat__label { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 600; }
+.prof-stat__dot { width: 7px; height: 7px; border-radius: 50%; background: #cbd5e1; }
+.prof-stat__value { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; }
+.prof-stat__value strong { color: var(--p-ink); font-size: 30px; font-weight: 700; line-height: 1; }
+.prof-stat.is-indigo .prof-stat__label, .prof-stat.is-indigo .prof-stat__value strong { color: var(--p-primary); }
+.prof-stat.is-indigo .prof-stat__dot { background: var(--p-primary); }
+.prof-stat.is-emerald .prof-stat__dot { background: #10b981; }
+
+.prof-card__head h2 .prof-badge { padding: 1px 8px; }
+.prof-attention { list-style: none; margin: 0; padding: 0; }
+.prof-attention__row { display: flex; align-items: center; gap: 14px; padding: 12px 20px; }
+.prof-attention__row + .prof-attention__row { border-top: 1px solid var(--p-line-soft); }
+.prof-attention__row > .prof-badge { flex: 0 0 84px; justify-content: center; }
+.prof-attention__text { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px; }
+.prof-attention__text strong { color: var(--p-ink); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.prof-attention__facts { display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--p-muted); font-size: 12px; }
+.prof-attention__facts strong { font-size: 12px; }
+.prof-attention__more { margin: 0; padding: 10px 20px; border-top: 1px solid var(--p-line-soft); }
+
+.prof-overview__tabs { display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--p-line); overflow-x: auto; }
+.prof-overview__tabs button { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; padding: 14px 12px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--p-muted); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.prof-overview__tabs button:hover { color: var(--p-ink); }
+.prof-overview__tabs button .prof-mono { padding: 0 7px; border-radius: 999px; background: var(--p-line-soft); color: var(--p-muted); font-size: 11px; font-weight: 600; }
+.prof-overview__tabs button[aria-pressed='true'] { border-bottom-color: var(--p-primary); color: var(--p-primary-hover); font-weight: 700; }
+.prof-overview__tabs button[aria-pressed='true'] .prof-mono { background: var(--p-primary-50); color: var(--p-primary-hover); }
+.prof-overview__filters { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid var(--p-line-soft); }
+.prof-overview__filters .prof-data__search { margin-right: auto; }
+.prof-overview__filters .prof-select select { height: 34px; }
+.prof-overview__table { min-width: 860px; }
+.prof-overview__labels { color: var(--p-text-2); font-weight: 600; }
+.prof-overview__labels.is-pending { color: var(--p-amber); }
+
 /* ---------- Coursework creator ---------- */
 
 .prof-create { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
@@ -593,6 +630,15 @@ button.prof-create__source { border-style: solid; }
 
 @media (max-width: 640px) {
   .prof-create__kinds, .prof-create__basics, .prof-create__sources { grid-template-columns: minmax(0, 1fr); }
+  .prof-stats { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .prof-attention__row { flex-wrap: wrap; padding: 12px 16px; }
+  .prof-attention__row > .prof-badge { flex-basis: auto; }
+  .prof-attention__row > .prof-thumb { display: none; }
+  .prof-attention__text { flex-basis: 100%; order: 3; }
+  .prof-attention__row > .prof-btn { order: 4; }
+  .prof-overview__filters { padding: 12px 16px; }
+  .prof-overview__filters .prof-data__search { flex-basis: 100%; max-width: none; }
+  .prof-overview__table { min-width: 0; }
   .prof-create__source { min-height: 120px; }
   .prof-steps li + li::before { width: 16px; flex-basis: 16px; }
   .prof-picker__filters, .prof-picker__list, .prof-picker__foot { padding-left: 16px; padding-right: 16px; }

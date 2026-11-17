@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import AnnouncementsPage from '../../components/AnnouncementsPage';
 import { AssignmentCreatePage, AssignmentEditPage, AssignmentResultsPage } from './AssignmentPages';
+import AssignmentsOverviewPage from './AssignmentsOverviewPage';
 import AssignmentsPage from './AssignmentsPage';
 import DashboardPage from './DashboardPage';
 import DataPage from './DataPage';
@@ -23,7 +24,7 @@ export default function ProfessorApp() {
       <ProfessorShell>
         <Routes>
           <Route index element={<DashboardPage />} />
-          <Route path="assignments" element={<Navigate to="/expert/assignments/active" replace />} />
+          <Route path="assignments" element={<AssignmentsOverviewPage />} />
           <Route path="assignments/drafts" element={<AssignmentsPage key="DRAFT" phase="DRAFT" />} />
           <Route path="assignments/active" element={<AssignmentsPage key="ACTIVE" phase="ACTIVE" />} />
           <Route path="assignments/completed" element={<AssignmentsPage key="CLOSED" phase="CLOSED" />} />

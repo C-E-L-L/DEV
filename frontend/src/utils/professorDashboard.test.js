@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  classAccuracy, courseworkCounts, courseworkPhase, deadlineInfo, indexProgress,
+  attentionItems, classAccuracy, courseworkCounts, courseworkPhase, courseworkRows, deadlineInfo, indexProgress,
   pendingLabelCount, relativeTime, submissionSummary,
 } from './professorDashboard.js';
 
@@ -74,4 +74,33 @@ test('class accuracy sums student matrices by true class', () => {
   assert.deepEqual(result.students.map(s => s.studentId), ['s2', 's1']);
   assert.equal(result.gradedStudents, 2);
   assert.equal(classAccuracy(null).accuracy, null);
+});
+
+test('overview: what needs attention, and filtered/sorted rows', () => {
+  const groups = [
+    { id: 1, status: 'DRAFT', title: '준비 끝', kind: 'DIAGNOSTIC', cropCount: 20, labeledCount: 20, tasks: [{ deadlineAt: null }] },
+    { id: 2, status: 'DRAFT', title: '준비 중', kind: 'PRACTICE', cropCount: 40, labeledCount: 12, tasks: [{ deadlineAt: null }] },
+    { id: 3, status: 'IN_PROGRESS', title: '곧 마감', kind: 'PRACTICE', cropCount: 50, labeledCount: 50, tasks: [{ deadlineAt: '2026-11-17T18:00:00' }] },
+    { id: 4, status: 'IN_PROGRESS', title: '정답 미확정', kind: 'PRACTICE', cropCount: 120, labeledCount: 96, tasks: [{ deadlineAt: '2026-11-30T18:00:00' }] },
+    { id: 5, status: 'IN_PROGRESS', title: '마감됨', kind: 'DIAGNOSTIC', cropCount: 15, labeledCount: 15, tasks: [{ deadlineAt: '2026-11-10T18:00:00' }] },
+    { id: 6, status: 'IN_PROGRESS', title: '곧 마감 전원 제출', kind: 'PRACTICE', cropCount: 5, labeledCount: 5, tasks: [{ deadlineAt: '2026-11-17T09:00:00' }] },
+    { id: 7, status: 'ARCHIVED', title: '보관', kind: 'PRACTICE', cropCount: 5, labeledCount: 0, tasks: [{ deadlineAt: null }] },
+  ];
+  const students = [{ studentId: 'a' }, { studentId: 'b' }];
+  const byTask = indexProgress({ items: [
+    { taskIds: [3], submitted: [{ studentId: 'a' }] },
+    { taskIds: [6], submitted: [{ studentId: 'a' }, { studentId: 'b' }] },
+  ] });
+  const attention = attentionItems(groups, byTask, students, now);
+  assert.deepEqual(attention.map(item => [item.type, item.group.id]), [['DUE', 3], ['UNCONFIRMED', 4], ['READY', 1]]);
+  assert.deepEqual([attention[0].missing, attention[1].pending], [1, 24]);
+
+  const ids = options => courseworkRows(groups, byTask, students, options, now).map(row => row.group.id);
+  assert.deepEqual(ids(), [6, 5, 4, 3, 2, 1]); // archived coursework is not listed
+  assert.deepEqual(ids({ phase: 'DRAFT' }), [2, 1]);
+  assert.deepEqual(ids({ phase: 'ACTIVE', sort: 'DEADLINE' }), [6, 3, 4]);
+  assert.deepEqual(ids({ phase: 'CLOSED' }), [5]);
+  assert.deepEqual(ids({ kind: 'DIAGNOSTIC' }), [5, 1]);
+  assert.deepEqual(ids({ query: ' 곧 ' }), [6, 3]);
+  assert.deepEqual(ids({ sort: 'MISSING' }).slice(0, 3), [5, 4, 3]);
 });
