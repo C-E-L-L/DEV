@@ -1,10 +1,10 @@
 import { useConsoleBase } from '../../components/console/ConsoleContext';
 import { useCallback, useEffect, useRef } from 'react';
 import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import AnalyticsFeedback from '../../components/AnalyticsFeedback';
 import CourseworkCreator from '../../components/CourseworkCreator';
-import CourseworkEditor from '../../components/CourseworkEditor';
 import { useProfessorData } from './ProfessorData';
+import LabelingWorkspace from './review/LabelingWorkspace';
+import ResultsWorkspace from './review/ResultsWorkspace';
 
 /** Returns to where the user came from, or to `fallback` when the page was opened directly. */
 function useGoBack(fallback) {
@@ -51,21 +51,16 @@ export function AssignmentEditPage() {
     } else blocker.reset();
   }, [blocker]);
 
-  return <div className="professor-workspace prof-embedded">
-    <CourseworkEditor key={id} id={Number(id)}
-      onDirty={value => { dirty.current = value; }}
-      onBack={() => { reload({ silent: true }); goBack(); }}
-      onPublished={() => { dirty.current = false; reload({ silent: true }); navigate(`${basePath}/assignments/active`, { replace: true }); }}
-    />
-  </div>;
+  return <LabelingWorkspace key={id} id={Number(id)} basePath={basePath}
+    onDirty={value => { dirty.current = value; }}
+    onBack={() => { reload({ silent: true }); goBack(); }}
+    onPublished={() => { dirty.current = false; reload({ silent: true }); navigate(`${basePath}/assignments/active`, { replace: true }); }}
+  />;
 }
 
 export function AssignmentResultsPage() {
   const basePath = useConsoleBase();
   const { id } = useParams();
   const goBack = useGoBack(`${basePath}/assignments/active`);
-  return <div className="professor-workspace prof-embedded">
-    <button onClick={goBack}>← 과제 목록</button>
-    <AnalyticsFeedback key={id} initialTaskId={Number(id)} courseworkOnly />
-  </div>;
+  return <ResultsWorkspace key={id} id={Number(id)} basePath={basePath} onBack={goBack} />;
 }

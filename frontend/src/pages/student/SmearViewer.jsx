@@ -33,6 +33,8 @@ function parseBbox(value) {
  * The smear image with one box per detected cell. Boxes are placed in percent of the image's
  * natural size, so they stay aligned at any zoom level and window size.
  * `cells`: [{ id, number, state: 'current' | 'done' | 'todo', label }]. `label` is the student's own answer.
+ * The professor screens reuse it and may also pass `tone` (an extra `is-…` class), `tag` (text in the
+ * number tag) and `description` (the accessible name after the number).
  */
 export default function SmearViewer({ filename, filter, cells, onSelect }) {
   const scroller = useRef(null);
@@ -102,16 +104,17 @@ export default function SmearViewer({ filename, filter, cells, onSelect }) {
           />
           {stage && cells.map(cell => {
             const [x1, y1, x2, y2] = parseBbox(cell.bbox);
+            const description = cell.description ?? (cell.label ? `내 답 ${cell.label}` : '미분류');
             return (
-              <button key={cell.id} type="button" className={`stu-box is-${cell.state}`}
-                aria-label={`세포 ${cell.number}${cell.label ? ` · 내 답 ${cell.label}` : ' · 미분류'}`} aria-pressed={cell.state === 'current'}
-                title={`#${cell.number} ${cell.label ? `내 답: ${cell.label}` : '미분류'}`}
+              <button key={cell.id} type="button" className={`stu-box is-${cell.state}${cell.tone ? ` is-${cell.tone}` : ''}`}
+                aria-label={`세포 ${cell.number} · ${description}`} aria-pressed={cell.state === 'current'}
+                title={cell.description ?? `#${cell.number} ${cell.label ? `내 답: ${cell.label}` : '미분류'}`}
                 onClick={() => onSelect(cell.index)}
                 style={{
                   left: `${(x1 / natural.width) * 100}%`, top: `${(y1 / natural.height) * 100}%`,
                   width: `${((x2 - x1) / natural.width) * 100}%`, height: `${((y2 - y1) / natural.height) * 100}%`,
                 }}>
-                <span className="stu-box__tag prof-mono">{cell.number}</span>
+                <span className="stu-box__tag prof-mono">{cell.tag ?? cell.number}</span>
               </button>
             );
           })}

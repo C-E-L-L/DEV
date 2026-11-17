@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import AccountBar from '../../components/console/AccountBar';
+import { WorkspaceChromeProvider, isWorkspacePath } from '../../components/console/WorkspaceChrome';
 import Icon from '../../components/login/icons';
 import NotificationBell from './NotificationBell';
 import ProfessorSidebar from './ProfessorSidebar';
@@ -59,12 +60,19 @@ export default function ProfessorShell({ children }) {
 
   const rail = collapsed && !mobile;
   const sidebarShown = mobile ? drawerOpen : !collapsed;
+  // Labeling and results screens are full height and bring their own header, like the student workspace.
+  const bare = isWorkspacePath(pathname);
 
   return (
     <div className={`prof-shell${rail ? ' is-rail' : ''}${mobile ? ' is-mobile' : ''}${drawerOpen ? ' is-drawer-open' : ''}`}>
       <ProfessorSidebar rail={rail} id="prof-sidebar" />
       {mobile && drawerOpen && <button type="button" className="prof-backdrop" aria-label="메뉴 닫기" onClick={() => setDrawerOpen(false)} />}
 
+      {bare ? (
+        <WorkspaceChromeProvider value={{ toggleSidebar, sidebarShown, sidebarId: 'prof-sidebar', account: <><AccountBar /><NotificationBell /></> }}>
+          {children}
+        </WorkspaceChromeProvider>
+      ) : (
       <div className="prof-main" ref={main}>
         <header className="prof-topbar">
           <button type="button" className="prof-icon-btn" onClick={toggleSidebar} aria-controls="prof-sidebar" aria-expanded={sidebarShown}
@@ -95,6 +103,7 @@ export default function ProfessorShell({ children }) {
           {children}
         </main>
       </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Icon from '../../components/login/icons';
+import { WorkspaceChromeProvider, isWorkspacePath } from '../../components/console/WorkspaceChrome';
 import logoUrl from '../../assets/login/cell-logo.svg';
 import NotificationBell from '../professor/NotificationBell';
 import { useProfessorData } from '../professor/ProfessorData';
@@ -38,8 +39,10 @@ export default function AdminShell({ children }) {
       <div className="adm-sidebar-foot"><Link className="adm-game" to="/game" title="관리자 전용 게임"><Icon name="play" size={14}/><span>관리자 게임</span></Link><div className="adm-profile"><span className="adm-avatar">{name.slice(0,1)}</span><span><strong>{name}</strong><small>관리자 · {user.username}</small></span><button type="button" onClick={logout} title="로그아웃" aria-label="로그아웃"><Icon name="logout" size={17}/></button></div></div>
     </aside>
     {mobile&&drawer&&<button className="adm-sidebar-backdrop" aria-label="메뉴 닫기" onClick={()=>setDrawer(false)}/>}
+    {/* Labeling and results screens are full height with their own header. */}
+    {isWorkspacePath(pathname)?<WorkspaceChromeProvider value={{toggleSidebar:toggle,sidebarShown:mobile?drawer:!collapsed,sidebarId:'admin-sidebar',account:<><NotificationBell/><span className="adm-topbar-profile"><span className="adm-avatar">{name.slice(0,1)}</span><span>{name}<small>시스템 관리자</small></span></span></>}}>{children}</WorkspaceChromeProvider>:
     <div className="adm-main"><header className="adm-topbar"><div><button type="button" className="adm-icon-button" aria-label={mobile?(drawer?'메뉴 닫기':'메뉴 열기'):(collapsed?'사이드바 펼치기':'사이드바 접기')} aria-controls="admin-sidebar" aria-expanded={mobile?drawer:!collapsed} onClick={toggle}><Icon name="panelLeft" size={18}/></button><span className="adm-console-badge">ADMIN CONSOLE</span><span className="adm-topbar-page">{label}</span></div><div><NotificationBell/><span className="adm-topbar-profile"><span className="adm-avatar">{name.slice(0,1)}</span><span>{name}<small>시스템 관리자</small></span></span></div></header>
       <main className="adm-content">{error&&<div role="alert" className="adm-error">{error} <button onClick={()=>reload()}>다시 불러오기</button></div>}{children}</main>
-    </div>
+    </div>}
   </div>;
 }

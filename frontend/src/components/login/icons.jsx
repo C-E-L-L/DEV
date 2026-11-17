@@ -63,6 +63,8 @@ const PATHS = {
   arrowLeft: <path d="M19 12H5M11 6l-6 6 6 6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
+  // Professor labeling: a cell left out of the questions
+  ban: <><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></>,
 };
 
 export default function Icon({ name, size = 16, className }) {

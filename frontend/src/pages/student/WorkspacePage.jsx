@@ -376,11 +376,14 @@ export default function WorkspacePage() {
                       return (
                         <li key={group.filename || groupIndex}>
                           <button type="button" className={`stu-smear${active ? ' is-active' : ''}`} aria-current={active} onClick={() => goToSmear(groupIndex)}>
-                            <span className="stu-smear__top">
-                              <strong>도말 {groupIndex + 1}</strong>
-                              <span className={`prof-mono${groupPercent === 100 ? ' is-done' : ''}`}>{groupPercent === 100 ? '완료' : `${groupPercent}%`}</span>
+                            <AuthImage src={group.filename ? imageUrl.thumbnail(group.filename) : null} fallbackSrc={group.filename ? imageUrl.original(group.filename) : null} alt="" className="stu-smear__thumb" />
+                            <span className="stu-smear__body">
+                              <span className="stu-smear__top">
+                                <strong>도말 {groupIndex + 1}</strong>
+                                <span className={`prof-mono${groupPercent === 100 ? ' is-done' : ''}`}>{groupPercent === 100 ? '완료' : `${groupPercent}%`}</span>
+                              </span>
+                              {active && <span className="prof-bar"><span className={groupPercent === 100 ? 'is-done' : ''} style={{ width: `${groupPercent}%` }} /></span>}
                             </span>
-                            {active && <span className="prof-bar"><span className={groupPercent === 100 ? 'is-done' : ''} style={{ width: `${groupPercent}%` }} /></span>}
                           </button>
                         </li>
                       );
